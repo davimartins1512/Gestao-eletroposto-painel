@@ -296,7 +296,10 @@ const token =
     );
   }
 }
-function openManualStartCharge(cpId){
+let manualStartCustomerOptions = [];
+
+
+async function openManualStartCharge(cpId){
 
   const cp =
     (db.chargePoints || [])
@@ -315,7 +318,7 @@ function openManualStartCharge(cpId){
       .filter(
         x =>
           x.charge_point_id ===
-          cp.id &&
+            cp.id &&
           Number(
             x.connector_id
           ) > 0
@@ -328,67 +331,310 @@ function openManualStartCharge(cpId){
 
   if (!connectors.length) {
     return alert(
-      'Nenhum conector disponível.'
+      'Nenhum conector encontrado.'
     );
   }
 
-  const options =
-    connectors
+
+  try {
+
+    const {
+      data: {
+        session
+      }
+    } =
+      await supa.auth.getSession();
+
+    if (!session?.access_token) {
+      return alert(
+        'Sua sessão administrativa expirou. Faça login novamente.'
+      );
+    }
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        '/api/admin/charging/customer-options',
+        {
+          method:'GET',
+
+          headers:{
+            'authorization':
+              `Bearer ${session.access_token}`
+          }
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.error ||
+        'Falha ao carregar cadastros.'
+      );
+    }
+
+
+    manualStartCustomerOptions =
+      body.customers || [];
+
+
+    const connectorOptions =
+      connectors
+        .map(
+          c => `
+            <option
+              value="${Number(c.connector_id)}"
+            >
+              Conector ${Number(c.connector_id)}
+              — ${esc(c.status || 'Unknown')}
+            </option>
+          `
+        )
+        .join('');
+
+
+    const customerOptions =
+      manualStartCustomerOptions
+        .map(
+          customer => {
+
+            const status =
+              customer.blocked
+                ? ' — BLOQUEADO'
+                : customer.approval_status !==
+                    'approved'
+                  ? ' — ' +
+                    String(
+                      customer.approval_status ||
+                      ''
+                    ).toUpperCase()
+                  : '';
+
+            return `
+              <option
+                value="${esc(customer.id)}"
+              >
+                ${esc(customer.name)}
+                ${status}
+              </option>
+            `;
+          }
+        )
+        .join('');
+
+
+    showModal(
+      'Iniciar carga manual',
+      `
+        <div class="form-grid">
+
+          <div class="full">
+
+            <label>
+              Carregador
+            </label>
+
+            <input
+              value="${esc(cp.ocpp_identity)}"
+              disabled
+            >
+
+          </div>
+
+
+          <div class="full">
+
+            <label>
+              Conector
+            </label>
+
+            <select
+              id="manualStartConnector"
+            >
+              ${connectorOptions}
+            </select>
+
+          </div>
+
+
+          <div class="full">
+
+            <label>
+              Vincular cadastro
+            </label>
+
+            <select
+              id="manualStartCustomer"
+              onchange="updateManualStartVehicles()"
+            >
+
+              <option value="">
+                Carga avulsa
+              </option>
+
+              ${customerOptions}
+
+            </select>
+
+          </div>
+
+
+          <div class="full">
+
+            <label>
+              Veículo
+            </label>
+
+            <select
+              id="manualStartVehicle"
+              disabled
+            >
+
+              <option value="">
+                Carga avulsa — sem veículo
+              </option>
+
+            </select>
+
+          </div>
+
+        </div>
+
+
+        <div style="height:14px"></div>
+
+
+        <button
+          class="btn"
+          onclick="manualStartCharge('${esc(cp.ocpp_identity)}')"
+        >
+          ⚡ Iniciar carga
+        </button>
+      `
+    );
+
+  } catch (err) {
+
+    alert(
+      err.message ||
+      'Erro ao carregar cadastros.'
+    );
+  }
+}
+
+
+function updateManualStartVehicles(){
+
+  const customerSelect =
+    document
+      .getElementById(
+        'manualStartCustomer'
+      );
+
+  const vehicleSelect =
+    document
+      .getElementById(
+        'manualStartVehicle'
+      );
+
+
+  if (
+    !customerSelect ||
+    !vehicleSelect
+  ) {
+    return;
+  }
+
+
+  const customerId =
+    customerSelect.value;
+
+
+  if (!customerId) {
+
+    vehicleSelect.innerHTML =
+      `
+        <option value="">
+          Carga avulsa — sem veículo
+        </option>
+      `;
+
+    vehicleSelect.disabled =
+      true;
+
+    return;
+  }
+
+
+  const customer =
+    manualStartCustomerOptions
+      .find(
+        x =>
+          x.id ===
+          customerId
+      );
+
+
+  const vehicles =
+    customer?.vehicles ||
+    [];
+
+
+  if (!vehicles.length) {
+
+    vehicleSelect.innerHTML =
+      `
+        <option value="">
+          Nenhum veículo cadastrado
+        </option>
+      `;
+
+    vehicleSelect.disabled =
+      true;
+
+    return;
+  }
+
+
+  vehicleSelect.innerHTML =
+    vehicles
       .map(
-        c => `
+        vehicle => `
           <option
-            value="${Number(c.connector_id)}"
+            value="${esc(vehicle.id)}"
           >
-            Conector ${Number(c.connector_id)}
-            — ${esc(c.status || 'Unknown')}
+            ${esc(vehicle.plate)}
+            ${
+              vehicle.nickname
+                ? ' — ' +
+                  esc(vehicle.nickname)
+                : ''
+            }
+            ${
+              vehicle.active
+                ? ''
+                : ' — INATIVO'
+            }
           </option>
         `
       )
       .join('');
 
-  showModal(
-    'Iniciar carga manual',
-    `
-      <div class="form-grid">
 
-        <div class="full">
-          <label>Carregador</label>
-
-          <input
-            value="${esc(cp.ocpp_identity)}"
-            disabled
-          >
-        </div>
-
-        <div class="full">
-          <label>Conector</label>
-
-          <select id="manualStartConnector">
-            ${options}
-          </select>
-        </div>
-
-        <div class="full">
-          <label>Observação</label>
-
-          <input
-            id="manualStartNote"
-            placeholder="Opcional"
-          >
-        </div>
-
-      </div>
-
-      <div style="height:14px"></div>
-
-      <button
-        class="btn"
-        onclick="manualStartCharge('${esc(cp.ocpp_identity)}')"
-      >
-        ⚡ Iniciar carga
-      </button>
-    `
-  );
+  vehicleSelect.disabled =
+    false;
 }
 
 
@@ -407,37 +653,68 @@ async function manualStartCharge(
           .value
       );
 
-    const note =
+
+    const customerId =
       document
         .getElementById(
-          'manualStartNote'
+          'manualStartCustomer'
         )
-        ?.value
-        ?.trim() ||
-      'Início manual pelo painel';
+        ?.value ||
+      null;
 
-    const token =
-      prompt(
-        const {
-  data: {
-    session
-  }
-} =
-  await supa.auth.getSession();
 
-if (!session?.access_token) {
-  alert(
-    'Sua sessão administrativa expirou. Faça login novamente.'
-  );
+    const vehicleElement =
+      document
+        .getElementById(
+          'manualStartVehicle'
+        );
 
-  return;
-}
 
-const token =
-  session.access_token;
-    if (!token) {
+    const vehicleId =
+      customerId &&
+      vehicleElement &&
+      !vehicleElement.disabled
+        ? (
+            vehicleElement.value ||
+            null
+          )
+        : null;
+
+
+    /*
+     * Se selecionar um cliente que
+     * possui veículos, exigimos a
+     * escolha do veículo.
+     */
+    if (
+      customerId &&
+      vehicleElement &&
+      !vehicleElement.disabled &&
+      !vehicleId
+    ) {
+      return alert(
+        'Selecione o veículo.'
+      );
+    }
+
+
+    const {
+      data: {
+        session
+      }
+    } =
+      await supa.auth.getSession();
+
+
+    if (!session?.access_token) {
+
+      alert(
+        'Sua sessão administrativa expirou. Faça login novamente.'
+      );
+
       return;
     }
+
 
     const response =
       await fetch(
@@ -450,8 +727,8 @@ const token =
             'content-type':
               'application/json',
 
-           'authorization':
-  `Bearer ${token}`
+            'authorization':
+              `Bearer ${session.access_token}`
           },
 
           body:
@@ -461,10 +738,20 @@ const token =
 
               connector,
 
-              note
+              customer_id:
+                customerId,
+
+              vehicle_id:
+                vehicleId,
+
+              note:
+                customerId
+                  ? 'Carga manual vinculada pelo painel'
+                  : 'Carga manual avulsa pelo painel'
             })
         }
       );
+
 
     const body =
       await response
@@ -473,10 +760,12 @@ const token =
           () => ({})
         );
 
+
     if (
       !response.ok ||
       !body.success
     ) {
+
       throw new Error(
         body.message ||
         body.error ||
@@ -484,15 +773,20 @@ const token =
       );
     }
 
+
     closeModal();
 
+
     alert(
-      'Carga liberada no ' +
-      cpIdentity +
-      ' / Conector ' +
-      connector +
-      '.'
+      customerId
+        ? (
+            'Carga liberada e vinculada ao cadastro selecionado.'
+          )
+        : (
+            'Carga avulsa liberada com sucesso.'
+          )
     );
+
 
     setTimeout(
       loadAll,
