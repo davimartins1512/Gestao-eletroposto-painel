@@ -1,0 +1,9 @@
+{
+  "name": "Gestão Operacional V6",
+  "short_name": "Gestão V5",
+  "start_url": "./",
+  "display": "standalone",
+  "background_color": "#f5f7f8",
+  "theme_color": "#0f1720",
+  "description": "Gestão online de eletroposto, aluguéis, pagamentos e despesas."
+}
