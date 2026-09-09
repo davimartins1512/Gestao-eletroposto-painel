@@ -152,12 +152,147 @@ function renderDashboard(){const t=isoToday(),active=db.drivers.filter(d=>driver
 function renderDrivers(){const q=(driverSearch.value||'').toLowerCase(),f=driverStatus.value;let a=db.drivers.filter(d=>!q||(d.name+' '+d.car+' '+d.plate).toLowerCase().includes(q));if(f==='active')a=a.filter(d=>d.active&&!d.end_date);if(f==='inactive')a=a.filter(d=>!d.active||d.end_date);if(f==='open')a=a.filter(d=>openRental(d)>0);if(f==='paid')a=a.filter(d=>openRental(d)<=0);driversList.innerHTML=a.length?`<table><tr><th>Motorista</th><th>Carro</th><th>Diária</th><th>Previsto</th><th>Recebido</th><th>Aberto</th><th>Ações</th></tr>${a.map(d=>{const due=dueUntil(d),paid=rentalPaidUntil(d),open=Math.max(0,due-paid);return `<tr><td><b>${esc(d.name)}</b><br><span class="tiny">${esc(d.phone)}</span></td><td>${esc(d.car)}<br><b>${esc(d.plate)}</b></td><td>${money(d.daily_value)}</td><td>${money(due)}</td><td>${money(paid)}</td><td><b>${money(open)}</b></td><td class="nowrap"><button class="btn small" onclick="receiveRental('${d.id}')">+ Pix</button> <button class="btn secondary small" onclick="openDriverModal('${d.id}')">Editar</button> <button class="btn danger small" onclick="removeDriver('${d.id}')">×</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum motorista.</div>'}
 function renderDaily(){const date=dailyDate.value||isoToday(),selected=dailyDriver.value,drivers=db.drivers.filter(d=>driverActiveOn(d,date)&&(!selected||d.id===selected));dailyList.innerHTML=drivers.length?`<table><tr><th>Motorista</th><th>Placa</th><th>Devido</th><th>Recebido</th><th>Status</th><th></th></tr>${drivers.map(d=>{const due=num(d.daily_value),paid=rentalPaidOn(d,date);let st=paid===0?badge('pending','NÃO PAGO'):paid<due?badge('partial','FALTANDO'):paid>due?badge('extra','A MAIS'):badge('paid','PAGO');return `<tr><td><b>${esc(d.name)}</b></td><td>${esc(d.plate)}</td><td>${money(due)}</td><td>${money(paid)}</td><td>${st}</td><td><button class="btn small" onclick="receiveRental('${d.id}','${date}')">Registrar Pix</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum motorista ativo nessa data.</div>'}
 function renderCharges(){const q=(chargeSearch.value||'').toLowerCase(),f=chargeStatus.value,m=chargeMonth.value;let a=db.charges.filter(c=>(!q||(c.customer_name+' '+c.plate).toLowerCase().includes(q))&&(!m||monthOf(c.charge_date)===m));if(f==='open')a=a.filter(c=>openCharge(c)>0);if(f==='paid')a=a.filter(c=>openCharge(c)<=0);a.sort((x,y)=>(y.charge_date+(y.charge_time||'')).localeCompare(x.charge_date+(x.charge_time||'')));chargesList.innerHTML=a.length?`<table><tr><th>Data</th><th>Cliente</th><th>Valor</th><th>Recebido</th><th>Aberto</th><th>Ações</th></tr>${a.map(c=>`<tr><td>${dateBR(c.charge_date)}<br><span class="tiny">${esc(c.charge_time||'')}</span></td><td><b>${esc(c.customer_name)}</b><br>${esc(c.plate)}</td><td>${money(c.amount)}</td><td>${money(chargePaid(c))}</td><td><b>${money(openCharge(c))}</b></td><td class="nowrap"><button class="btn small" onclick="receiveCharge('${c.id}')">+ Pix</button> <button class="btn secondary small" onclick="openChargeModal('${c.id}')">Editar</button> <button class="btn danger small" onclick="removeCharge('${c.id}')">×</button></td></tr>`).join('')}</table>`:'<div class="empty">Nenhuma carga.</div>'}
+const BACKEND_URL =
+  'https://gestao-eletroposto-production.up.railway.app';
+
+
+function openResetChargePoint(cpIdentity){
+
+  showModal(
+    'Reiniciar carregador',
+    `
+      <div class="form-grid">
+
+        <div class="full">
+          <label>Carregador</label>
+          <input
+            value="${esc(cpIdentity)}"
+            disabled
+          >
+        </div>
+
+        <div class="full">
+          <label>Tipo de reinício</label>
+
+          <select id="resetType">
+            <option value="Soft">
+              Soft Reset
+            </option>
+
+            <option value="Hard">
+              Hard Reset
+            </option>
+          </select>
+        </div>
+
+      </div>
+
+      <div style="height:14px"></div>
+
+      <button
+        class="btn"
+        onclick="resetChargePointAdmin('${esc(cpIdentity)}')"
+      >
+        Reiniciar carregador
+      </button>
+    `
+  );
+}
+
+
+async function resetChargePointAdmin(
+  cpIdentity
+){
+
+  try {
+
+    const type =
+      document
+        .getElementById(
+          'resetType'
+        )
+        .value;
+
+    const token =
+      prompt(
+        'Informe o token administrativo:'
+      );
+
+    if (!token) {
+      return;
+    }
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        '/api/admin/charging/reset',
+        {
+          method:'POST',
+
+          headers:{
+            'content-type':
+              'application/json',
+
+            'x-admin-token':
+              token
+          },
+
+          body:
+            JSON.stringify({
+              cp:
+                cpIdentity,
+
+              type
+            })
+        }
+      );
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.message ||
+        body.error ||
+        'Falha ao reiniciar carregador.'
+      );
+    }
+
+    closeModal();
+
+    alert(
+      cpIdentity +
+      ' recebeu ' +
+      body.reset_type +
+      ' Reset com sucesso.'
+    );
+
+    setTimeout(
+      loadAll,
+      5000
+    );
+
+  } catch (err) {
+
+    alert(
+      err.message ||
+      'Erro ao reiniciar carregador.'
+    );
+  }
+}
 function renderOcpp(){
   const cps=db.chargePoints||[], conns=db.connectors||[], sessions=(db.ocppSessions||[]).slice().sort((a,b)=>String(b.started_at||'').localeCompare(String(a.started_at||'')));
   const online=cps.filter(c=>c.online).length, charging=sessions.filter(s=>s.session_status==='charging').length, today=isoToday();
   const todaySessions=sessions.filter(s=>String(s.started_at||'').slice(0,10)===today), todayKwh=num(todaySessions.reduce((a,s)=>a+Number(s.energy_kwh||0),0)), todayValue=num(todaySessions.reduce((a,s)=>a+Number(s.total_amount||0),0)), pending=num(sessions.filter(s=>s.payment_status!=='paid').reduce((a,s)=>a+Math.max(0,Number(s.total_amount||0)-Number(s.paid_amount||0)),0));
   ocppCards.innerHTML=`<div class="card"><div class="label">Carregadores online</div><div class="num">${online}/${cps.length}</div></div><div class="card"><div class="label">Cargas em andamento</div><div class="num">${charging}</div></div><div class="card"><div class="label">Energia hoje</div><div class="num">${todayKwh.toFixed(2)} kWh</div><div class="sub">Tarifa ${money(OCPP_PRICE_PER_KWH)}/kWh</div></div><div class="card"><div class="label">Faturamento OCPP hoje</div><div class="num">${money(todayValue)}</div><div class="sub">Pendente total ${money(pending)}</div></div>`;
-  chargePointsList.innerHTML=cps.length?`<table><tr><th>Carregador</th><th>Identidade</th><th>Status</th><th>Último contato</th><th>Conectores</th></tr>${cps.map(cp=>{const cc=conns.filter(c=>c.charge_point_id===cp.id);return `<tr><td><b>${esc(cp.name)}</b></td><td>${esc(cp.ocpp_identity)}</td><td>${cp.online?badge('paid','ONLINE'):badge('pending','OFFLINE')}</td><td>${cp.last_seen_at?new Date(cp.last_seen_at).toLocaleString('pt-BR'):'-'}</td><td>${cc.length?cc.map(c=>`#${c.connector_id} ${badge(c.status==='Available'?'paid':c.status==='Charging'?'partial':'pending',c.status||'Unknown')}`).join(' '):'-'}</td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum carregador cadastrado.</div>';
+  chargePointsList.innerHTML=cps.length?`<table><tr><th>Carregador</th><th>Identidade</th><th>Status</th><th>Último contato</th><th>Conectores</th><th>Ações</th></tr>${cps.map(cp=>{const cc=conns.filter(c=>c.charge_point_id===cp.id);return `<tr><td><b>${esc(cp.name)}</b></td><td>${esc(cp.ocpp_identity)}</td><td>${cp.online?badge('paid','ONLINE'):badge('pending','OFFLINE')}</td><td>${cp.last_seen_at?new Date(cp.last_seen_at).toLocaleString('pt-BR'):'-'}</td><td>${cc.length?cc.map(c=>`#${c.connector_id} ${badge(c.status==='Available'?'paid':c.status==='Charging'?'partial':'pending',c.status||'Unknown')}`).join(' '):'-'}</td><td class="nowrap"><button class="btn secondary small" onclick="openResetChargePoint('${esc(cp.ocpp_identity)}')">Reiniciar</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum carregador cadastrado.</div>';
   const q=(ocppSearch?.value||'').toLowerCase(), pf=ocppPaymentStatus?.value||'';
   const filtered=sessions.filter(s=>{const cp=cps.find(c=>c.id===s.charge_point_id);const text=`${cp?.name||''} ${cp?.ocpp_identity||''} ${s.plate||''} ${s.transaction_id||''}`.toLowerCase();return (!q||text.includes(q))&&(!pf||s.payment_status===pf)});
   ocppSessionsList.innerHTML=filtered.length?`<table><tr><th>Início</th><th>Carregador</th><th>Transação</th><th>Energia</th><th>Tarifa</th><th>Valor</th><th>Sessão</th><th>Pagamento</th><th>Cobrança</th></tr>${filtered.slice(0,200).map(s=>{const cp=cps.find(c=>c.id===s.charge_point_id);const pst=s.payment_status==='paid'?badge('paid','PAGO'):s.payment_status==='checkout_error'?badge('pending','ERRO'):badge('partial',String(s.payment_status||'PENDENTE').toUpperCase());return `<tr><td>${s.started_at?new Date(s.started_at).toLocaleString('pt-BR'):'-'}</td><td><b>${esc(cp?.name||'-')}</b><br><span class="tiny">Conector ${esc(s.connector_id)}</span></td><td>#${esc(s.transaction_id)}${s.plate?`<br><span class="tiny">${esc(s.plate)}</span>`:''}</td><td>${Number(s.energy_kwh||0).toFixed(2)} kWh</td><td>${money(s.price_per_kwh||OCPP_PRICE_PER_KWH)}</td><td><b>${money(s.total_amount)}</b></td><td>${badge(s.session_status==='finished'?'paid':'partial',String(s.session_status||'-').toUpperCase())}</td><td>${pst}</td><td>${s.checkout_url?`<button class="btn secondary small" onclick="window.open('${esc(s.checkout_url)}','_blank')">Abrir</button>`:'-'}</td></tr>`}).join('')}</table>`:'<div class="empty">Nenhuma sessão OCPP encontrada.</div>';
