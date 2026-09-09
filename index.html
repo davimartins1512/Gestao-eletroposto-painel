@@ -213,14 +213,23 @@ async function resetChargePointAdmin(
         )
         .value;
 
-    const token =
-      prompt(
-        'Informe o token administrativo:'
-      );
+  const {
+  data: {
+    session
+  }
+} =
+  await sb.auth.getSession();
 
-    if (!token) {
-      return;
-    }
+if (!session?.access_token) {
+  alert(
+    'Sua sessão administrativa expirou. Faça login novamente.'
+  );
+
+  return;
+}
+
+const token =
+  session.access_token;
 
     const response =
       await fetch(
@@ -230,12 +239,12 @@ async function resetChargePointAdmin(
           method:'POST',
 
           headers:{
-            'content-type':
-              'application/json',
+  'content-type':
+    'application/json',
 
-            'x-admin-token':
-              token
-          },
+  'authorization':
+    `Bearer ${token}`
+},
 
           body:
             JSON.stringify({
