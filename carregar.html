@@ -1277,6 +1277,18 @@ input:focus{
       <span class="live-dot"></span>
       Dados atualizados automaticamente
     </div>
+    <button
+  class="btn secondary"
+  id="stopChargeButton"
+  type="button"
+  style="
+    margin-top:18px;
+    border-color:rgba(255,107,107,.28);
+    color:#ff9c9c;
+  "
+>
+  ■ Encerrar recarga
+</button>
 
   </section>
 
@@ -2387,6 +2399,93 @@ $('startButton')
     'click',
     startCharging
   );
+  $('stopChargeButton')
+  .addEventListener(
+    'click',
+    stopCharging
+  );
+
+
+async function stopCharging() {
+
+  if (!authorizationId) {
+    return;
+  }
+
+  const confirmed =
+    window.confirm(
+      'Deseja realmente finalizar sua recarga?\n\n' +
+      'O valor final será calculado com base na energia consumida até este momento.'
+    );
+
+  if (!confirmed) {
+    return;
+  }
+
+  setButtonLoading(
+    $('stopChargeButton'),
+    true,
+    '■ Encerrar recarga',
+    'Finalizando...'
+  );
+
+  try {
+
+    const {
+      response,
+      body
+    } =
+      await api(
+        '/api/public/charging/stop',
+        {
+          method:'POST',
+
+          body:
+            JSON.stringify({
+              authorization_id:
+                authorizationId
+            })
+        }
+      );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.message ||
+        'Não foi possível encerrar a recarga.'
+      );
+    }
+
+
+    /*
+     * Não mostramos a tela final imediatamente.
+     *
+     * Continuamos consultando a sessão
+     * até o carregador enviar StopTransaction.
+     */
+    $('stopChargeButton')
+      .textContent =
+        'Aguardando carregador...';
+
+
+  } catch (err) {
+
+    alert(
+      err.message ||
+      'Erro ao encerrar a recarga.'
+    );
+
+    setButtonLoading(
+      $('stopChargeButton'),
+      false,
+      '■ Encerrar recarga',
+      'Finalizando...'
+    );
+  }
+}
 
 
 async function startCharging() {
@@ -2745,6 +2844,14 @@ function renderCharging(
   showScreen(
     'charging'
   );
+  if (
+  !$('stopChargeButton')
+    .disabled
+) {
+  $('stopChargeButton')
+    .textContent =
+      '■ Encerrar recarga';
+}
 
 
   const soc =
