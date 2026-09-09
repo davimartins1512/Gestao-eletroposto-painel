@@ -418,9 +418,23 @@ async function manualStartCharge(
 
     const token =
       prompt(
-        'Informe o token administrativo:'
-      );
+        const {
+  data: {
+    session
+  }
+} =
+  await supa.auth.getSession();
 
+if (!session?.access_token) {
+  alert(
+    'Sua sessão administrativa expirou. Faça login novamente.'
+  );
+
+  return;
+}
+
+const token =
+  session.access_token;
     if (!token) {
       return;
     }
@@ -436,8 +450,8 @@ async function manualStartCharge(
             'content-type':
               'application/json',
 
-            'x-admin-token':
-              token
+           'authorization':
+  `Bearer ${token}`
           },
 
           body:
@@ -624,9 +638,23 @@ async function manualStopCharge(){
       'Encerramento manual pelo painel';
 
     const token =
-      prompt(
-        'Informe o token administrativo:'
-      );
+     const {
+  data: {
+    session
+  }
+} =
+  await supa.auth.getSession();
+
+if (!session?.access_token) {
+  alert(
+    'Sua sessão administrativa expirou. Faça login novamente.'
+  );
+
+  return;
+}
+
+const token =
+  session.access_token;
 
     if (!token) {
       return;
@@ -643,8 +671,8 @@ async function manualStopCharge(){
             'content-type':
               'application/json',
 
-            'x-admin-token':
-              token
+           'authorization':
+  `Bearer ${token}`
           },
 
           body:
