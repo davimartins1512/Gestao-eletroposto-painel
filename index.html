@@ -287,12 +287,412 @@ async function resetChargePointAdmin(
     );
   }
 }
-function renderOcpp(){
+function openManualStartCharge(cpId){
+
+  const cp =
+    (db.chargePoints || [])
+      .find(
+        x => x.id === cpId
+      );
+
+  if (!cp) {
+    return alert(
+      'Carregador não encontrado.'
+    );
+  }
+
+  const connectors =
+    (db.connectors || [])
+      .filter(
+        x =>
+          x.charge_point_id ===
+          cp.id &&
+          Number(
+            x.connector_id
+          ) > 0
+      )
+      .sort(
+        (a,b) =>
+          Number(a.connector_id) -
+          Number(b.connector_id)
+      );
+
+  if (!connectors.length) {
+    return alert(
+      'Nenhum conector disponível.'
+    );
+  }
+
+  const options =
+    connectors
+      .map(
+        c => `
+          <option
+            value="${Number(c.connector_id)}"
+          >
+            Conector ${Number(c.connector_id)}
+            — ${esc(c.status || 'Unknown')}
+          </option>
+        `
+      )
+      .join('');
+
+  showModal(
+    'Iniciar carga manual',
+    `
+      <div class="form-grid">
+
+        <div class="full">
+          <label>Carregador</label>
+
+          <input
+            value="${esc(cp.ocpp_identity)}"
+            disabled
+          >
+        </div>
+
+        <div class="full">
+          <label>Conector</label>
+
+          <select id="manualStartConnector">
+            ${options}
+          </select>
+        </div>
+
+        <div class="full">
+          <label>Observação</label>
+
+          <input
+            id="manualStartNote"
+            placeholder="Opcional"
+          >
+        </div>
+
+      </div>
+
+      <div style="height:14px"></div>
+
+      <button
+        class="btn"
+        onclick="manualStartCharge('${esc(cp.ocpp_identity)}')"
+      >
+        ⚡ Iniciar carga
+      </button>
+    `
+  );
+}
+
+
+async function manualStartCharge(
+  cpIdentity
+){
+
+  try {
+
+    const connector =
+      Number(
+        document
+          .getElementById(
+            'manualStartConnector'
+          )
+          .value
+      );
+
+    const note =
+      document
+        .getElementById(
+          'manualStartNote'
+        )
+        ?.value
+        ?.trim() ||
+      'Início manual pelo painel';
+
+    const token =
+      prompt(
+        'Informe o token administrativo:'
+      );
+
+    if (!token) {
+      return;
+    }
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        '/api/admin/charging/manual-start',
+        {
+          method:'POST',
+
+          headers:{
+            'content-type':
+              'application/json',
+
+            'x-admin-token':
+              token
+          },
+
+          body:
+            JSON.stringify({
+              cp:
+                cpIdentity,
+
+              connector,
+
+              note
+            })
+        }
+      );
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.message ||
+        body.error ||
+        'Falha ao iniciar carga.'
+      );
+    }
+
+    closeModal();
+
+    alert(
+      'Carga liberada no ' +
+      cpIdentity +
+      ' / Conector ' +
+      connector +
+      '.'
+    );
+
+    setTimeout(
+      loadAll,
+      3000
+    );
+
+  } catch (err) {
+
+    alert(
+      err.message ||
+      'Erro ao iniciar carga.'
+    );
+  }
+}
+
+
+// ============================================================
+// ADMIN - ENCERRAR CARGA
+// ============================================================
+
+function openManualStopCharge(cpId){
+
+  const cp =
+    (db.chargePoints || [])
+      .find(
+        x => x.id === cpId
+      );
+
+  if (!cp) {
+    return alert(
+      'Carregador não encontrado.'
+    );
+  }
+
+  const sessions =
+    (db.ocppSessions || [])
+      .filter(
+        s =>
+          s.charge_point_id ===
+            cp.id &&
+          s.session_status ===
+            'charging'
+      )
+      .sort(
+        (a,b) =>
+          String(
+            b.started_at || ''
+          ).localeCompare(
+            String(
+              a.started_at || ''
+            )
+          )
+      );
+
+  if (!sessions.length) {
+
+    return alert(
+      'Não existe carga em andamento neste carregador.'
+    );
+  }
+
+  const options =
+    sessions
+      .map(
+        s => `
+          <option
+            value="${Number(s.transaction_id)}"
+          >
+            Conector ${Number(s.connector_id)}
+            — Transação #${Number(s.transaction_id)}
+            — ${money(s.total_amount || 0)}
+          </option>
+        `
+      )
+      .join('');
+
+  showModal(
+    'Encerrar carga',
+    `
+      <div class="form-grid">
+
+        <div class="full">
+          <label>Carregador</label>
+
+          <input
+            value="${esc(cp.ocpp_identity)}"
+            disabled
+          >
+        </div>
+
+        <div class="full">
+          <label>Recarga em andamento</label>
+
+          <select id="manualStopTransaction">
+            ${options}
+          </select>
+        </div>
+
+        <div class="full">
+          <label>Observação</label>
+
+          <input
+            id="manualStopNote"
+            placeholder="Opcional"
+          >
+        </div>
+
+      </div>
+
+      <div style="height:14px"></div>
+
+      <button
+        class="btn danger"
+        onclick="manualStopCharge()"
+      >
+        ■ Encerrar carga
+      </button>
+    `
+  );
+}
+
+
+async function manualStopCharge(){
+
+  try {
+
+    const transactionId =
+      Number(
+        document
+          .getElementById(
+            'manualStopTransaction'
+          )
+          .value
+      );
+
+    const note =
+      document
+        .getElementById(
+          'manualStopNote'
+        )
+        ?.value
+        ?.trim() ||
+      'Encerramento manual pelo painel';
+
+    const token =
+      prompt(
+        'Informe o token administrativo:'
+      );
+
+    if (!token) {
+      return;
+    }
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        '/api/admin/charging/manual-stop',
+        {
+          method:'POST',
+
+          headers:{
+            'content-type':
+              'application/json',
+
+            'x-admin-token':
+              token
+          },
+
+          body:
+            JSON.stringify({
+              transaction_id:
+                transactionId,
+
+              note
+            })
+        }
+      );
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.message ||
+        body.error ||
+        'Falha ao encerrar carga.'
+      );
+    }
+
+    closeModal();
+
+    alert(
+      'Comando de encerramento enviado para a transação #' +
+      transactionId +
+      '.'
+    );
+
+    setTimeout(
+      loadAll,
+      3000
+    );
+
+  } catch (err) {
+
+    alert(
+      err.message ||
+      'Erro ao encerrar carga.'
+    );
+  }
+}
+  function renderOcpp(){
   const cps=db.chargePoints||[], conns=db.connectors||[], sessions=(db.ocppSessions||[]).slice().sort((a,b)=>String(b.started_at||'').localeCompare(String(a.started_at||'')));
   const online=cps.filter(c=>c.online).length, charging=sessions.filter(s=>s.session_status==='charging').length, today=isoToday();
   const todaySessions=sessions.filter(s=>String(s.started_at||'').slice(0,10)===today), todayKwh=num(todaySessions.reduce((a,s)=>a+Number(s.energy_kwh||0),0)), todayValue=num(todaySessions.reduce((a,s)=>a+Number(s.total_amount||0),0)), pending=num(sessions.filter(s=>s.payment_status!=='paid').reduce((a,s)=>a+Math.max(0,Number(s.total_amount||0)-Number(s.paid_amount||0)),0));
   ocppCards.innerHTML=`<div class="card"><div class="label">Carregadores online</div><div class="num">${online}/${cps.length}</div></div><div class="card"><div class="label">Cargas em andamento</div><div class="num">${charging}</div></div><div class="card"><div class="label">Energia hoje</div><div class="num">${todayKwh.toFixed(2)} kWh</div><div class="sub">Tarifa ${money(OCPP_PRICE_PER_KWH)}/kWh</div></div><div class="card"><div class="label">Faturamento OCPP hoje</div><div class="num">${money(todayValue)}</div><div class="sub">Pendente total ${money(pending)}</div></div>`;
-  chargePointsList.innerHTML=cps.length?`<table><tr><th>Carregador</th><th>Identidade</th><th>Status</th><th>Último contato</th><th>Conectores</th><th>Ações</th></tr>${cps.map(cp=>{const cc=conns.filter(c=>c.charge_point_id===cp.id);return `<tr><td><b>${esc(cp.name)}</b></td><td>${esc(cp.ocpp_identity)}</td><td>${cp.online?badge('paid','ONLINE'):badge('pending','OFFLINE')}</td><td>${cp.last_seen_at?new Date(cp.last_seen_at).toLocaleString('pt-BR'):'-'}</td><td>${cc.length?cc.map(c=>`#${c.connector_id} ${badge(c.status==='Available'?'paid':c.status==='Charging'?'partial':'pending',c.status||'Unknown')}`).join(' '):'-'}</td><td class="nowrap"><button class="btn secondary small" onclick="openResetChargePoint('${esc(cp.ocpp_identity)}')">Reiniciar</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum carregador cadastrado.</div>';
+  chargePointsList.innerHTML=cps.length?`<table><tr><th>Carregador</th><th>Identidade</th><th>Status</th><th>Último contato</th><th>Conectores</th><th>Ações</th></tr>${cps.map(cp=>{const cc=conns.filter(c=>c.charge_point_id===cp.id);const hasCharging=sessions.some(s=>s.charge_point_id===cp.id&&s.session_status==='charging');return `<tr><td><b>${esc(cp.name)}</b></td><td>${esc(cp.ocpp_identity)}</td><td>${cp.online?badge('paid','ONLINE'):badge('pending','OFFLINE')}</td><td>${cp.last_seen_at?new Date(cp.last_seen_at).toLocaleString('pt-BR'):'-'}</td><td>${cc.length?cc.map(c=>`#${c.connector_id} ${badge(c.status==='Available'?'paid':c.status==='Charging'?'partial':'pending',c.status||'Unknown')}`).join(' '):'-'}</td><td class="nowrap"><button class="btn small" onclick="openManualStartCharge('${cp.id}')">Iniciar</button> <button class="btn danger small" onclick="openManualStopCharge('${cp.id}')" ${hasCharging?'':'disabled'}>Encerrar</button> <button class="btn secondary small" onclick="openResetChargePoint('${esc(cp.ocpp_identity)}')">Reiniciar</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum carregador cadastrado.</div>';
   const q=(ocppSearch?.value||'').toLowerCase(), pf=ocppPaymentStatus?.value||'';
   const filtered=sessions.filter(s=>{const cp=cps.find(c=>c.id===s.charge_point_id);const text=`${cp?.name||''} ${cp?.ocpp_identity||''} ${s.plate||''} ${s.transaction_id||''}`.toLowerCase();return (!q||text.includes(q))&&(!pf||s.payment_status===pf)});
   ocppSessionsList.innerHTML=filtered.length?`<table><tr><th>Início</th><th>Carregador</th><th>Transação</th><th>Energia</th><th>Tarifa</th><th>Valor</th><th>Sessão</th><th>Pagamento</th><th>Cobrança</th></tr>${filtered.slice(0,200).map(s=>{const cp=cps.find(c=>c.id===s.charge_point_id);const pst=s.payment_status==='paid'?badge('paid','PAGO'):s.payment_status==='checkout_error'?badge('pending','ERRO'):badge('partial',String(s.payment_status||'PENDENTE').toUpperCase());return `<tr><td>${s.started_at?new Date(s.started_at).toLocaleString('pt-BR'):'-'}</td><td><b>${esc(cp?.name||'-')}</b><br><span class="tiny">Conector ${esc(s.connector_id)}</span></td><td>#${esc(s.transaction_id)}${s.plate?`<br><span class="tiny">${esc(s.plate)}</span>`:''}</td><td>${Number(s.energy_kwh||0).toFixed(2)} kWh</td><td>${money(s.price_per_kwh||OCPP_PRICE_PER_KWH)}</td><td><b>${money(s.total_amount)}</b></td><td>${badge(s.session_status==='finished'?'paid':'partial',String(s.session_status||'-').toUpperCase())}</td><td>${pst}</td><td>${s.checkout_url?`<button class="btn secondary small" onclick="window.open('${esc(s.checkout_url)}','_blank')">Abrir</button>`:'-'}</td></tr>`}).join('')}</table>`:'<div class="empty">Nenhuma sessão OCPP encontrada.</div>';
