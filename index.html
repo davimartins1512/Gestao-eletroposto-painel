@@ -218,7 +218,7 @@ async function resetChargePointAdmin(
     session
   }
 } =
-  await sb.auth.getSession();
+  await supa.auth.getSession();
 
 if (!session?.access_token) {
   alert(
