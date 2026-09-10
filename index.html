@@ -2796,13 +2796,21 @@ ${
 
 function renderReceivable(){
 
+  const receiveSearchEl =
+    document.getElementById('receiveSearch');
+
+  const receiveTypeEl =
+    document.getElementById('receiveType');
+
   const q =
-    (receiveSearch.value || '')
-      .toLowerCase();
+    (
+      receiveSearchEl?.value ||
+      ''
+    ).toLowerCase();
 
   const f =
-    receiveType.value;
-
+    receiveTypeEl?.value ||
+    '';
   const items = [];
 
 
