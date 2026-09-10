@@ -6542,6 +6542,113 @@ const countVariation =
 
 </div>
 
+<div style="height:16px"></div>
+
+
+<div class="box">
+
+  <h3 style="margin-top:0;">
+    🔌 Desempenho por conector
+  </h3>
+
+
+  <div
+    style="
+      display:grid;
+      grid-template-columns:
+        repeat(auto-fit,minmax(220px,1fr));
+      gap:12px;
+    "
+  >
+
+    ${
+      [1,2]
+        .map(
+          connectorId => {
+
+            const connectorSessions =
+              ocppFinished.filter(
+                s =>
+                  Number(
+                    s.connector_id
+                  ) === connectorId
+              );
+
+
+            const connectorKwh =
+              connectorSessions
+                .reduce(
+                  (sum,s) =>
+                    sum +
+                    Number(
+                      s.energy_kwh ||
+                      s.total_energy_kwh ||
+                      0
+                    ),
+                  0
+                );
+
+
+            const connectorSales =
+              num(
+                connectorSessions
+                  .reduce(
+                    (sum,s) =>
+                      sum +
+                      Number(
+                        s.total_amount ||
+                        0
+                      ),
+                    0
+                  )
+              );
+
+
+            const connectorShare =
+              ocppSales > 0
+                ? (
+                    connectorSales /
+                    ocppSales
+                  ) * 100
+                : 0;
+
+
+            return `
+
+              <div class="card">
+
+                <div class="label">
+                  Conector ${connectorId}
+                </div>
+
+                <div class="num">
+                  ${money(connectorSales)}
+                </div>
+
+                <div class="sub">
+                  ${connectorSessions.length}
+                  recargas
+                </div>
+
+                <div class="tiny">
+                  ${connectorKwh.toFixed(2)} kWh
+                  •
+                  ${connectorShare.toFixed(1)}%
+                  do faturamento
+                </div>
+
+              </div>
+
+            `;
+          }
+        )
+        .join('')
+    }
+
+  </div>
+
+</div>
+
   `;
 }
 function renderSystemInfo(){systemInfo.innerHTML=`<table><tr><td>Versão</td><td><b>V6</b></td></tr><tr><td>Tarifa OCPP</td><td><b>${money(OCPP_PRICE_PER_KWH)}/kWh</b></td></tr><tr><td>Usuário</td><td>${esc(currentUser?.email||'-')}</td></tr><tr><td>Banco</td><td>Supabase PostgreSQL</td></tr><tr><td>Sincronização</td><td>Online entre dispositivos</td></tr></table>`}
