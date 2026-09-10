@@ -3037,9 +3037,28 @@ function renderReceivable(){
 
             transaction,
 
-            chargePoint:
-              s.charge_point_id ||
-              '-',
+           chargePoint:
+  (() => {
+
+    const cp =
+      (db.chargePoints || [])
+        .find(
+          x =>
+            x.id === s.charge_point_id ||
+            x.charge_point_id === s.charge_point_id ||
+            x.ocpp_id === s.charge_point_id
+        );
+
+    return (
+      cp?.code ||
+      cp?.name ||
+      cp?.charge_point_id ||
+      s.charge_point_code ||
+      s.charge_point_name ||
+      '-'
+    );
+
+  })(),
 
             connector:
               s.connector_id ||
