@@ -246,13 +246,14 @@ const token =
     `Bearer ${token}`
 },
 
-        body:
-  JSON.stringify({
-    payment_method:
-      method,
+  body:
+JSON.stringify({
+  payment_method:
+    method,
 
-    note
-  })
+  note
+})
+});
 
     const body =
       await response
