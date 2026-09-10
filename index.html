@@ -4300,17 +4300,24 @@ function renderClients(){
   >
 
     ${
-      customer.approval_status !== 'approved'
-        ? `
-          <button
-            class="btn small"
-            onclick="approveOcppCustomer('${customer.id}')"
-          >
-            Aprovar
-          </button>
-        `
-        : ''
-    }
+  customer.approval_status !== 'approved'
+    ? `
+      <button
+        class="btn small"
+        onclick="approveOcppCustomer('${customer.id}')"
+      >
+        Aprovar
+      </button>
+
+      <button
+        class="btn danger small"
+        onclick="rejectOcppCustomer('${customer.id}')"
+      >
+        Rejeitar
+      </button>
+    `
+    : ''
+}
 
 
     ${
@@ -4491,6 +4498,113 @@ async function approveOcppCustomer(
     customerId,
     'approve'
   );
+}
+
+  await adminCustomerAction(
+  customerId,
+  'approve'
+);
+}
+
+  async function rejectOcppCustomer(
+  customerId
+){
+
+  const reason =
+    prompt(
+      'Motivo da rejeição:'
+    );
+
+
+  if (reason === null) {
+    return;
+  }
+
+
+  const cleanReason =
+    String(reason)
+      .trim();
+
+
+  if (!cleanReason) {
+    return alert(
+      'Informe o motivo da rejeição.'
+    );
+  }
+
+
+  try {
+
+    const token =
+      await getAdminAccessToken();
+
+
+    if (!token) {
+      return alert(
+        'Sessão de administrador inválida.'
+      );
+    }
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        `/api/admin/customers/${customerId}/reject`,
+        {
+          method:'POST',
+
+          headers:{
+            'content-type':
+              'application/json',
+
+            'authorization':
+              `Bearer ${token}`
+          },
+
+          body:
+            JSON.stringify({
+              reason:
+                cleanReason
+            })
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      body.success === false
+    ) {
+      throw new Error(
+        body.error ||
+        'Falha ao rejeitar cliente.'
+      );
+    }
+
+
+    closeModal();
+
+    await loadAll();
+
+    openOcppCustomer(
+      customerId
+    );
+
+  }
+  catch(err) {
+
+    alert(
+      err?.message ||
+      'Erro ao rejeitar cliente.'
+    );
+  }
 }
 
 
