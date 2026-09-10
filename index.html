@@ -3796,15 +3796,13 @@ function renderClients(){
         </div>
       `;
 }
-  function openOcppCustomer(customerId){
+ function openOcppCustomer(customerId){
 
   const customer =
     (db.ocppCustomers || [])
       .find(
-        c =>
-          c.id === customerId
+        c => c.id === customerId
       );
-
 
   if (!customer) {
     return alert(
@@ -3821,64 +3819,503 @@ function renderClients(){
     (db.ocppSessions || [])
       .filter(
         s =>
-          s.customer_id ===
-          customer.id
+          s.customer_id === customer.id
       )
       .sort(
         (a,b) =>
-          String(
-            b.started_at || ''
-          ).localeCompare(
-            String(
-              a.started_at || ''
+          String(b.started_at || '')
+            .localeCompare(
+              String(a.started_at || '')
             )
-          )
       );
 
 
-  const totalOpen =
-    sessions
+  const finished =
+    sessions.filter(
+      s =>
+        s.session_status === 'finished'
+    );
+
+
+  const totalKwh =
+    finished.reduce(
+      (sum,s) =>
+        sum +
+        Number(
+          s.energy_kwh ||
+          s.total_energy_kwh ||
+          0
+        ),
+      0
+    );
+
+
+  const totalPaid =
+    finished
       .filter(
         s =>
-          s.payment_status !==
-          'paid'
+          s.payment_status === 'paid'
       )
       .reduce(
         (sum,s) =>
           sum +
-          Math.max(
-            0,
-            Number(
-              s.total_amount ||
-              0
-            ) -
-            Number(
-              s.amount_paid ||
-              0
-            )
+          Number(
+            s.amount_paid ||
+            s.total_amount ||
+            0
           ),
         0
       );
 
 
-  const vehicleText =
+  const totalOpen =
+    finished
+      .filter(
+        s =>
+          s.payment_status !== 'paid'
+      )
+      .reduce(
+        (sum,s) => {
+
+          const total =
+            Number(
+              s.total_amount || 0
+            );
+
+          const paid =
+            Number(
+              s.amount_paid || 0
+            );
+
+          return (
+            sum +
+            Math.max(
+              0,
+              total - paid
+            )
+          );
+        },
+        0
+      );
+
+
+  const status =
+    customer.blocked
+      ? '🔴 Bloqueado'
+      : customer.approval_status === 'approved'
+        ? '🟢 Aprovado'
+        : customer.approval_status === 'rejected'
+          ? '🔴 Rejeitado'
+          : '🟡 Aguardando aprovação';
+
+
+  const maxCharges =
+    customer.max_pending_charges == null
+      ? 'Sem limite'
+      : customer.max_pending_charges;
+
+
+  const maxAmount =
+    customer.max_pending_amount == null
+      ? 'Sem limite'
+      : money(
+          Number(
+            customer.max_pending_amount
+          )
+        );
+
+
+  const vehicleHtml =
     vehicles.length
       ? vehicles
           .map(
-            v =>
-              `${v.plate || '-'}${v.nickname ? ` - ${v.nickname}` : ''}`
+            v => `
+              <div
+                style="
+                  padding:10px 0;
+                  border-bottom:1px solid #e5e7eb;
+                "
+              >
+                <b>
+                  ${esc(v.plate || 'Sem placa')}
+                </b>
+
+                ${
+                  v.nickname
+                    ? `
+                      <div class="tiny">
+                        ${esc(v.nickname)}
+                      </div>
+                    `
+                    : ''
+                }
+
+                ${
+                  v.battery_capacity_kwh
+                    ? `
+                      <div class="tiny">
+                        Bateria:
+                        ${Number(v.battery_capacity_kwh)} kWh
+                      </div>
+                    `
+                    : ''
+                }
+              </div>
+            `
           )
-          .join('\n')
-      : 'Nenhum veículo cadastrado';
+          .join('')
+      : `
+          <div class="empty">
+            Nenhum veículo cadastrado.
+          </div>
+        `;
 
 
-  alert(
-    `Cliente: ${customer.name || '-'}\n` +
-    `Telefone: ${customer.phone || '-'}\n` +
-    `Status: ${customer.approval_status || '-'}\n` +
-    `Veículos:\n${vehicleText}\n\n` +
-    `Recargas: ${sessions.length}\n` +
-    `Em aberto: ${money(totalOpen)}`
+  const historyHtml =
+    sessions.length
+      ? sessions
+          .slice(0,10)
+          .map(
+            s => {
+
+              const date =
+                s.started_at
+                  ? new Date(
+                      s.started_at
+                    ).toLocaleDateString(
+                      'pt-BR'
+                    )
+                  : '-';
+
+
+              const kwh =
+                Number(
+                  s.energy_kwh ||
+                  s.total_energy_kwh ||
+                  0
+                );
+
+
+              const amount =
+                Number(
+                  s.total_amount ||
+                  0
+                );
+
+
+              const paid =
+                s.payment_status ===
+                'paid';
+
+
+              return `
+                <tr>
+
+                  <td>
+                    #${esc(
+                      String(
+                        s.transaction_id ||
+                        '-'
+                      )
+                    )}
+                  </td>
+
+                  <td>
+                    ${date}
+                  </td>
+
+                  <td>
+                    ${kwh.toFixed(2)} kWh
+                  </td>
+
+                  <td>
+                    ${money(amount)}
+                  </td>
+
+                  <td>
+                    ${
+                      paid
+                        ? '🟢 Pago'
+                        : '🟡 Pendente'
+                    }
+                  </td>
+
+                  <td>
+                    ${
+                      !paid &&
+                      amount > 0
+                        ? `
+                          <button
+                            class="btn small"
+                            onclick="openManualPayment('${s.id}')"
+                          >
+                            Receber
+                          </button>
+                        `
+                        : ''
+                    }
+                  </td>
+
+                </tr>
+              `;
+            }
+          )
+          .join('')
+      : `
+          <tr>
+            <td colspan="6">
+              <div class="empty">
+                Nenhuma recarga encontrada.
+              </div>
+            </td>
+          </tr>
+        `;
+
+
+  const modalEl =
+    document.getElementById('modal');
+
+  const modalBackEl =
+    document.getElementById('modalBack');
+
+
+  if (
+    !modalEl ||
+    !modalBackEl
+  ) {
+    return;
+  }
+
+
+  modalEl.innerHTML = `
+
+    <div
+      style="
+        display:flex;
+        justify-content:space-between;
+        align-items:flex-start;
+        gap:15px;
+        margin-bottom:18px;
+      "
+    >
+
+      <div>
+
+        <div class="tiny">
+          FICHA DO CLIENTE
+        </div>
+
+        <h2
+          style="
+            margin:4px 0;
+          "
+        >
+          ${esc(customer.name || 'Cliente')}
+        </h2>
+
+        <div class="muted">
+          ${status}
+        </div>
+
+      </div>
+
+
+      <button
+        class="btn secondary small"
+        onclick="closeModal()"
+      >
+        ✕
+      </button>
+
+    </div>
+
+
+    <div
+      class="grid"
+      style="
+        margin-bottom:16px;
+      "
+    >
+
+      <div class="card">
+
+        <div class="label">
+          Recargas
+        </div>
+
+        <div class="num">
+          ${finished.length}
+        </div>
+
+      </div>
+
+
+      <div class="card">
+
+        <div class="label">
+          Energia consumida
+        </div>
+
+        <div class="num">
+          ${totalKwh.toFixed(2)} kWh
+        </div>
+
+      </div>
+
+
+      <div class="card">
+
+        <div class="label">
+          Total pago
+        </div>
+
+        <div class="num">
+          ${money(totalPaid)}
+        </div>
+
+      </div>
+
+
+      <div class="card">
+
+        <div class="label">
+          Em aberto
+        </div>
+
+        <div class="num">
+          ${money(totalOpen)}
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div
+      style="
+        display:grid;
+        grid-template-columns:
+          repeat(auto-fit,minmax(240px,1fr));
+        gap:12px;
+        margin-bottom:18px;
+      "
+    >
+
+      <div class="box">
+
+        <b>Dados do cliente</b>
+
+        <div
+          style="
+            margin-top:10px;
+            line-height:1.8;
+          "
+        >
+
+          Telefone:
+          <b>
+            ${esc(customer.phone || '-')}
+          </b>
+
+          <br>
+
+          Status:
+          <b>
+            ${status}
+          </b>
+
+        </div>
+
+      </div>
+
+
+      <div class="box">
+
+        <b>Limites financeiros</b>
+
+        <div
+          style="
+            margin-top:10px;
+            line-height:1.8;
+          "
+        >
+
+          Pendências:
+          <b>
+            ${maxCharges}
+          </b>
+
+          <br>
+
+          Valor máximo:
+          <b>
+            ${maxAmount}
+          </b>
+
+        </div>
+
+      </div>
+
+    </div>
+
+
+    <div
+      class="box"
+      style="
+        margin-bottom:18px;
+      "
+    >
+
+      <h3
+        style="
+          margin-top:0;
+        "
+      >
+        🚗 Veículos
+      </h3>
+
+      ${vehicleHtml}
+
+    </div>
+
+
+    <div class="box">
+
+      <h3
+        style="
+          margin-top:0;
+        "
+      >
+        ⚡ Histórico de recargas
+      </h3>
+
+
+      <div class="table-wrap">
+
+        <table>
+
+          <tr>
+            <th>Transação</th>
+            <th>Data</th>
+            <th>Energia</th>
+            <th>Valor</th>
+            <th>Pagamento</th>
+            <th></th>
+          </tr>
+
+          ${historyHtml}
+
+        </table>
+
+      </div>
+
+    </div>
+
+  `;
+
+
+  modalBackEl.classList.add(
+    'show'
   );
 }
 function renderExpenses(){const m=expenseMonth.value,cat=expenseCategory.value;let a=db.expenses.filter(x=>(!m||monthOf(x.expense_date)===m)&&(!cat||x.category===cat)).sort((x,y)=>y.expense_date.localeCompare(x.expense_date));expensesList.innerHTML=a.length?`<table><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th></th></tr>${a.map(x=>`<tr><td>${dateBR(x.expense_date)}</td><td>${esc(x.category)}</td><td>${esc(x.description)}</td><td>${money(x.amount)}</td><td><button class="btn danger small" onclick="removeExpense('${x.id}')">×</button></td></tr>`).join('')}</table>`:'<div class="empty">Nenhuma despesa.</div>'}
