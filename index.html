@@ -3515,7 +3515,372 @@ function renderReceivable(){
 
       `;
 }
-function renderClients(){const q=(clientSearch.value||'').toLowerCase(),a=db.clients.filter(c=>!q||(c.name+' '+c.phone+' '+c.plate).toLowerCase().includes(q));clientsList.innerHTML=a.length?`<table><tr><th>Cliente</th><th>WhatsApp</th><th>Placa</th><th>Cargas</th><th>Ações</th></tr>${a.map(c=>{const cs=db.charges.filter(x=>x.client_id===c.id);return `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone)}</td><td>${esc(c.plate)}</td><td>${cs.length}</td><td><button class="btn secondary small" onclick="openClientModal('${c.id}')">Editar</button>${c.phone?` <button class="btn secondary small" onclick="whats('${esc(c.phone)}','Olá ${esc(c.name)}!')">WA</button>`:''} <button class="btn danger small" onclick="removeClient('${c.id}')">×</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum cliente.</div>'}
+function renderClients(){
+
+  const clientSearchEl =
+    document.getElementById('clientSearch');
+
+  const clientsListEl =
+    document.getElementById('clientsList');
+
+  if (!clientsListEl) {
+    return;
+  }
+
+  const q =
+    (
+      clientSearchEl?.value ||
+      ''
+    ).toLowerCase();
+
+
+  const customers =
+    (db.ocppCustomers || [])
+      .filter(
+        c => {
+
+          const vehicles =
+            c.vehicles || [];
+
+          const vehicleText =
+            vehicles
+              .map(
+                v =>
+                  `${v.plate || ''} ${v.nickname || ''}`
+              )
+              .join(' ');
+
+          const searchable =
+            `
+              ${c.name || ''}
+              ${c.phone || ''}
+              ${c.cpf || ''}
+              ${vehicleText}
+            `
+              .toLowerCase();
+
+          return (
+            !q ||
+            searchable.includes(q)
+          );
+        }
+      );
+
+
+  const rows =
+    customers.map(
+      c => {
+
+        const vehicles =
+          c.vehicles || [];
+
+
+        const customerSessions =
+          (db.ocppSessions || [])
+            .filter(
+              s =>
+                s.customer_id ===
+                c.id
+            );
+
+
+        const finishedSessions =
+          customerSessions
+            .filter(
+              s =>
+                s.session_status ===
+                'finished'
+            );
+
+
+        const totalKwh =
+          finishedSessions
+            .reduce(
+              (sum,s) =>
+                sum +
+                Number(
+                  s.energy_kwh ||
+                  s.total_energy_kwh ||
+                  0
+                ),
+              0
+            );
+
+
+        const totalPaid =
+          finishedSessions
+            .filter(
+              s =>
+                s.payment_status ===
+                'paid'
+            )
+            .reduce(
+              (sum,s) =>
+                sum +
+                Number(
+                  s.amount_paid ||
+                  s.total_amount ||
+                  0
+                ),
+              0
+            );
+
+
+        const totalOpen =
+          finishedSessions
+            .filter(
+              s =>
+                s.payment_status !==
+                'paid'
+            )
+            .reduce(
+              (sum,s) => {
+
+                const total =
+                  Number(
+                    s.total_amount ||
+                    0
+                  );
+
+                const paid =
+                  Number(
+                    s.amount_paid ||
+                    0
+                  );
+
+                return (
+                  sum +
+                  Math.max(
+                    0,
+                    total - paid
+                  )
+                );
+              },
+              0
+            );
+
+
+        const status =
+          c.blocked
+            ? 'Bloqueado'
+            : c.approval_status ===
+              'approved'
+              ? 'Aprovado'
+              : c.approval_status ===
+                'rejected'
+                ? 'Rejeitado'
+                : 'Pendente';
+
+
+        const vehicleText =
+          vehicles.length
+            ? vehicles
+                .map(
+                  v =>
+                    `${esc(v.plate || '-')}${v.nickname ? ` (${esc(v.nickname)})` : ''}`
+                )
+                .join('<br>')
+            : '-';
+
+
+        return `
+          <tr>
+
+            <td>
+              <b>
+                ${esc(c.name || 'Sem nome')}
+              </b>
+
+              ${
+                c.phone
+                  ? `
+                    <div class="tiny">
+                      ${esc(c.phone)}
+                    </div>
+                  `
+                  : ''
+              }
+            </td>
+
+
+            <td>
+              ${status}
+            </td>
+
+
+            <td>
+              ${vehicleText}
+            </td>
+
+
+            <td>
+              ${finishedSessions.length}
+            </td>
+
+
+            <td>
+              ${totalKwh.toFixed(2)} kWh
+            </td>
+
+
+            <td>
+              <b>
+                ${money(totalPaid)}
+              </b>
+            </td>
+
+
+            <td>
+              <b>
+                ${money(totalOpen)}
+              </b>
+            </td>
+
+
+            <td>
+
+              <button
+                class="btn secondary small"
+                onclick="openOcppCustomer('${c.id}')"
+              >
+                Ver
+              </button>
+
+              ${
+                c.phone
+                  ? `
+                    <button
+                      class="btn secondary small"
+                      onclick="whats(
+                        '${esc(c.phone)}',
+                        'Olá ${esc(c.name || '')}!'
+                      )"
+                    >
+                      WA
+                    </button>
+                  `
+                  : ''
+              }
+
+            </td>
+
+          </tr>
+        `;
+      }
+    );
+
+
+  clientsListEl.innerHTML =
+    rows.length
+      ? `
+        <table>
+
+          <tr>
+            <th>Cliente</th>
+            <th>Status</th>
+            <th>Veículos</th>
+            <th>Recargas</th>
+            <th>Consumo</th>
+            <th>Total pago</th>
+            <th>Em aberto</th>
+            <th>Ações</th>
+          </tr>
+
+          ${rows.join('')}
+
+        </table>
+      `
+      : `
+        <div class="empty">
+          Nenhum cliente OCPP encontrado.
+        </div>
+      `;
+}
+  function openOcppCustomer(customerId){
+
+  const customer =
+    (db.ocppCustomers || [])
+      .find(
+        c =>
+          c.id === customerId
+      );
+
+
+  if (!customer) {
+    return alert(
+      'Cliente não encontrado.'
+    );
+  }
+
+
+  const vehicles =
+    customer.vehicles || [];
+
+
+  const sessions =
+    (db.ocppSessions || [])
+      .filter(
+        s =>
+          s.customer_id ===
+          customer.id
+      )
+      .sort(
+        (a,b) =>
+          String(
+            b.started_at || ''
+          ).localeCompare(
+            String(
+              a.started_at || ''
+            )
+          )
+      );
+
+
+  const totalOpen =
+    sessions
+      .filter(
+        s =>
+          s.payment_status !==
+          'paid'
+      )
+      .reduce(
+        (sum,s) =>
+          sum +
+          Math.max(
+            0,
+            Number(
+              s.total_amount ||
+              0
+            ) -
+            Number(
+              s.amount_paid ||
+              0
+            )
+          ),
+        0
+      );
+
+
+  const vehicleText =
+    vehicles.length
+      ? vehicles
+          .map(
+            v =>
+              `${v.plate || '-'}${v.nickname ? ` - ${v.nickname}` : ''}`
+          )
+          .join('\n')
+      : 'Nenhum veículo cadastrado';
+
+
+  alert(
+    `Cliente: ${customer.name || '-'}\n` +
+    `Telefone: ${customer.phone || '-'}\n` +
+    `Status: ${customer.approval_status || '-'}\n` +
+    `Veículos:\n${vehicleText}\n\n` +
+    `Recargas: ${sessions.length}\n` +
+    `Em aberto: ${money(totalOpen)}`
+  );
+}
 function renderExpenses(){const m=expenseMonth.value,cat=expenseCategory.value;let a=db.expenses.filter(x=>(!m||monthOf(x.expense_date)===m)&&(!cat||x.category===cat)).sort((x,y)=>y.expense_date.localeCompare(x.expense_date));expensesList.innerHTML=a.length?`<table><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th></th></tr>${a.map(x=>`<tr><td>${dateBR(x.expense_date)}</td><td>${esc(x.category)}</td><td>${esc(x.description)}</td><td>${money(x.amount)}</td><td><button class="btn danger small" onclick="removeExpense('${x.id}')">×</button></td></tr>`).join('')}</table>`:'<div class="empty">Nenhuma despesa.</div>'}
 function renderReports(){const m=reportMonth.value||monthOf(isoToday()),first=m+'-01',tmp=new Date(first+'T12:00:00'),last=new Date(tmp.getFullYear(),tmp.getMonth()+1,0).toISOString().slice(0,10);let rentExp=0;db.drivers.forEach(d=>{const s=d.start_date>first?d.start_date:first,e=d.end_date&&d.end_date<last?d.end_date:last;if(s<=e&&d.start_date<=last)rentExp+=daysInclusive(s,e)*Number(d.daily_value||0)});const rentRec=num(db.rentalPayments.filter(p=>monthOf(p.payment_date)===m).reduce((s,p)=>s+p.amount,0)),chargeSales=num(db.charges.filter(c=>monthOf(c.charge_date)===m).reduce((s,c)=>s+c.amount,0)),chargeRec=num(db.chargePayments.filter(p=>monthOf(p.payment_date)===m).reduce((s,p)=>s+p.amount,0)),expenses=num(db.expenses.filter(x=>monthOf(x.expense_date)===m).reduce((s,x)=>s+x.amount,0)),profit=num(rentRec+chargeRec-expenses);reportBody.innerHTML=`<div class="grid"><div class="card"><div class="label">Diárias previstas</div><div class="num">${money(rentExp)}</div><div class="sub">Recebido ${money(rentRec)}</div></div><div class="card"><div class="label">Cargas lançadas</div><div class="num">${money(chargeSales)}</div><div class="sub">Recebido ${money(chargeRec)}</div></div><div class="card"><div class="label">Despesas</div><div class="num">${money(expenses)}</div></div><div class="card"><div class="label">Resultado caixa</div><div class="num">${money(profit)}</div></div></div>`}
 function renderSystemInfo(){systemInfo.innerHTML=`<table><tr><td>Versão</td><td><b>V6</b></td></tr><tr><td>Tarifa OCPP</td><td><b>${money(OCPP_PRICE_PER_KWH)}/kWh</b></td></tr><tr><td>Usuário</td><td>${esc(currentUser?.email||'-')}</td></tr><tr><td>Banco</td><td>Supabase PostgreSQL</td></tr><tr><td>Sincronização</td><td>Online entre dispositivos</td></tr></table>`}
