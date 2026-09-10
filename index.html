@@ -1021,7 +1021,48 @@ const token =
   const cps=db.chargePoints||[], conns=db.connectors||[], sessions=(db.ocppSessions||[]).slice().sort((a,b)=>String(b.started_at||'').localeCompare(String(a.started_at||'')));
   const online=cps.filter(c=>c.online).length, charging=sessions.filter(s=>s.session_status==='charging').length, today=isoToday();
   const todaySessions=sessions.filter(s=>String(s.started_at||'').slice(0,10)===today), todayKwh=num(todaySessions.reduce((a,s)=>a+Number(s.energy_kwh||0),0)), todayValue=num(todaySessions.reduce((a,s)=>a+Number(s.total_amount||0),0)), pending=num(sessions.filter(s=>s.payment_status!=='paid').reduce((a,s)=>a+Math.max(0,Number(s.total_amount||0)-Number(s.paid_amount||0)),0));
+  const reconciliationSessions =
+  sessions.filter(
+    s =>
+      s.reconciliation_required === true
+  );
   ocppCards.innerHTML=`<div class="card"><div class="label">Carregadores online</div><div class="num">${online}/${cps.length}</div></div><div class="card"><div class="label">Cargas em andamento</div><div class="num">${charging}</div></div><div class="card"><div class="label">Energia hoje</div><div class="num">${todayKwh.toFixed(2)} kWh</div><div class="sub">Tarifa ${money(OCPP_PRICE_PER_KWH)}/kWh</div></div><div class="card"><div class="label">Faturamento OCPP hoje</div><div class="num">${money(todayValue)}</div><div class="sub">Pendente total ${money(pending)}</div></div>`;
+  if (reconciliationSessions.length) {
+
+  ocppCards.innerHTML += `
+    <div
+      class="card"
+      style="
+        border:2px solid #d97706;
+        grid-column:1/-1;
+      "
+    >
+      <div
+        class="muted"
+        style="
+          font-weight:700;
+          color:#b45309;
+        "
+      >
+        ⚠️ SESSÕES QUE PRECISAM DE CONFERÊNCIA
+      </div>
+
+      <div
+        class="kpi"
+        style="margin-top:6px"
+      >
+        ${reconciliationSessions.length}
+      </div>
+
+      <div class="muted">
+        Há
+        ${reconciliationSessions.length}
+        sessão(ões) OCPP com estado incerto.
+        Verifique antes de realizar cobrança.
+      </div>
+    </div>
+  `;
+}
   chargePointsList.innerHTML=cps.length?`<table><tr><th>Carregador</th><th>Identidade</th><th>Status</th><th>Último contato</th><th>Conectores</th><th>Ações</th></tr>${cps.map(cp=>{const cc=conns.filter(c=>c.charge_point_id===cp.id);const hasCharging=sessions.some(s=>s.charge_point_id===cp.id&&s.session_status==='charging');return `<tr><td><b>${esc(cp.name)}</b></td><td>${esc(cp.ocpp_identity)}</td><td>${cp.online?badge('paid','ONLINE'):badge('pending','OFFLINE')}</td><td>${cp.last_seen_at?new Date(cp.last_seen_at).toLocaleString('pt-BR'):'-'}</td><td>${cc.length?cc.map(c=>`#${c.connector_id} ${badge(c.status==='Available'?'paid':c.status==='Charging'?'partial':'pending',c.status||'Unknown')}`).join(' '):'-'}</td><td class="nowrap"><button class="btn small" onclick="openManualStartCharge('${cp.id}')">Iniciar</button> <button class="btn danger small" onclick="openManualStopCharge('${cp.id}')" ${hasCharging?'':'disabled'}>Encerrar</button> <button class="btn secondary small" onclick="openResetChargePoint('${esc(cp.ocpp_identity)}')">Reiniciar</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum carregador cadastrado.</div>';
   const q=(ocppSearch?.value||'').toLowerCase(), pf=ocppPaymentStatus?.value||'';
   const filtered=sessions.filter(s=>{const cp=cps.find(c=>c.id===s.charge_point_id);const text=`${cp?.name||''} ${cp?.ocpp_identity||''} ${s.plate||''} ${s.transaction_id||''}`.toLowerCase();return (!q||text.includes(q))&&(!pf||s.payment_status===pf)});
