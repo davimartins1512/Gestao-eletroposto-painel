@@ -5948,6 +5948,151 @@ function renderReports(){
   // RENDER
   // =========================================================
 
+// =========================================================
+// COMPARAÇÃO COM O MÊS ANTERIOR
+// =========================================================
+
+const currentMonthDate =
+  new Date(
+    m + '-01T12:00:00'
+  );
+
+const previousMonthDate =
+  new Date(
+    currentMonthDate.getFullYear(),
+    currentMonthDate.getMonth() - 1,
+    1
+  );
+
+const previousMonth =
+  [
+    previousMonthDate.getFullYear(),
+    String(
+      previousMonthDate.getMonth() + 1
+    ).padStart(2,'0')
+  ].join('-');
+
+
+const previousOcppSessions =
+  (db.ocppSessions || [])
+    .filter(
+      s => {
+
+        const date =
+          s.finished_at ||
+          s.started_at ||
+          '';
+
+        return (
+          s.session_status === 'finished' &&
+          String(date).slice(0,7) === previousMonth
+        );
+      }
+    );
+
+
+const previousOcppSales =
+  num(
+    previousOcppSessions
+      .reduce(
+        (sum,s) =>
+          sum +
+          Number(
+            s.total_amount || 0
+          ),
+        0
+      )
+  );
+
+
+const previousOcppKwh =
+  previousOcppSessions
+    .reduce(
+      (sum,s) =>
+        sum +
+        Number(
+          s.energy_kwh ||
+          s.total_energy_kwh ||
+          0
+        ),
+      0
+    );
+
+
+const previousOcppCount =
+  previousOcppSessions.length;
+
+
+function reportVariation(
+  current,
+  previous
+){
+
+  if (
+    previous === 0 &&
+    current === 0
+  ) {
+    return {
+      text:'0,0%',
+      signal:''
+    };
+  }
+
+
+  if (
+    previous === 0
+  ) {
+    return {
+      text:'+100,0%',
+      signal:'▲'
+    };
+  }
+
+
+  const variation =
+    (
+      (
+        current -
+        previous
+      ) /
+      previous
+    ) * 100;
+
+
+  return {
+    text:
+      `${variation >= 0 ? '+' : ''}${variation.toFixed(1).replace('.',',')}%`,
+
+    signal:
+      variation > 0
+        ? '▲'
+        : variation < 0
+          ? '▼'
+          : ''
+  };
+}
+
+
+const salesVariation =
+  reportVariation(
+    ocppSales,
+    previousOcppSales
+  );
+
+
+const kwhVariation =
+  reportVariation(
+    ocppKwh,
+    previousOcppKwh
+  );
+
+
+const countVariation =
+  reportVariation(
+    ocppFinished.length,
+    previousOcppCount
+  );
+  
   reportBodyEl.innerHTML = `
 
     <div class="grid">
@@ -6300,6 +6445,102 @@ function renderReports(){
       </div>
 
     </div>
+
+    <div style="height:16px"></div>
+
+
+<div class="box">
+
+  <h3 style="margin-top:0;">
+    📈 Comparação com o mês anterior
+  </h3>
+
+
+  <div
+    style="
+      display:grid;
+      grid-template-columns:
+        repeat(auto-fit,minmax(220px,1fr));
+      gap:12px;
+    "
+  >
+
+
+    <div class="card">
+
+      <div class="label">
+        Faturamento OCPP
+      </div>
+
+      <div class="num">
+        ${money(ocppSales)}
+      </div>
+
+      <div class="sub">
+        ${salesVariation.signal}
+        ${salesVariation.text}
+        vs. mês anterior
+      </div>
+
+      <div class="tiny">
+        Anterior:
+        ${money(previousOcppSales)}
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <div class="label">
+        Energia vendida
+      </div>
+
+      <div class="num">
+        ${ocppKwh.toFixed(2)} kWh
+      </div>
+
+      <div class="sub">
+        ${kwhVariation.signal}
+        ${kwhVariation.text}
+        vs. mês anterior
+      </div>
+
+      <div class="tiny">
+        Anterior:
+        ${previousOcppKwh.toFixed(2)} kWh
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <div class="label">
+        Número de recargas
+      </div>
+
+      <div class="num">
+        ${ocppFinished.length}
+      </div>
+
+      <div class="sub">
+        ${countVariation.signal}
+        ${countVariation.text}
+        vs. mês anterior
+      </div>
+
+      <div class="tiny">
+        Anterior:
+        ${previousOcppCount}
+      </div>
+
+    </div>
+
+
+  </div>
+
+</div>
 
   `;
 }
