@@ -144,10 +144,61 @@ function closeModal(){modalBack.style.display='none';modal.innerHTML=''}modalBac
 function showModal(title,body){modal.innerHTML=`<div class="modal-head"><h3>${title}</h3><button class="btn secondary small" onclick="closeModal()">Fechar</button></div><div style="height:8px"></div>${body}`;modalBack.style.display='grid'}
 function setSync(ok,text){syncDot.className='sync-dot '+(ok?'ok':'bad');syncText.textContent=text}
 async function loadAll(){
+
   setSync(false,'sincronizando');
-  const tables=[['drivers','drivers'],['rental_payments','rentalPayments'],['clients','clients'],['charges','charges'],['charge_payments','chargePayments'],['expenses','expenses'],['charge_points','chargePoints'],['connectors','connectors'],['ocpp_sessions','ocppSessions'],['payments','payments']];
-  for(const [table,key] of tables){const {data,error}=await supa.from(table).select('*');if(error){console.error(error);setSync(false,'erro');return alert('Erro ao carregar '+table+': '+error.message)}db[key]=data||[]}
-  setSync(true,'online');render();
+
+
+  const tables = [
+    ['drivers','drivers'],
+    ['rental_payments','rentalPayments'],
+    ['clients','clients'],
+    ['charges','charges'],
+    ['charge_payments','chargePayments'],
+    ['expenses','expenses'],
+    ['charge_points','chargePoints'],
+    ['connectors','connectors'],
+    ['ocpp_sessions','ocppSessions'],
+    ['payments','payments']
+  ];
+
+
+  for(const [table,key] of tables){
+
+    const {
+      data,
+      error
+    } =
+      await supa
+        .from(table)
+        .select('*');
+
+
+    if(error){
+
+      console.error(error);
+
+      setSync(false,'erro');
+
+      return alert(
+        'Erro ao carregar ' +
+        table +
+        ': ' +
+        error.message
+      );
+    }
+
+
+    db[key] =
+      data || [];
+  }
+
+
+  await loadOcppCustomers();
+
+
+  setSync(true,'online');
+
+  render();
 }
 async function ins(table,row){const {error}=await supa.from(table).insert(row);if(error)throw error}
 async function upd(table,id,row){const {error}=await supa.from(table).update(row).eq('id',id);if(error)throw error}
@@ -1095,8 +1146,64 @@ JSON.stringify({
 }
 let manualStartCustomerOptions = [];
 
+async function loadOcppCustomers(){
 
-async function openManualStartCharge(cpId){
+  const {
+    data:{
+      session
+    }
+  } =
+    await supa.auth.getSession();
+
+
+  if (
+    !session?.access_token
+  ) {
+    return;
+  }
+
+
+  const response =
+    await fetch(
+      BACKEND_URL +
+      '/api/admin/charging/customer-options',
+      {
+        method:'GET',
+
+        headers:{
+          'authorization':
+            `Bearer ${session.access_token}`
+        }
+      }
+    );
+
+
+  const body =
+    await response
+      .json()
+      .catch(
+        () => ({})
+      );
+
+
+  if (
+    !response.ok ||
+    !body.success
+  ) {
+    console.error(
+      'Falha ao carregar clientes OCPP:',
+      body.error
+    );
+
+    return;
+  }
+
+
+  db.ocppCustomers =
+    body.customers || [];
+}
+
+  async function openManualStartCharge(cpId){
 
   const cp =
     (db.chargePoints || [])
