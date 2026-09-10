@@ -3925,50 +3925,180 @@ function renderClients(){
         );
 
 
-  const vehicleHtml =
+ const vehicleHtml = `
+
+  <div
+    style="
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      margin-bottom:10px;
+    "
+  >
+
+    <div>
+      <b>Veículos vinculados</b>
+      <div class="tiny">
+        O veículo ativo será usado nas próximas recargas.
+      </div>
+    </div>
+
+    <button
+      class="btn small"
+      onclick="openAddCustomerVehicle('${customer.id}')"
+    >
+      + Adicionar veículo
+    </button>
+
+  </div>
+
+
+  ${
     vehicles.length
+
       ? vehicles
           .map(
             v => `
+
               <div
                 style="
-                  padding:10px 0;
+                  display:flex;
+                  justify-content:space-between;
+                  align-items:center;
+                  gap:12px;
+                  padding:12px 0;
                   border-bottom:1px solid #e5e7eb;
                 "
               >
-                <b>
-                  ${esc(v.plate || 'Sem placa')}
-                </b>
 
-                ${
-                  v.nickname
-                    ? `
-                      <div class="tiny">
-                        ${esc(v.nickname)}
-                      </div>
-                    `
-                    : ''
-                }
+                <div>
 
-                ${
-                  v.battery_capacity_kwh
-                    ? `
-                      <div class="tiny">
-                        Bateria:
-                        ${Number(v.battery_capacity_kwh)} kWh
-                      </div>
-                    `
-                    : ''
-                }
+                  <div
+                    style="
+                      display:flex;
+                      align-items:center;
+                      gap:8px;
+                      flex-wrap:wrap;
+                    "
+                  >
+
+                    <b style="font-size:16px;">
+                      ${esc(v.plate || 'Sem placa')}
+                    </b>
+
+                    ${
+                      v.active
+                        ? `
+                          <span
+                            style="
+                              padding:3px 8px;
+                              border-radius:20px;
+                              background:#dcfce7;
+                              color:#166534;
+                              font-size:11px;
+                              font-weight:700;
+                            "
+                          >
+                            ATIVO
+                          </span>
+                        `
+                        : `
+                          <span
+                            style="
+                              padding:3px 8px;
+                              border-radius:20px;
+                              background:#f1f5f9;
+                              color:#64748b;
+                              font-size:11px;
+                              font-weight:700;
+                            "
+                          >
+                            INATIVO
+                          </span>
+                        `
+                    }
+
+                  </div>
+
+
+                  ${
+                    v.nickname
+                      ? `
+                        <div class="tiny">
+                          ${esc(v.nickname)}
+                        </div>
+                      `
+                      : ''
+                  }
+
+                </div>
+
+
+                <div
+                  style="
+                    display:flex;
+                    gap:6px;
+                    flex-wrap:wrap;
+                    justify-content:flex-end;
+                  "
+                >
+
+                  <button
+                    class="btn secondary small"
+                    onclick="openEditCustomerVehicle(
+                      '${customer.id}',
+                      '${v.id}'
+                    )"
+                  >
+                    Editar
+                  </button>
+
+
+                  ${
+                    v.active
+
+                      ? `
+                        <button
+                          class="btn secondary small"
+                          onclick="deactivateCustomerVehicle(
+                            '${customer.id}',
+                            '${v.id}'
+                          )"
+                        >
+                          Desativar
+                        </button>
+                      `
+
+                      : `
+                        <button
+                          class="btn small"
+                          onclick="activateCustomerVehicle(
+                            '${customer.id}',
+                            '${v.id}'
+                          )"
+                        >
+                          Tornar ativo
+                        </button>
+                      `
+                  }
+
+                </div>
+
               </div>
+
             `
           )
           .join('')
+
       : `
           <div class="empty">
             Nenhum veículo cadastrado.
           </div>
-        `;
+        `
+  }
+
+`;
 
 
   const historyHtml =
@@ -4199,6 +4329,537 @@ function renderClients(){
 
   `
 );
+}
+  async function getAdminAccessToken(){
+
+  const {
+    data:{
+      session
+    }
+  } =
+    await supa.auth.getSession();
+
+  return (
+    session?.access_token ||
+    ''
+  );
+}
+
+
+function openAddCustomerVehicle(customerId){
+
+  showModal(
+    'Adicionar veículo',
+    `
+
+      <div class="form-grid">
+
+        <div class="full">
+          <label>
+            Placa
+          </label>
+
+          <input
+            id="newVehiclePlate"
+            placeholder="Ex.: ABC1D23"
+          >
+        </div>
+
+
+        <div class="full">
+          <label>
+            Apelido
+          </label>
+
+          <input
+            id="newVehicleNickname"
+            placeholder="Ex.: Kwid branco"
+          >
+        </div>
+
+
+        <div class="full">
+
+          <label
+            style="
+              display:flex;
+              align-items:center;
+              gap:8px;
+            "
+          >
+
+            <input
+              id="newVehicleActive"
+              type="checkbox"
+              checked
+            >
+
+            Tornar este o veículo ativo
+
+          </label>
+
+        </div>
+
+      </div>
+
+
+      <div style="height:14px"></div>
+
+
+      <button
+        class="btn"
+        onclick="confirmAddCustomerVehicle('${customerId}')"
+      >
+        Salvar veículo
+      </button>
+
+    `
+  );
+}
+
+
+async function confirmAddCustomerVehicle(customerId){
+
+  try {
+
+    const plate =
+      String(
+        document
+          .getElementById('newVehiclePlate')
+          ?.value ||
+        ''
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const nickname =
+      String(
+        document
+          .getElementById('newVehicleNickname')
+          ?.value ||
+        ''
+      )
+        .trim();
+
+
+    const active =
+      document
+        .getElementById('newVehicleActive')
+        ?.checked !== false;
+
+
+    if (!plate) {
+      return alert(
+        'Informe a placa.'
+      );
+    }
+
+
+    const token =
+      await getAdminAccessToken();
+
+
+    if (!token) {
+      return alert(
+        'Sessão de administrador inválida.'
+      );
+    }
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        `/api/admin/customers/${customerId}/vehicles`,
+        {
+          method:'POST',
+
+          headers:{
+            'content-type':
+              'application/json',
+
+            'authorization':
+              `Bearer ${token}`
+          },
+
+          body:
+            JSON.stringify({
+              plate,
+              nickname,
+              active
+            })
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.error ||
+        'Falha ao adicionar veículo.'
+      );
+    }
+
+
+    closeModal();
+
+    await loadAll();
+
+    openOcppCustomer(
+      customerId
+    );
+
+  }
+  catch(err) {
+
+    alert(
+      err?.message ||
+      'Erro ao adicionar veículo.'
+    );
+  }
+}
+
+
+function openEditCustomerVehicle(
+  customerId,
+  vehicleId
+){
+
+  const customer =
+    (db.ocppCustomers || [])
+      .find(
+        c =>
+          c.id === customerId
+      );
+
+
+  const vehicle =
+    customer?.vehicles
+      ?.find(
+        v =>
+          v.id === vehicleId
+      );
+
+
+  if (!vehicle) {
+    return alert(
+      'Veículo não encontrado.'
+    );
+  }
+
+
+  showModal(
+    'Editar veículo',
+    `
+
+      <div class="form-grid">
+
+        <div class="full">
+          <label>
+            Placa
+          </label>
+
+          <input
+            id="editVehiclePlate"
+            value="${esc(vehicle.plate || '')}"
+          >
+        </div>
+
+
+        <div class="full">
+          <label>
+            Apelido
+          </label>
+
+          <input
+            id="editVehicleNickname"
+            value="${esc(vehicle.nickname || '')}"
+            placeholder="Ex.: Kwid branco"
+          >
+        </div>
+
+      </div>
+
+
+      <div style="height:14px"></div>
+
+
+      <button
+        class="btn"
+        onclick="confirmEditCustomerVehicle(
+          '${customerId}',
+          '${vehicleId}'
+        )"
+      >
+        Salvar alterações
+      </button>
+
+    `
+  );
+}
+
+
+async function confirmEditCustomerVehicle(
+  customerId,
+  vehicleId
+){
+
+  try {
+
+    const plate =
+      String(
+        document
+          .getElementById('editVehiclePlate')
+          ?.value ||
+        ''
+      )
+        .trim()
+        .toUpperCase();
+
+
+    const nickname =
+      String(
+        document
+          .getElementById('editVehicleNickname')
+          ?.value ||
+        ''
+      )
+        .trim();
+
+
+    if (!plate) {
+      return alert(
+        'Informe a placa.'
+      );
+    }
+
+
+    const token =
+      await getAdminAccessToken();
+
+
+    if (!token) {
+      return alert(
+        'Sessão de administrador inválida.'
+      );
+    }
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        `/api/admin/vehicles/${vehicleId}`,
+        {
+          method:'PATCH',
+
+          headers:{
+            'content-type':
+              'application/json',
+
+            'authorization':
+              `Bearer ${token}`
+          },
+
+          body:
+            JSON.stringify({
+              plate,
+              nickname
+            })
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.error ||
+        'Falha ao editar veículo.'
+      );
+    }
+
+
+    closeModal();
+
+    await loadAll();
+
+    openOcppCustomer(
+      customerId
+    );
+
+  }
+  catch(err) {
+
+    alert(
+      err?.message ||
+      'Erro ao editar veículo.'
+    );
+  }
+}
+
+
+async function activateCustomerVehicle(
+  customerId,
+  vehicleId
+){
+
+  if (
+    !confirm(
+      'Tornar este o veículo ativo do cliente?'
+    )
+  ) {
+    return;
+  }
+
+
+  try {
+
+    const token =
+      await getAdminAccessToken();
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        `/api/admin/vehicles/${vehicleId}/activate`,
+        {
+          method:'POST',
+
+          headers:{
+            'authorization':
+              `Bearer ${token}`
+          }
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.error ||
+        'Falha ao ativar veículo.'
+      );
+    }
+
+
+    closeModal();
+
+    await loadAll();
+
+    openOcppCustomer(
+      customerId
+    );
+
+  }
+  catch(err) {
+
+    alert(
+      err?.message ||
+      'Erro ao ativar veículo.'
+    );
+  }
+}
+
+
+async function deactivateCustomerVehicle(
+  customerId,
+  vehicleId
+){
+
+  if (
+    !confirm(
+      'Desativar este veículo?'
+    )
+  ) {
+    return;
+  }
+
+
+  try {
+
+    const token =
+      await getAdminAccessToken();
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        `/api/admin/vehicles/${vehicleId}/deactivate`,
+        {
+          method:'POST',
+
+          headers:{
+            'authorization':
+              `Bearer ${token}`
+          }
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.error ||
+        'Falha ao desativar veículo.'
+      );
+    }
+
+
+    closeModal();
+
+    await loadAll();
+
+    openOcppCustomer(
+      customerId
+    );
+
+  }
+  catch(err) {
+
+    alert(
+      err?.message ||
+      'Erro ao desativar veículo.'
+    );
+  }
 }
 function renderExpenses(){const m=expenseMonth.value,cat=expenseCategory.value;let a=db.expenses.filter(x=>(!m||monthOf(x.expense_date)===m)&&(!cat||x.category===cat)).sort((x,y)=>y.expense_date.localeCompare(x.expense_date));expensesList.innerHTML=a.length?`<table><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th></th></tr>${a.map(x=>`<tr><td>${dateBR(x.expense_date)}</td><td>${esc(x.category)}</td><td>${esc(x.description)}</td><td>${money(x.amount)}</td><td><button class="btn danger small" onclick="removeExpense('${x.id}')">×</button></td></tr>`).join('')}</table>`:'<div class="empty">Nenhuma despesa.</div>'}
 function renderReports(){const m=reportMonth.value||monthOf(isoToday()),first=m+'-01',tmp=new Date(first+'T12:00:00'),last=new Date(tmp.getFullYear(),tmp.getMonth()+1,0).toISOString().slice(0,10);let rentExp=0;db.drivers.forEach(d=>{const s=d.start_date>first?d.start_date:first,e=d.end_date&&d.end_date<last?d.end_date:last;if(s<=e&&d.start_date<=last)rentExp+=daysInclusive(s,e)*Number(d.daily_value||0)});const rentRec=num(db.rentalPayments.filter(p=>monthOf(p.payment_date)===m).reduce((s,p)=>s+p.amount,0)),chargeSales=num(db.charges.filter(c=>monthOf(c.charge_date)===m).reduce((s,c)=>s+c.amount,0)),chargeRec=num(db.chargePayments.filter(p=>monthOf(p.payment_date)===m).reduce((s,p)=>s+p.amount,0)),expenses=num(db.expenses.filter(x=>monthOf(x.expense_date)===m).reduce((s,x)=>s+x.amount,0)),profit=num(rentRec+chargeRec-expenses);reportBody.innerHTML=`<div class="grid"><div class="card"><div class="label">Diárias previstas</div><div class="num">${money(rentExp)}</div><div class="sub">Recebido ${money(rentRec)}</div></div><div class="card"><div class="label">Cargas lançadas</div><div class="num">${money(chargeSales)}</div><div class="sub">Recebido ${money(chargeRec)}</div></div><div class="card"><div class="label">Despesas</div><div class="num">${money(expenses)}</div></div><div class="card"><div class="label">Resultado caixa</div><div class="num">${money(profit)}</div></div></div>`}
