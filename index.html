@@ -1327,6 +1327,244 @@ async function confirmReconciliation(
   }
 }
  
+ function openManualPayment(
+  sessionId
+){
+
+  const session =
+    (db.ocppSessions || [])
+      .find(
+        s =>
+          s.id === sessionId
+      );
+
+  if (!session) {
+    alert(
+      'Sessão não encontrada.'
+    );
+    return;
+  }
+
+  showModal(
+    'Confirmar pagamento manual',
+    `
+      <div class="form-grid">
+
+        <div class="full">
+          <label>
+            Transação
+          </label>
+
+          <input
+            value="${esc(
+              session.transaction_id ||
+              '-'
+            )}"
+            disabled
+          >
+        </div>
+
+        <div>
+          <label>
+            Valor da cobrança
+          </label>
+
+          <input
+            value="R$ ${Number(
+              session.total_amount || 0
+            )
+              .toFixed(2)
+              .replace('.', ',')}"
+            disabled
+          >
+        </div>
+
+        <div>
+          <label>
+            Valor recebido
+          </label>
+
+          <input
+            id="manualPaymentAmount"
+            type="number"
+            min="0"
+            step="0.01"
+            value="${Number(
+              session.total_amount || 0
+            ).toFixed(2)}"
+          >
+        </div>
+
+        <div class="full">
+          <label>
+            Forma de pagamento
+          </label>
+
+          <select
+            id="manualPaymentMethod"
+          >
+            <option value="pix_manual">
+              Pix manual
+            </option>
+
+            <option value="cash">
+              Dinheiro
+            </option>
+
+            <option value="card_manual">
+              Cartão manual
+            </option>
+
+            <option value="other">
+              Outro
+            </option>
+          </select>
+        </div>
+
+        <div class="full">
+          <label>
+            Observação
+          </label>
+
+          <input
+            id="manualPaymentNote"
+            placeholder="Ex.: recebido no caixa"
+          >
+        </div>
+
+      </div>
+
+      <div style="height:14px"></div>
+
+      <button
+        class="btn"
+        onclick="confirmManualPayment('${esc(session.id)}')"
+      >
+        Confirmar pagamento
+      </button>
+    `
+  );
+}
+
+
+async function confirmManualPayment(
+  sessionId
+){
+
+  try {
+
+    const method =
+      document
+        .getElementById(
+          'manualPaymentMethod'
+        )
+        ?.value;
+
+    const amount =
+      Number(
+        document
+          .getElementById(
+            'manualPaymentAmount'
+          )
+          ?.value
+      );
+
+    const note =
+      document
+        .getElementById(
+          'manualPaymentNote'
+        )
+        ?.value
+        ?.trim() ||
+      '';
+
+    if (
+      !Number.isFinite(amount) ||
+      amount < 0
+    ) {
+      alert(
+        'Informe um valor recebido válido.'
+      );
+      return;
+    }
+
+    const {
+      data: {
+        session
+      }
+    } =
+      await supa.auth.getSession();
+
+    if (!session?.access_token) {
+      alert(
+        'Sua sessão administrativa expirou. Faça login novamente.'
+      );
+      return;
+    }
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        '/api/admin/payments/' +
+        encodeURIComponent(
+          sessionId
+        ) +
+        '/approve',
+        {
+          method:
+            'POST',
+
+          headers:{
+            'content-type':
+              'application/json',
+
+            'authorization':
+              `Bearer ${session.access_token}`
+          },
+
+          body:
+            JSON.stringify({
+              method,
+              amount,
+              note
+            })
+        }
+      );
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.error ||
+        body.message ||
+        'Falha ao confirmar pagamento.'
+      );
+    }
+
+    closeModal();
+
+    alert(
+      'Pagamento confirmado com sucesso.'
+    );
+
+    await loadAll();
+
+  } catch (err) {
+
+    alert(
+      err.message ||
+      'Erro ao confirmar pagamento.'
+    );
+  }
+}
   function renderOcpp(){
   const cps=db.chargePoints||[], conns=db.connectors||[], sessions=(db.ocppSessions||[]).slice().sort((a,b)=>String(b.started_at||'').localeCompare(String(a.started_at||'')));
   const online=cps.filter(c=>c.online).length, charging=sessions.filter(s=>s.session_status==='charging').length, today=isoToday();
