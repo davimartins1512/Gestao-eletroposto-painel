@@ -2142,7 +2142,62 @@ $('identifyForm')
          * as regras novamente quando
          * o botão iniciar for usado.
          */
+if (
+  body.allowed_by_limits ===
+  false
+) {
 
+  const pendingCharges =
+    Number(
+      body.pending_charges ||
+      0
+    );
+
+  const pendingAmount =
+    Number(
+      body.pending_amount ||
+      0
+    );
+
+
+  if (
+    body.limit_reason ===
+    'pending_charges_limit'
+  ) {
+
+    showError(
+      'Pagamento pendente',
+      pendingCharges === 1
+        ? `Você possui 1 recarga pendente no valor de ${money(pendingAmount)}. Quite o pagamento para realizar uma nova recarga.`
+        : `Você possui ${pendingCharges} recargas pendentes no valor total de ${money(pendingAmount)}. Quite uma pendência para realizar uma nova recarga.`
+    );
+
+    return;
+  }
+
+
+  if (
+    body.limit_reason ===
+    'pending_amount_limit'
+  ) {
+
+    showError(
+      'Limite de crédito atingido',
+      `Você possui ${money(pendingAmount)} em aberto e atingiu seu limite para novas recargas.`
+    );
+
+    return;
+  }
+
+
+  showError(
+    'Recarga não liberada',
+    'Seu limite para novas recargas foi atingido. Procure o atendimento.'
+  );
+
+  return;
+}
+        
         prepareReadyScreen(
           body
         );
