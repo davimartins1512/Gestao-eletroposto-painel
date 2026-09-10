@@ -1017,6 +1017,103 @@ const token =
     );
   }
 }
+ function openReconciliationSession(
+  sessionId
+){
+
+  const session =
+    (db.ocppSessions || [])
+      .find(
+        s =>
+          s.id === sessionId
+      );
+
+  if (!session) {
+    alert(
+      'Sessão não encontrada.'
+    );
+    return;
+  }
+
+  showModal(
+    'Regularizar sessão',
+    `
+      <div class="form-grid">
+
+        <div class="full">
+          <label>
+            Transação OCPP
+          </label>
+
+          <input
+            value="${esc(
+              session.transaction_id ||
+              '-'
+            )}"
+            disabled
+          >
+        </div>
+
+        <div>
+          <label>
+            Última energia conhecida
+          </label>
+
+          <input
+            value="${Number(
+              session.energy_kwh || 0
+            ).toFixed(3)} kWh"
+            disabled
+          >
+        </div>
+
+        <div>
+          <label>
+            Último valor conhecido
+          </label>
+
+          <input
+            value="R$ ${Number(
+              session.total_amount || 0
+            )
+              .toFixed(2)
+              .replace('.', ',')}"
+            disabled
+          >
+        </div>
+
+        <div class="full">
+          <label>
+            Motivo
+          </label>
+
+          <input
+            value="${esc(
+              session.reconciliation_reason ||
+              'Estado incerto'
+            )}"
+            disabled
+          >
+        </div>
+
+        <div class="full">
+          <div
+            style="
+              padding:12px;
+              border-radius:10px;
+              background:#fff7ed;
+            "
+          >
+            ⚠️ Essa sessão ainda não será alterada.
+            Vamos usar este modal para confirmar
+            a regularização no próximo passo.
+          </div>
+        </div>
+
+      </div>
+    `
+  );
+}
   function renderOcpp(){
   const cps=db.chargePoints||[], conns=db.connectors||[], sessions=(db.ocppSessions||[]).slice().sort((a,b)=>String(b.started_at||'').localeCompare(String(a.started_at||'')));
   const online=cps.filter(c=>c.online).length, charging=sessions.filter(s=>s.session_status==='charging').length, today=isoToday();
