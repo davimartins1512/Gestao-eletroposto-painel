@@ -2405,23 +2405,138 @@ $('registerForm')
         }
 
 
-        if (
-          body.approval_status ===
-          'approved' &&
-          body.vehicle_registered
-        ) {
+      if (
+  body.approval_status ===
+  'approved'
+) {
 
-          showScreen(
-            'identify'
-          );
+  const {
+    response:
+      checkResponse,
+    body:
+      checkBody
+  } =
+    await api(
+      '/api/public/charging/check-customer',
+      {
+        method:'POST',
 
-          return;
-        }
+        body:
+          JSON.stringify({
+            cpf:
+              currentCpf,
+
+            plate:
+              currentPlate
+          })
+      }
+    );
 
 
-        showScreen(
-          'approval'
-        );
+  if (
+    !checkResponse.ok ||
+    !checkBody.success
+  ) {
+    throw new Error(
+      checkBody.message ||
+      'Cadastro criado, mas não foi possível validar a liberação.'
+    );
+  }
+
+
+  if (
+    checkBody.blocked
+  ) {
+
+    showError(
+      'Cadastro bloqueado',
+      'Seu cadastro está bloqueado para novos carregamentos. Procure o atendimento.'
+    );
+
+    return;
+  }
+
+
+  if (
+    !checkBody.vehicle_registered
+  ) {
+
+    showError(
+      'Veículo não cadastrado',
+      'A placa informada não está vinculada ao seu cadastro.'
+    );
+
+    return;
+  }
+
+
+  if (
+    checkBody.vehicle_active ===
+    false
+  ) {
+
+    showError(
+      'Veículo indisponível',
+      'Este veículo está desativado no cadastro.'
+    );
+
+    return;
+  }
+
+
+  if (
+    checkBody.allowed_by_limits ===
+    false
+  ) {
+
+    if (
+      checkBody.limit_reason ===
+      'pending_charges_limit'
+    ) {
+
+      showError(
+        'Pagamento pendente',
+        'Você atingiu seu limite de recargas pendentes. Quite o pagamento antes de iniciar uma nova recarga.'
+      );
+
+      return;
+    }
+
+
+    if (
+      checkBody.limit_reason ===
+      'pending_amount_limit'
+    ) {
+
+      showError(
+        'Limite de crédito atingido',
+        'Você atingiu seu limite financeiro para novas recargas.'
+      );
+
+      return;
+    }
+
+
+    showError(
+      'Recarga não liberada',
+      'Seu limite para novas recargas foi atingido.'
+    );
+
+    return;
+  }
+
+
+  prepareReadyScreen(
+    checkBody
+  );
+
+  return;
+}
+
+
+showScreen(
+  'approval'
+);
 
       } catch (err) {
 
