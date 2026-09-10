@@ -1113,22 +1113,8 @@ if (!session?.access_token) {
 const token =
   session.access_token;
 
-    const response =
-      await fetch(
-        BACKEND_URL +
-        '/api/admin/charging/reset',
-        {
-          method:'POST',
 
-          headers:{
-  'content-type':
-    'application/json',
-
-  'authorization':
-    `Bearer ${token}`
-},
-
- const response =
+const response =
   await fetch(
     BACKEND_URL +
     '/api/admin/charging/reset',
@@ -1152,7 +1138,6 @@ const token =
         })
     }
   );
-});
 
     const body =
       await response
