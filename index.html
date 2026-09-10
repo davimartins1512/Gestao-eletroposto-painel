@@ -80,7 +80,39 @@ h3{font-size:17px;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,t
       <section class="tab active" id="dashboard"><div class="grid" id="dashCards"></div><div class="box"><div class="toolbar" style="justify-content:space-between"><h3 style="margin:0">Pendências prioritárias</h3><button class="btn secondary small" onclick="goTab('receivable')">Ver tudo</button></div><div id="priorityList"></div></div></section>
       <section class="tab" id="drivers"><div class="toolbar"><button class="btn" onclick="openDriverModal()">+ Novo motorista</button></div><div class="box"><div class="filters"><input class="wide" id="driverSearch" placeholder="Buscar motorista, carro ou placa"><select id="driverStatus"><option value="">Todos</option><option value="active">Ativos</option><option value="open">Com pendência</option><option value="paid">Em dia</option><option value="inactive">Encerrados</option></select></div><div class="table-wrap" id="driversList"></div></div></section>
       <section class="tab" id="daily"><div class="box"><div class="filters"><input id="dailyDate" type="date"><select id="dailyDriver"></select><button class="btn secondary" onclick="renderDaily()">Atualizar</button></div><div class="table-wrap" id="dailyList"></div></div></section>
-      <section class="tab" id="ocpp"><div class="toolbar" style="justify-content:space-between"><div><b>Operação OCPP 1.6</b><div class="tiny">Tarifa operacional: R$ 1,69/kWh</div></div><button class="btn secondary" onclick="loadAll()">Atualizar</button></div><div class="grid" id="ocppCards"></div><div class="box"><h3 style="margin-top:0">Carregadores e conectores</h3><div class="table-wrap" id="chargePointsList"></div></div><div class="box"><div class="filters"><input class="wide" id="ocppSearch" placeholder="Buscar carregador, placa ou transação"><select id="ocppPaymentStatus"><option value="">Todos os pagamentos</option><option value="paid">Pagos</option><option value="pending">Pendentes</option><option value="checkout_error">Erro no checkout</option></select></div><div class="table-wrap" id="ocppSessionsList"></div></div></section>
+      <section class="tab" id="ocpp"><div class="toolbar" style="justify-content:space-between">
+
+  <div>
+    <b>Operação OCPP 1.6</b>
+
+    <div class="tiny">
+      Tarifa operacional:
+      <b id="currentPricePerKwh">
+        carregando...
+      </b>
+    </div>
+  </div>
+
+
+  <div style="display:flex;gap:8px;flex-wrap:wrap">
+
+    <button
+      class="btn secondary"
+      onclick="openPricePerKwhModal()"
+    >
+      💰 Alterar tarifa
+    </button>
+
+    <button
+      class="btn secondary"
+      onclick="loadAll()"
+    >
+      Atualizar
+    </button>
+
+  </div>
+
+</div><div class="grid" id="ocppCards"></div><div class="box"><h3 style="margin-top:0">Carregadores e conectores</h3><div class="table-wrap" id="chargePointsList"></div></div><div class="box"><div class="filters"><input class="wide" id="ocppSearch" placeholder="Buscar carregador, placa ou transação"><select id="ocppPaymentStatus"><option value="">Todos os pagamentos</option><option value="paid">Pagos</option><option value="pending">Pendentes</option><option value="checkout_error">Erro no checkout</option></select></div><div class="table-wrap" id="ocppSessionsList"></div></div></section>
       <section class="tab" id="charges"><div class="toolbar"><button class="btn" onclick="openChargeModal()">+ Nova carga</button></div><div class="box"><div class="filters"><input class="wide" id="chargeSearch" placeholder="Buscar cliente ou placa"><select id="chargeStatus"><option value="">Todas</option><option value="open">Em aberto</option><option value="paid">Pagas</option></select><input id="chargeMonth" type="month"></div><div class="table-wrap" id="chargesList"></div></div></section>
      <section class="tab" id="receivable">
   <div class="grid" id="receivableCards"></div>
@@ -193,12 +225,13 @@ async function loadAll(){
   }
 
 
-  await loadOcppCustomers();
+await loadOcppCustomers();
 
+setSync(true,'online');
 
-  setSync(true,'online');
+render();
 
-  render();
+await updatePricePerKwhDisplay();
 }
 async function ins(table,row){const {error}=await supa.from(table).insert(row);if(error)throw error}
 async function upd(table,id,row){const {error}=await supa.from(table).update(row).eq('id',id);if(error)throw error}
@@ -4393,6 +4426,243 @@ function renderClients(){
 
   `
 );
+}
+
+  async function updatePricePerKwhDisplay(){
+
+  const el =
+    document.getElementById(
+      'currentPricePerKwh'
+    );
+
+  if (!el) {
+    return;
+  }
+
+
+  const price =
+    await loadCurrentPricePerKwh();
+
+
+  if (
+    price === null ||
+    !Number.isFinite(price)
+  ) {
+    el.textContent =
+      'indisponível';
+
+    return;
+  }
+
+
+  el.textContent =
+    `${money(price)}/kWh`;
+}
+
+  async function loadCurrentPricePerKwh(){
+
+  try {
+
+    const token =
+      await getAdminAccessToken();
+
+    if (!token) {
+      return null;
+    }
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        '/api/admin/settings/price-per-kwh',
+        {
+          method:'GET',
+
+          headers:{
+            'authorization':
+              `Bearer ${token}`
+          }
+        }
+      );
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+    if (
+      !response.ok ||
+      body.success === false
+    ) {
+      throw new Error(
+        body.error ||
+        'Falha ao carregar tarifa.'
+      );
+    }
+
+    return Number(
+      body.price_per_kwh || 0
+    );
+
+  }
+  catch(err) {
+
+    console.error(
+      'Falha ao carregar tarifa:',
+      err
+    );
+
+    return null;
+  }
+}
+
+
+async function openPricePerKwhModal(){
+
+  const currentPrice =
+    await loadCurrentPricePerKwh();
+
+  if (
+    currentPrice === null
+  ) {
+    return alert(
+      'Não foi possível carregar a tarifa atual.'
+    );
+  }
+
+  showModal(
+    'Tarifa do eletroposto',
+    `
+
+      <div class="form-grid">
+
+        <div class="full">
+
+          <label>
+            Valor atual do kWh
+          </label>
+
+          <input
+            id="pricePerKwhInput"
+            type="number"
+            min="0.01"
+            step="0.01"
+            value="${Number(currentPrice).toFixed(2)}"
+          >
+
+          <div class="tiny">
+            O novo valor será usado somente nas cargas iniciadas depois da alteração.
+          </div>
+
+        </div>
+
+      </div>
+
+      <div style="height:14px"></div>
+
+      <button
+        class="btn"
+        onclick="savePricePerKwh()"
+      >
+        Salvar nova tarifa
+      </button>
+
+    `
+  );
+}
+
+
+async function savePricePerKwh(){
+
+  try {
+
+    const input =
+      document.getElementById(
+        'pricePerKwhInput'
+      );
+
+    const value =
+      Number(
+        String(
+          input?.value || ''
+        ).replace(',', '.')
+      );
+
+    if (
+      !Number.isFinite(value) ||
+      value <= 0
+    ) {
+      return alert(
+        'Informe uma tarifa válida.'
+      );
+    }
+
+    const token =
+      await getAdminAccessToken();
+
+    if (!token) {
+      return alert(
+        'Sessão de administrador inválida.'
+      );
+    }
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        '/api/admin/settings/price-per-kwh',
+        {
+          method:'PATCH',
+
+          headers:{
+            'content-type':
+              'application/json',
+
+            'authorization':
+              `Bearer ${token}`
+          },
+
+          body:
+            JSON.stringify({
+              price_per_kwh:
+                value
+            })
+        }
+      );
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+    if (
+      !response.ok ||
+      body.success === false
+    ) {
+      throw new Error(
+        body.error ||
+        'Falha ao alterar tarifa.'
+      );
+    }
+
+    closeModal();
+
+    alert(
+      `Tarifa alterada para ${money(value)} por kWh.`
+    );
+
+    await loadAll();
+
+  }
+  catch(err) {
+
+    alert(
+      err?.message ||
+      'Erro ao alterar tarifa.'
+    );
+  }
 }
 
   async function adminCustomerAction(
