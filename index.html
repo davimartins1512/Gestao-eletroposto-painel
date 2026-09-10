@@ -2807,6 +2807,12 @@ function renderReceivable(){
 
   const receivableListEl =
     document.getElementById('receivableList');
+  if (
+  !receivableCardsEl ||
+  !receivableListEl
+) {
+  return;
+}
 
   const q =
     (
