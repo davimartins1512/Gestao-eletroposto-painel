@@ -82,7 +82,12 @@ h3{font-size:17px;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,t
       <section class="tab" id="daily"><div class="box"><div class="filters"><input id="dailyDate" type="date"><select id="dailyDriver"></select><button class="btn secondary" onclick="renderDaily()">Atualizar</button></div><div class="table-wrap" id="dailyList"></div></div></section>
       <section class="tab" id="ocpp"><div class="toolbar" style="justify-content:space-between"><div><b>Operação OCPP 1.6</b><div class="tiny">Tarifa operacional: R$ 1,69/kWh</div></div><button class="btn secondary" onclick="loadAll()">Atualizar</button></div><div class="grid" id="ocppCards"></div><div class="box"><h3 style="margin-top:0">Carregadores e conectores</h3><div class="table-wrap" id="chargePointsList"></div></div><div class="box"><div class="filters"><input class="wide" id="ocppSearch" placeholder="Buscar carregador, placa ou transação"><select id="ocppPaymentStatus"><option value="">Todos os pagamentos</option><option value="paid">Pagos</option><option value="pending">Pendentes</option><option value="checkout_error">Erro no checkout</option></select></div><div class="table-wrap" id="ocppSessionsList"></div></div></section>
       <section class="tab" id="charges"><div class="toolbar"><button class="btn" onclick="openChargeModal()">+ Nova carga</button></div><div class="box"><div class="filters"><input class="wide" id="chargeSearch" placeholder="Buscar cliente ou placa"><select id="chargeStatus"><option value="">Todas</option><option value="open">Em aberto</option><option value="paid">Pagas</option></select><input id="chargeMonth" type="month"></div><div class="table-wrap" id="chargesList"></div></div></section>
-      <section class="tab" id="receivable"><div class="grid" id="receivableCards"></div><div class="box"><div class="filters"><input class="wide" id="receiveSearch" placeholder="Buscar nome ou placa"><select id="receiveType"><option value="">Tudo</option><option value="rental">Aluguéis</option><option value="charge">Eletroposto</option></select></div><div class="table-wrap" id="receivableList"></div></div></section>
+     <select id="receiveType">
+  <option value="">Tudo</option>
+  <option value="rental">Aluguéis</option>
+  <option value="charge">Cargas manuais</option>
+  <option value="ocpp">Eletroposto OCPP</option>
+</select>
       <section class="tab" id="clients"><div class="toolbar"><button class="btn" onclick="openClientModal()">+ Novo cliente</button></div><div class="box"><div class="filters"><input class="wide" id="clientSearch" placeholder="Buscar cliente, telefone ou placa"></div><div class="table-wrap" id="clientsList"></div></div></section>
       <section class="tab" id="expenses"><div class="toolbar"><button class="btn" onclick="openExpenseModal()">+ Nova despesa</button></div><div class="box"><div class="filters"><input id="expenseMonth" type="month"><select id="expenseCategory"><option value="">Todas</option><option>Energia</option><option>Manutenção</option><option>Seguro</option><option>Limpeza</option><option>Impostos</option><option>Outros</option></select></div><div class="table-wrap" id="expensesList"></div></div></section>
       <section class="tab" id="reports"><div class="box"><div class="filters"><input id="reportMonth" type="month"><button class="btn secondary" onclick="renderReports()">Atualizar</button></div><div id="reportBody"></div></div></section>
@@ -2789,7 +2794,560 @@ ${
     }).join('')}</table>`:`<div class="empty">Nenhuma sessão OCPP encontrada.</div>`;
 }
 
-function renderReceivable(){const q=(receiveSearch.value||'').toLowerCase(),f=receiveType.value,items=[];if(!f||f==='rental')db.drivers.forEach(d=>{const open=openRental(d);if(open>0&&(!q||(d.name+' '+d.plate).toLowerCase().includes(q)))items.push({type:'rental',name:d.name,plate:d.plate,open,id:d.id})});if(!f||f==='charge')db.charges.forEach(c=>{const open=openCharge(c);if(open>0&&(!q||(c.customer_name+' '+c.plate).toLowerCase().includes(q)))items.push({type:'charge',name:c.customer_name,plate:c.plate,open,id:c.id})});const total=num(items.reduce((s,x)=>s+x.open,0));receivableCards.innerHTML=`<div class="card"><div class="label">Contas abertas</div><div class="num">${items.length}</div></div><div class="card"><div class="label">Total a receber</div><div class="num">${money(total)}</div></div>`;receivableList.innerHTML=items.length?`<table><tr><th>Tipo</th><th>Cliente</th><th>Placa</th><th>Aberto</th><th></th></tr>${items.map(x=>`<tr><td>${x.type==='rental'?'🚗 Aluguel':'⚡ Carga'}</td><td>${esc(x.name)}</td><td>${esc(x.plate)}</td><td><b>${money(x.open)}</b></td><td><button class="btn small" onclick="${x.type==='rental'?`receiveRental('${x.id}')`:`receiveCharge('${x.id}')`}">Receber</button></td></tr>`).join('')}</table>`:'<div class="empty">Nada a receber.</div>'}
+function renderReceivable(){
+
+  const q =
+    (receiveSearch.value || '')
+      .toLowerCase();
+
+  const f =
+    receiveType.value;
+
+  const items = [];
+
+
+  // =========================================================
+  // ALUGUÉIS
+  // =========================================================
+
+  if (
+    !f ||
+    f === 'rental'
+  ) {
+
+    db.drivers.forEach(
+      d => {
+
+        const open =
+          openRental(d);
+
+        const searchable =
+          `${d.name || ''} ${d.plate || ''}`
+            .toLowerCase();
+
+        if (
+          open > 0 &&
+          (
+            !q ||
+            searchable.includes(q)
+          )
+        ) {
+
+          items.push({
+            type: 'rental',
+            name: d.name || 'Sem nome',
+            plate: d.plate || '-',
+            open,
+            id: d.id,
+            date: '',
+            transaction: ''
+          });
+        }
+      }
+    );
+  }
+
+
+  // =========================================================
+  // CARGAS ANTIGAS / MANUAIS
+  // =========================================================
+
+  if (
+    !f ||
+    f === 'charge'
+  ) {
+
+    db.charges.forEach(
+      c => {
+
+        const open =
+          openCharge(c);
+
+        const searchable =
+          `${c.customer_name || ''} ${c.plate || ''}`
+            .toLowerCase();
+
+        if (
+          open > 0 &&
+          (
+            !q ||
+            searchable.includes(q)
+          )
+        ) {
+
+          items.push({
+            type: 'charge',
+            name:
+              c.customer_name ||
+              'Cliente',
+
+            plate:
+              c.plate ||
+              '-',
+
+            open,
+
+            id:
+              c.id,
+
+            date:
+              c.charge_date ||
+              '',
+
+            transaction:
+              ''
+          });
+        }
+      }
+    );
+  }
+
+
+  // =========================================================
+  // OCPP
+  // =========================================================
+
+  if (
+    !f ||
+    f === 'ocpp'
+  ) {
+
+    (db.ocppSessions || [])
+      .filter(
+        s =>
+          s.session_status ===
+            'finished' &&
+          s.payment_status !==
+            'paid'
+      )
+      .forEach(
+        s => {
+
+          const total =
+            Number(
+              s.total_amount ||
+              0
+            );
+
+          const paid =
+            Number(
+              s.amount_paid ||
+              0
+            );
+
+          const open =
+            Math.max(
+              0,
+              total - paid
+            );
+
+
+          if (
+            open <= 0
+          ) {
+            return;
+          }
+
+
+          const name =
+            s.customer_name ||
+            `Recarga OCPP #${s.transaction_id || '-'}`;
+
+
+          const plate =
+            s.plate ||
+            '-';
+
+
+          const transaction =
+            s.transaction_id ||
+            '-';
+
+
+          const searchable =
+            `${name} ${plate} ${transaction} ${s.charge_point_id || ''} ${s.connector_id || ''}`
+              .toLowerCase();
+
+
+          if (
+            q &&
+            !searchable.includes(q)
+          ) {
+            return;
+          }
+
+
+          items.push({
+            type: 'ocpp',
+
+            name,
+
+            plate,
+
+            open,
+
+            id:
+              s.id,
+
+            date:
+              s.finished_at ||
+              s.started_at ||
+              '',
+
+            transaction,
+
+            chargePoint:
+              s.charge_point_id ||
+              '-',
+
+            connector:
+              s.connector_id ||
+              '-'
+          });
+        }
+      );
+  }
+
+
+  // =========================================================
+  // ORDENAÇÃO
+  // MAIOR VALOR PRIMEIRO
+  // =========================================================
+
+  items.sort(
+    (a,b) =>
+      b.open -
+      a.open
+  );
+
+
+  // =========================================================
+  // TOTAIS
+  // =========================================================
+
+  const total =
+    num(
+      items.reduce(
+        (s,x) =>
+          s +
+          Number(
+            x.open ||
+            0
+          ),
+        0
+      )
+    );
+
+
+  const rentalTotal =
+    num(
+      items
+        .filter(
+          x =>
+            x.type ===
+            'rental'
+        )
+        .reduce(
+          (s,x) =>
+            s +
+            x.open,
+          0
+        )
+    );
+
+
+  const chargeTotal =
+    num(
+      items
+        .filter(
+          x =>
+            x.type ===
+            'charge'
+        )
+        .reduce(
+          (s,x) =>
+            s +
+            x.open,
+          0
+        )
+    );
+
+
+  const ocppTotal =
+    num(
+      items
+        .filter(
+          x =>
+            x.type ===
+            'ocpp'
+        )
+        .reduce(
+          (s,x) =>
+            s +
+            x.open,
+          0
+        )
+    );
+
+
+  // =========================================================
+  // CARDS
+  // =========================================================
+
+  receivableCards.innerHTML = `
+
+    <div class="card">
+
+      <div class="label">
+        Contas abertas
+      </div>
+
+      <div class="num">
+        ${items.length}
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <div class="label">
+        Total a receber
+      </div>
+
+      <div class="num">
+        ${money(total)}
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <div class="label">
+        Aluguéis
+      </div>
+
+      <div class="num">
+        ${money(rentalTotal)}
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <div class="label">
+        Cargas manuais
+      </div>
+
+      <div class="num">
+        ${money(chargeTotal)}
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <div class="label">
+        Eletroposto OCPP
+      </div>
+
+      <div class="num">
+        ${money(ocppTotal)}
+      </div>
+
+    </div>
+
+  `;
+
+
+  // =========================================================
+  // TABELA
+  // =========================================================
+
+  receivableList.innerHTML =
+    items.length
+      ? `
+
+        <table>
+
+          <tr>
+
+            <th>
+              Origem
+            </th>
+
+            <th>
+              Cliente
+            </th>
+
+            <th>
+              Placa
+            </th>
+
+            <th>
+              Referência
+            </th>
+
+            <th>
+              Data
+            </th>
+
+            <th>
+              Em aberto
+            </th>
+
+            <th>
+            </th>
+
+          </tr>
+
+
+          ${
+            items
+              .map(
+                x => {
+
+                  let typeLabel =
+                    '';
+
+                  let reference =
+                    '';
+
+                  let action =
+                    '';
+
+
+                  if (
+                    x.type ===
+                    'rental'
+                  ) {
+
+                    typeLabel =
+                      '🚗 Aluguel';
+
+                    reference =
+                      'Diárias';
+
+                    action =
+                      `receiveRental('${x.id}')`;
+
+                  }
+
+
+                  else if (
+                    x.type ===
+                    'charge'
+                  ) {
+
+                    typeLabel =
+                      '⚡ Carga';
+
+                    reference =
+                      'Carga manual';
+
+                    action =
+                      `receiveCharge('${x.id}')`;
+
+                  }
+
+
+                  else {
+
+                    typeLabel =
+                      '🔌 OCPP';
+
+                    reference =
+                      `#${esc(x.transaction)}
+                      • ${esc(x.chargePoint)}
+                      • Conector ${esc(x.connector)}`;
+
+                    action =
+                      `openManualPayment('${x.id}')`;
+
+                  }
+
+
+                  const dateText =
+                    x.date
+                      ? new Date(
+                          x.date
+                        ).toLocaleDateString(
+                          'pt-BR'
+                        )
+                      : '-';
+
+
+                  return `
+
+                    <tr>
+
+                      <td>
+                        ${typeLabel}
+                      </td>
+
+
+                      <td>
+                        <b>
+                          ${esc(x.name)}
+                        </b>
+                      </td>
+
+
+                      <td>
+                        ${esc(x.plate)}
+                      </td>
+
+
+                      <td>
+                        ${reference}
+                      </td>
+
+
+                      <td>
+                        ${dateText}
+                      </td>
+
+
+                      <td>
+                        <b>
+                          ${money(x.open)}
+                        </b>
+                      </td>
+
+
+                      <td>
+
+                        <button
+                          class="btn small"
+                          onclick="${action}"
+                        >
+                          Receber
+                        </button>
+
+                      </td>
+
+                    </tr>
+
+                  `;
+                }
+              )
+              .join('')
+          }
+
+        </table>
+
+      `
+      : `
+
+        <div class="empty">
+          Nada a receber.
+        </div>
+
+      `;
+}
 function renderClients(){const q=(clientSearch.value||'').toLowerCase(),a=db.clients.filter(c=>!q||(c.name+' '+c.phone+' '+c.plate).toLowerCase().includes(q));clientsList.innerHTML=a.length?`<table><tr><th>Cliente</th><th>WhatsApp</th><th>Placa</th><th>Cargas</th><th>Ações</th></tr>${a.map(c=>{const cs=db.charges.filter(x=>x.client_id===c.id);return `<tr><td><b>${esc(c.name)}</b></td><td>${esc(c.phone)}</td><td>${esc(c.plate)}</td><td>${cs.length}</td><td><button class="btn secondary small" onclick="openClientModal('${c.id}')">Editar</button>${c.phone?` <button class="btn secondary small" onclick="whats('${esc(c.phone)}','Olá ${esc(c.name)}!')">WA</button>`:''} <button class="btn danger small" onclick="removeClient('${c.id}')">×</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum cliente.</div>'}
 function renderExpenses(){const m=expenseMonth.value,cat=expenseCategory.value;let a=db.expenses.filter(x=>(!m||monthOf(x.expense_date)===m)&&(!cat||x.category===cat)).sort((x,y)=>y.expense_date.localeCompare(x.expense_date));expensesList.innerHTML=a.length?`<table><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th></th></tr>${a.map(x=>`<tr><td>${dateBR(x.expense_date)}</td><td>${esc(x.category)}</td><td>${esc(x.description)}</td><td>${money(x.amount)}</td><td><button class="btn danger small" onclick="removeExpense('${x.id}')">×</button></td></tr>`).join('')}</table>`:'<div class="empty">Nenhuma despesa.</div>'}
 function renderReports(){const m=reportMonth.value||monthOf(isoToday()),first=m+'-01',tmp=new Date(first+'T12:00:00'),last=new Date(tmp.getFullYear(),tmp.getMonth()+1,0).toISOString().slice(0,10);let rentExp=0;db.drivers.forEach(d=>{const s=d.start_date>first?d.start_date:first,e=d.end_date&&d.end_date<last?d.end_date:last;if(s<=e&&d.start_date<=last)rentExp+=daysInclusive(s,e)*Number(d.daily_value||0)});const rentRec=num(db.rentalPayments.filter(p=>monthOf(p.payment_date)===m).reduce((s,p)=>s+p.amount,0)),chargeSales=num(db.charges.filter(c=>monthOf(c.charge_date)===m).reduce((s,c)=>s+c.amount,0)),chargeRec=num(db.chargePayments.filter(p=>monthOf(p.payment_date)===m).reduce((s,p)=>s+p.amount,0)),expenses=num(db.expenses.filter(x=>monthOf(x.expense_date)===m).reduce((s,x)=>s+x.amount,0)),profit=num(rentRec+chargeRec-expenses);reportBody.innerHTML=`<div class="grid"><div class="card"><div class="label">Diárias previstas</div><div class="num">${money(rentExp)}</div><div class="sub">Recebido ${money(rentRec)}</div></div><div class="card"><div class="label">Cargas lançadas</div><div class="num">${money(chargeSales)}</div><div class="sub">Recebido ${money(chargeRec)}</div></div><div class="card"><div class="label">Despesas</div><div class="num">${money(expenses)}</div></div><div class="card"><div class="label">Resultado caixa</div><div class="num">${money(profit)}</div></div></div>`}
