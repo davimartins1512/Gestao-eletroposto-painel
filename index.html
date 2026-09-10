@@ -1063,7 +1063,90 @@ const token =
     </div>
   `;
 }
-  chargePointsList.innerHTML=cps.length?`<table><tr><th>Carregador</th><th>Identidade</th><th>Status</th><th>Último contato</th><th>Conectores</th><th>Ações</th></tr>${cps.map(cp=>{const cc=conns.filter(c=>c.charge_point_id===cp.id);const hasCharging=sessions.some(s=>s.charge_point_id===cp.id&&s.session_status==='charging');return `<tr><td><b>${esc(cp.name)}</b></td><td>${esc(cp.ocpp_identity)}</td><td>${cp.online?badge('paid','ONLINE'):badge('pending','OFFLINE')}</td><td>${cp.last_seen_at?new Date(cp.last_seen_at).toLocaleString('pt-BR'):'-'}</td><td>${cc.length?cc.map(c=>`#${c.connector_id} ${badge(c.status==='Available'?'paid':c.status==='Charging'?'partial':'pending',c.status||'Unknown')}`).join(' '):'-'}</td><td class="nowrap"><button class="btn small" onclick="openManualStartCharge('${cp.id}')">Iniciar</button> <button class="btn danger small" onclick="openManualStopCharge('${cp.id}')" ${hasCharging?'':'disabled'}>Encerrar</button> <button class="btn secondary small" onclick="openResetChargePoint('${esc(cp.ocpp_identity)}')">Reiniciar</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum carregador cadastrado.</div>';
+if (reconciliationSessions.length) {
+
+  ocppCards.innerHTML += `
+    <div
+      class="card"
+      style="
+        grid-column:1/-1;
+        padding:14px;
+      "
+    >
+
+      <div
+        style="
+          font-weight:800;
+          margin-bottom:10px;
+        "
+      >
+        Sessões para regularizar
+      </div>
+
+      ${reconciliationSessions
+        .map(
+          s => `
+            <div
+              style="
+                display:flex;
+                justify-content:space-between;
+                align-items:center;
+                gap:12px;
+                padding:10px 0;
+                border-top:1px solid #ddd;
+              "
+            >
+
+              <div>
+
+                <div style="font-weight:700;">
+                  ⚠️ Transação
+                  ${esc(s.transaction_id || '-')}
+                </div>
+
+                <div
+                  class="muted"
+                  style="margin-top:4px;"
+                >
+                  ${Number(
+                    s.energy_kwh || 0
+                  ).toFixed(3)}
+                  kWh
+                  ·
+                  R$
+                  ${Number(
+                    s.total_amount || 0
+                  )
+                    .toFixed(2)
+                    .replace('.', ',')}
+                </div>
+
+                <div class="muted">
+                  Motivo:
+                  ${esc(
+                    s.reconciliation_reason ||
+                    'estado incerto'
+                  )}
+                </div>
+
+              </div>
+
+              <button
+                class="btn"
+                onclick="openReconciliationSession('${esc(s.id)}')"
+              >
+                Regularizar
+              </button>
+
+            </div>
+          `
+        )
+        .join('')}
+
+    </div>
+  `;
+}
+    chargePointsList.innerHTML=cps.length?`<table><tr><th>Carregador</th><th>Identidade</th><th>Status</th><th>Último contato</th><th>Conectores</th><th>Ações</th></tr>${cps.map(cp=>{const cc=conns.filter(c=>c.charge_point_id===cp.id);const hasCharging=sessions.some(s=>s.charge_point_id===cp.id&&s.session_status==='charging');return `<tr><td><b>${esc(cp.name)}</b></td><td>${esc(cp.ocpp_identity)}</td><td>${cp.online?badge('paid','ONLINE'):badge('pending','OFFLINE')}</td><td>${cp.last_seen_at?new Date(cp.last_seen_at).toLocaleString('pt-BR'):'-'}</td><td>${cc.length?cc.map(c=>`#${c.connector_id} ${badge(c.status==='Available'?'paid':c.status==='Charging'?'partial':'pending',c.status||'Unknown')}`).join(' '):'-'}</td><td class="nowrap"><button class="btn small" onclick="openManualStartCharge('${cp.id}')">Iniciar</button> <button class="btn danger small" onclick="openManualStopCharge('${cp.id}')" ${hasCharging?'':'disabled'}>Encerrar</button> <button class="btn secondary small" onclick="openResetChargePoint('${esc(cp.ocpp_identity)}')">Reiniciar</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum carregador cadastrado.</div>';
   const q=(ocppSearch?.value||'').toLowerCase(), pf=ocppPaymentStatus?.value||'';
   const filtered=sessions.filter(s=>{const cp=cps.find(c=>c.id===s.charge_point_id);const text=`${cp?.name||''} ${cp?.ocpp_identity||''} ${s.plate||''} ${s.transaction_id||''}`.toLowerCase();return (!q||text.includes(q))&&(!pf||s.payment_status===pf)});
   ocppSessionsList.innerHTML=filtered.length?`<table><tr><th>Início</th><th>Carregador</th><th>Transação</th><th>Energia</th><th>Tarifa</th><th>Valor</th><th>Sessão</th><th>Pagamento</th><th>Cobrança</th></tr>${filtered.slice(0,200).map(s=>{const cp=cps.find(c=>c.id===s.charge_point_id);const pst=s.payment_status==='paid'?badge('paid','PAGO'):s.payment_status==='checkout_error'?badge('pending','ERRO'):badge('partial',String(s.payment_status||'PENDENTE').toUpperCase());return `<tr><td>${s.started_at?new Date(s.started_at).toLocaleString('pt-BR'):'-'}</td><td><b>${esc(cp?.name||'-')}</b><br><span class="tiny">Conector ${esc(s.connector_id)}</span></td><td>#${esc(s.transaction_id)}${s.plate?`<br><span class="tiny">${esc(s.plate)}</span>`:''}</td><td>${Number(s.energy_kwh||0).toFixed(2)} kWh</td><td>${money(s.price_per_kwh||OCPP_PRICE_PER_KWH)}</td><td><b>${money(s.total_amount)}</b></td><td>${badge(s.session_status==='finished'?'paid':'partial',String(s.session_status||'-').toUpperCase())}</td><td>${pst}</td><td>${s.checkout_url?`<button class="btn secondary small" onclick="window.open('${esc(s.checkout_url)}','_blank')">Abrir</button>`:'-'}</td></tr>`}).join('')}</table>`:'<div class="empty">Nenhuma sessão OCPP encontrada.</div>';
