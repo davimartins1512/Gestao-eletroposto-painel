@@ -1128,13 +1128,30 @@ const token =
     `Bearer ${token}`
 },
 
-  body:
-JSON.stringify({
-  payment_method:
-    method,
+ const response =
+  await fetch(
+    BACKEND_URL +
+    '/api/admin/charging/reset',
+    {
+      method:'POST',
 
-  note
-})
+      headers:{
+        'content-type':
+          'application/json',
+
+        'authorization':
+          `Bearer ${token}`
+      },
+
+      body:
+        JSON.stringify({
+          charge_point:
+            cpIdentity,
+
+          type
+        })
+    }
+  );
 });
 
     const body =
