@@ -2802,6 +2802,12 @@ function renderReceivable(){
   const receiveTypeEl =
     document.getElementById('receiveType');
 
+  const receivableCardsEl =
+    document.getElementById('receivableCards');
+
+  const receivableListEl =
+    document.getElementById('receivableList');
+
   const q =
     (
       receiveSearchEl?.value ||
@@ -3102,7 +3108,7 @@ function renderReceivable(){
   // CARDS
   // =========================================================
 
-  receivableCards.innerHTML = `
+  receivableCardsEl.innerHTML = `
 
     <div class="card">
 
@@ -3175,7 +3181,7 @@ function renderReceivable(){
   // TABELA
   // =========================================================
 
-  receivableList.innerHTML =
+  receivableListEl.innerHTML =
     items.length
       ? `
 
