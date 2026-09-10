@@ -1460,7 +1460,6 @@ if (reconciliationSessions.length) {
   const q=(ocppSearch?.value||'').toLowerCase(), pf=ocppPaymentStatus?.value||'';
   const filtered=sessions.filter(s=>{const cp=cps.find(c=>c.id===s.charge_point_id);const text=`${cp?.name||''} ${cp?.ocpp_identity||''} ${s.plate||''} ${s.transaction_id||''}`.toLowerCase();return (!q||text.includes(q))&&(!pf||s.payment_status===pf)});
   ocppSessionsList.innerHTML=filtered.length?`<table><tr><th>Início</th><th>Carregador</th><th>Transação</th><th>Energia</th><th>Tarifa</th><th>Valor</th><th>Sessão</th><th>Pagamento</th><th>Cobrança</th></tr>${filtered.slice(0,200).map(s=>{const cp=cps.find(c=>c.id===s.charge_point_id);const pst=s.payment_status==='paid'?badge('paid','PAGO'):s.payment_status==='checkout_error'?badge('pending','ERRO'):badge('partial',String(s.payment_status||'PENDENTE').toUpperCase());return `<tr><td>${s.started_at?new Date(s.started_at).toLocaleString('pt-BR'):'-'}</td><td><b>${esc(cp?.name||'-')}</b><br><span class="tiny">Conector ${esc(s.connector_id)}</span></td><td>#${esc(s.transaction_id)}${s.plate?`<br><span class="tiny">${esc(s.plate)}</span>`:''}</td><td>${Number(s.energy_kwh||0).toFixed(2)} kWh</td><td>${money(s.price_per_kwh||OCPP_PRICE_PER_KWH)}</td><td><b>${money(s.total_amount)}</b></td><td>${badge(s.session_status==='finished'?'paid':'partial',String(s.session_status||'-').toUpperCase())}</td><td>${pst}</td><td>${
- ${
   s.checkout_url
     ? `
       <button
