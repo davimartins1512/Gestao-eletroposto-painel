@@ -312,6 +312,40 @@ function renderDashboard(){
         )
     );
 
+  const expensesToday =
+  num(
+    (db.expenses || [])
+      .filter(
+        e =>
+          String(
+            e.expense_date ||
+            ''
+          ).slice(0,10) === t
+      )
+      .reduce(
+        (sum,e) =>
+          sum +
+          Number(
+            e.amount || 0
+          ),
+        0
+      )
+  );
+
+
+const receivedToday =
+  num(
+    rec +
+    ocppPaidToday
+  );
+
+
+const profitToday =
+  num(
+    receivedToday -
+    expensesToday
+  );
+
 
   // =========================================================
   // TOTAIS EM ABERTO
@@ -351,66 +385,111 @@ function renderDashboard(){
   // CARDS PRINCIPAIS
   // =========================================================
 
-  dashCards.innerHTML = `
-    <div class="card">
+ dashCards.innerHTML = `
 
-      <div class="label">
-        Diárias previstas hoje
-      </div>
+  <div class="card">
 
-      <div class="num">
-        ${money(exp)}
-      </div>
-
+    <div class="label">
+      Receita recebida hoje
     </div>
 
-
-    <div class="card">
-
-      <div class="label">
-        Recebido em diárias hoje
-      </div>
-
-      <div class="num">
-        ${money(rec)}
-      </div>
-
+    <div class="num">
+      ${money(receivedToday)}
     </div>
 
-
-    <div class="card">
-
-      <div class="label">
-        OCPP recebido hoje
-      </div>
-
-      <div class="num">
-        ${money(ocppPaidToday)}
-      </div>
-
-      <div class="sub">
-        Somente pagamentos confirmados
-      </div>
-
+    <div class="sub">
+      Valores já confirmados
     </div>
 
+  </div>
 
-    <div class="card">
 
-      <div class="label">
-        Total em aberto
-      </div>
+  <div class="card">
 
-      <div class="num">
-        ${money(totalOpen)}
-      </div>
-
-      <div class="sub">
-        OCPP ${money(ocppOpen)}
-      </div>
-
+    <div class="label">
+      Despesas hoje
     </div>
-  `;
+
+    <div class="num">
+      ${money(expensesToday)}
+    </div>
+
+    <div class="sub">
+      Saídas registradas
+    </div>
+
+  </div>
+
+
+  <div class="card">
+
+    <div class="label">
+      Lucro hoje
+    </div>
+
+    <div
+      class="num"
+      style="
+        ${
+          profitToday < 0
+            ? 'color:#b91c1c;'
+            : ''
+        }
+      "
+    >
+      ${money(profitToday)}
+    </div>
+
+    <div class="sub">
+      Receitas - despesas
+    </div>
+
+  </div>
+
+
+  <div class="card">
+
+    <div class="label">
+      Total a receber
+    </div>
+
+    <div class="num">
+      ${money(totalOpen)}
+    </div>
+
+    <div class="sub">
+      Inclui OCPP ${money(ocppOpen)}
+    </div>
+
+  </div>
+
+
+  <div class="card">
+
+    <div class="label">
+      Diárias recebidas hoje
+    </div>
+
+    <div class="num">
+      ${money(rec)}
+    </div>
+
+  </div>
+
+
+  <div class="card">
+
+    <div class="label">
+      OCPP recebido hoje
+    </div>
+
+    <div class="num">
+      ${money(ocppPaidToday)}
+    </div>
+
+  </div>
+
+`;
 
 
   // =========================================================
