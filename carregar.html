@@ -3238,23 +3238,101 @@ async function bootstrap() {
    * automaticamente.
    */
 
-  const savedAuthorization =
-    getActiveAuthorization();
+ const savedAuthorization =
+  getActiveAuthorization();
 
+if (savedAuthorization) {
 
-  if (savedAuthorization) {
+  authorizationId =
+    savedAuthorization;
 
-    authorizationId =
-      savedAuthorization;
+  try {
 
-    showScreen(
-      'waiting'
+    const response =
+      await fetch(
+        BACKEND_URL +
+        '/api/public/charging/session?authorization_id=' +
+        encodeURIComponent(
+          authorizationId
+        )
+      );
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+    /*
+     * Autorização não existe mais
+     * ou não pode ser recuperada.
+     */
+    if (
+      !response.ok ||
+      !body?.success
+    ) {
+
+      clearActiveAuthorization();
+
+      authorizationId =
+        null;
+
+    } else {
+
+      const phase =
+        String(
+          body.phase ||
+          ''
+        )
+          .trim()
+          .toLowerCase();
+
+      /*
+       * Só retomamos automaticamente
+       * quando existe uma situação
+       * real que ainda deve acompanhar.
+       */
+      if (
+        phase === 'charging' ||
+        phase === 'finished'
+      ) {
+
+        showScreen(
+          phase === 'charging'
+            ? 'charging'
+            : 'finished'
+        );
+
+        startPolling();
+
+        return;
+      }
+
+      /*
+       * Se ficou em waiting/pending
+       * de uma tentativa antiga,
+       * limpamos para impedir loop.
+       */
+      clearActiveAuthorization();
+
+      authorizationId =
+        null;
+    }
+
+  } catch (err) {
+
+    console.error(
+      'ERRO AO RECUPERAR AUTORIZAÇÃO:',
+      err
     );
 
-    startPolling();
+    clearActiveAuthorization();
 
-    return;
+    authorizationId =
+      null;
   }
+}
 
 
   showScreen(
