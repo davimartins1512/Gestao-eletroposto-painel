@@ -3364,7 +3364,19 @@ function refreshSelects(){const old=dailyDriver.value;dailyDriver.innerHTML='<op
 function render(){refreshSelects();renderDashboard();renderDrivers();renderDaily();renderCharges();renderOcpp();renderReceivable();renderClients();renderExpenses();renderReports();renderSystemInfo()}
 function downloadBackup(){const payload={app:'Gestão Operacional V6',exportedAt:nowIso(),data:db},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`backup-v6-${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 restoreFile.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async()=>{try{const parsed=JSON.parse(r.result),d=parsed.data||parsed;if(!d.drivers)throw new Error('Formato inválido');if(!confirm('Importar dados do backup para sua conta V6?'))return;for(const x of d.drivers||[])await ins('drivers',{user_id:currentUser.id,name:x.name||'',phone:x.phone||'',car:x.car||'',plate:x.plate||'',daily_value:x.daily??x.daily_value??0,start_date:x.start||x.start_date||isoToday(),end_date:x.end||x.end_date||null,active:x.active!==false,notes:x.notes||''});for(const x of d.clients||[])await ins('clients',{user_id:currentUser.id,name:x.name||'',phone:x.phone||'',plate:x.plate||'',notes:x.notes||''});alert('Importação básica concluída. Motoristas e clientes foram importados.');await loadAll()}catch(err){alert(err.message)}};r.readAsText(f);e.target.value=''});
-ocppSearch.addEventListener('input',renderOcpp);ocppPaymentStatus.addEventListener('change',renderOcpp);driverSearch.addEventListener('input',renderDrivers);driverStatus.addEventListener('change',renderDrivers);dailyDate.addEventListener('change',renderDaily);dailyDriver.addEventListener('change',renderDaily);chargeSearch.addEventListener('input',renderCharges);chargeStatus.addEventListener('change',renderCharges);chargeMonth.addEventListener('change',renderCharges);receiveSearch.addEventListener('input',renderReceivable);receiveType.addEventListener('change',renderReceivable);clientSearch.addEventListener('input',renderClients);expenseMonth.addEventListener('change',renderExpenses);expenseCategory.addEventListener('change',renderExpenses);reportMonth.addEventListener('change',renderReports);
+ocppSearch.addEventListener('input',renderOcpp);ocppPaymentStatus.addEventListener('change',renderOcpp);driverSearch.addEventListener('input',renderDrivers);driverStatus.addEventListener('change',renderDrivers);dailyDate.addEventListener('change',renderDaily);dailyDriver.addEventListener('change',renderDaily);chargeSearch.addEventListener('input',renderCharges);chargeStatus.addEventListener('change',renderCharges);chargeMonth.addEventListener('change',renderCharges);document
+  .getElementById('receiveSearch')
+  ?.addEventListener(
+    'input',
+    renderReceivable
+  );
+
+document
+  .getElementById('receiveType')
+  ?.addEventListener(
+    'change',
+    renderReceivable
+  );;clientSearch.addEventListener('input',renderClients);expenseMonth.addEventListener('change',renderExpenses);expenseCategory.addEventListener('change',renderExpenses);reportMonth.addEventListener('change',renderReports);
 dailyDate.value=isoToday();chargeMonth.value=monthOf(isoToday());expenseMonth.value=monthOf(isoToday());reportMonth.value=monthOf(isoToday());todayText.textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});setInterval(()=>clock.textContent=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),1000);
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;installBtn.style.display='inline-block'});installBtn.addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;installBtn.style.display='none'});if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.error));
 bootstrap();
