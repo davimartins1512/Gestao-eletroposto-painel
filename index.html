@@ -490,6 +490,218 @@ const profitToday =
   </div>
 
 `;
+  const sectorRevenueTotal =
+  num(
+    rec +
+    ocppPaidToday
+  );
+
+
+const rentalShare =
+  sectorRevenueTotal > 0
+    ? (
+        rec /
+        sectorRevenueTotal
+      ) * 100
+    : 0;
+
+
+const ocppShare =
+  sectorRevenueTotal > 0
+    ? (
+        ocppPaidToday /
+        sectorRevenueTotal
+      ) * 100
+    : 0;
+
+
+dashCards.innerHTML += `
+
+  <div
+    class="card"
+    style="
+      grid-column:1/-1;
+      padding:16px;
+    "
+  >
+
+    <div
+      style="
+        font-size:16px;
+        font-weight:800;
+        margin-bottom:14px;
+      "
+    >
+      Receita por setor hoje
+    </div>
+
+
+    <div
+      style="
+        display:grid;
+        grid-template-columns:
+          repeat(auto-fit,minmax(220px,1fr));
+        gap:14px;
+      "
+    >
+
+
+      <div
+        style="
+          border:1px solid #dbe2e8;
+          border-radius:14px;
+          padding:14px;
+        "
+      >
+
+        <div
+          class="label"
+        >
+          Locação
+        </div>
+
+        <div
+          class="num"
+          style="
+            margin-top:4px;
+          "
+        >
+          ${money(rec)}
+        </div>
+
+        <div
+          class="sub"
+        >
+          ${rentalShare.toFixed(1)}%
+          da receita recebida hoje
+        </div>
+
+        <div
+          style="
+            margin-top:10px;
+            height:8px;
+            background:#e9eef2;
+            border-radius:999px;
+            overflow:hidden;
+          "
+        >
+
+          <div
+            style="
+              height:100%;
+              width:${Math.max(
+                0,
+                Math.min(
+                  100,
+                  rentalShare
+                )
+              )}%;
+              background:#111827;
+            "
+          ></div>
+
+        </div>
+
+      </div>
+
+
+      <div
+        style="
+          border:1px solid #dbe2e8;
+          border-radius:14px;
+          padding:14px;
+        "
+      >
+
+        <div
+          class="label"
+        >
+          Eletroposto OCPP
+        </div>
+
+        <div
+          class="num"
+          style="
+            margin-top:4px;
+          "
+        >
+          ${money(ocppPaidToday)}
+        </div>
+
+        <div
+          class="sub"
+        >
+          ${ocppShare.toFixed(1)}%
+          da receita recebida hoje
+        </div>
+
+        <div
+          style="
+            margin-top:10px;
+            height:8px;
+            background:#e9eef2;
+            border-radius:999px;
+            overflow:hidden;
+          "
+        >
+
+          <div
+            style="
+              height:100%;
+              width:${Math.max(
+                0,
+                Math.min(
+                  100,
+                  ocppShare
+                )
+              )}%;
+              background:#111827;
+            "
+          ></div>
+
+        </div>
+
+      </div>
+
+
+      <div
+        style="
+          border:1px dashed #cbd5e1;
+          border-radius:14px;
+          padding:14px;
+        "
+      >
+
+        <div
+          class="label"
+        >
+          Outros módulos
+        </div>
+
+        <div
+          class="num"
+          style="
+            margin-top:4px;
+          "
+        >
+          R$ 0,00
+        </div>
+
+        <div
+          class="sub"
+        >
+          Pronto para integrar
+          novas automações
+        </div>
+
+      </div>
+
+
+    </div>
+
+  </div>
+
+`;
 
 
   // =========================================================
