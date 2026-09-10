@@ -1573,6 +1573,12 @@ async function confirmManualPayment(
     s =>
       s.reconciliation_required === true
   );
+    const liveSessions =
+  sessions.filter(
+    s =>
+      s.session_status === 'charging'
+  );
+   
   ocppCards.innerHTML=`<div class="card"><div class="label">Carregadores online</div><div class="num">${online}/${cps.length}</div></div><div class="card"><div class="label">Cargas em andamento</div><div class="num">${charging}</div></div><div class="card"><div class="label">Energia hoje</div><div class="num">${todayKwh.toFixed(2)} kWh</div><div class="sub">Tarifa ${money(OCPP_PRICE_PER_KWH)}/kWh</div></div><div class="card"><div class="label">Faturamento OCPP hoje</div><div class="num">${money(todayValue)}</div><div class="sub">Pendente total ${money(pending)}</div></div>`;
   if (reconciliationSessions.length) {
 
@@ -1689,6 +1695,290 @@ if (reconciliationSessions.length) {
           `
         )
         .join('')}
+
+    </div>
+  `;
+}
+    if (liveSessions.length) {
+
+  ocppCards.innerHTML += `
+    <div
+      class="card"
+      style="
+        grid-column:1/-1;
+        padding:16px;
+      "
+    >
+
+      <div
+        style="
+          font-size:16px;
+          font-weight:800;
+          margin-bottom:14px;
+        "
+      >
+        ⚡ Cargas acontecendo agora
+      </div>
+
+      <div
+        style="
+          display:grid;
+          grid-template-columns:
+            repeat(auto-fit,minmax(240px,1fr));
+          gap:12px;
+        "
+      >
+
+        ${liveSessions
+          .map(
+            s => {
+
+              const cp =
+                cps.find(
+                  c =>
+                    c.id ===
+                    s.charge_point_id
+                );
+
+              const soc =
+                s.soc_percent === null ||
+                s.soc_percent === undefined
+                  ? null
+                  : Number(
+                      s.soc_percent
+                    );
+
+              const power =
+                Number(
+                  s.power_kw || 0
+                );
+
+              const energy =
+                Number(
+                  s.energy_kwh || 0
+                );
+
+              const amount =
+                Number(
+                  s.total_amount || 0
+                );
+
+              const started =
+                s.started_at
+                  ? new Date(
+                      s.started_at
+                    )
+                  : null;
+
+              const elapsedSeconds =
+                started
+                  ? Math.max(
+                      0,
+                      Math.floor(
+                        (
+                          Date.now() -
+                          started.getTime()
+                        ) / 1000
+                      )
+                    )
+                  : 0;
+
+              const hours =
+                String(
+                  Math.floor(
+                    elapsedSeconds /
+                    3600
+                  )
+                )
+                  .padStart(
+                    2,
+                    '0'
+                  );
+
+              const minutes =
+                String(
+                  Math.floor(
+                    (
+                      elapsedSeconds %
+                      3600
+                    ) / 60
+                  )
+                )
+                  .padStart(
+                    2,
+                    '0'
+                  );
+
+              const seconds =
+                String(
+                  elapsedSeconds %
+                  60
+                )
+                  .padStart(
+                    2,
+                    '0'
+                  );
+
+              return `
+                <div
+                  style="
+                    border:1px solid #dbe2e8;
+                    border-radius:14px;
+                    padding:14px;
+                    background:#fff;
+                  "
+                >
+
+                  <div
+                    style="
+                      display:flex;
+                      justify-content:
+                        space-between;
+                      align-items:center;
+                      gap:10px;
+                    "
+                  >
+
+                    <div>
+
+                      <div
+                        style="
+                          font-weight:800;
+                          font-size:15px;
+                        "
+                      >
+                        ${esc(
+                          cp?.name ||
+                          cp?.ocpp_identity ||
+                          'Carregador'
+                        )}
+                      </div>
+
+                      <div
+                        class="muted"
+                      >
+                        Conector
+                        ${esc(
+                          s.connector_id ||
+                          '-'
+                        )}
+                        · Transação
+                        #${esc(
+                          s.transaction_id ||
+                          '-'
+                        )}
+                      </div>
+
+                    </div>
+
+                    <div
+                      style="
+                        font-size:22px;
+                        font-weight:900;
+                      "
+                    >
+                      ${
+                        soc === null
+                          ? '🔋 --%'
+                          : `🔋 ${soc.toFixed(0)}%`
+                      }
+                    </div>
+
+                  </div>
+
+
+                  <div
+                    style="
+                      margin-top:12px;
+                      height:10px;
+                      background:#e9eef2;
+                      border-radius:999px;
+                      overflow:hidden;
+                    "
+                  >
+
+                    <div
+                      style="
+                        height:100%;
+                        width:${
+                          soc === null
+                            ? 0
+                            : Math.max(
+                                0,
+                                Math.min(
+                                  100,
+                                  soc
+                                )
+                              )
+                        }%;
+                        background:#16a34a;
+                        border-radius:999px;
+                      "
+                    ></div>
+
+                  </div>
+
+
+                  <div
+                    style="
+                      display:grid;
+                      grid-template-columns:
+                        repeat(2,1fr);
+                      gap:10px;
+                      margin-top:14px;
+                    "
+                  >
+
+                    <div>
+                      <div class="muted">
+                        Potência
+                      </div>
+                      <b>
+                        ${power.toFixed(2)}
+                        kW
+                      </b>
+                    </div>
+
+                    <div>
+                      <div class="muted">
+                        Energia
+                      </div>
+                      <b>
+                        ${energy.toFixed(2)}
+                        kWh
+                      </b>
+                    </div>
+
+                    <div>
+                      <div class="muted">
+                        Valor atual
+                      </div>
+                      <b>
+                        R$
+                        ${amount
+                          .toFixed(2)
+                          .replace('.', ',')}
+                      </b>
+                    </div>
+
+                    <div>
+                      <div class="muted">
+                        Tempo
+                      </div>
+                      <b>
+                        ${hours}:${minutes}:${seconds}
+                      </b>
+                    </div>
+
+                  </div>
+
+                </div>
+              `;
+            }
+          )
+          .join('')}
+
+      </div>
 
     </div>
   `;
