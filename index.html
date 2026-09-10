@@ -82,12 +82,33 @@ h3{font-size:17px;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,t
       <section class="tab" id="daily"><div class="box"><div class="filters"><input id="dailyDate" type="date"><select id="dailyDriver"></select><button class="btn secondary" onclick="renderDaily()">Atualizar</button></div><div class="table-wrap" id="dailyList"></div></div></section>
       <section class="tab" id="ocpp"><div class="toolbar" style="justify-content:space-between"><div><b>Operação OCPP 1.6</b><div class="tiny">Tarifa operacional: R$ 1,69/kWh</div></div><button class="btn secondary" onclick="loadAll()">Atualizar</button></div><div class="grid" id="ocppCards"></div><div class="box"><h3 style="margin-top:0">Carregadores e conectores</h3><div class="table-wrap" id="chargePointsList"></div></div><div class="box"><div class="filters"><input class="wide" id="ocppSearch" placeholder="Buscar carregador, placa ou transação"><select id="ocppPaymentStatus"><option value="">Todos os pagamentos</option><option value="paid">Pagos</option><option value="pending">Pendentes</option><option value="checkout_error">Erro no checkout</option></select></div><div class="table-wrap" id="ocppSessionsList"></div></div></section>
       <section class="tab" id="charges"><div class="toolbar"><button class="btn" onclick="openChargeModal()">+ Nova carga</button></div><div class="box"><div class="filters"><input class="wide" id="chargeSearch" placeholder="Buscar cliente ou placa"><select id="chargeStatus"><option value="">Todas</option><option value="open">Em aberto</option><option value="paid">Pagas</option></select><input id="chargeMonth" type="month"></div><div class="table-wrap" id="chargesList"></div></div></section>
-     <select id="receiveType">
-  <option value="">Tudo</option>
-  <option value="rental">Aluguéis</option>
-  <option value="charge">Cargas manuais</option>
-  <option value="ocpp">Eletroposto OCPP</option>
-</select>
+     <section class="tab" id="receivable">
+  <div class="grid" id="receivableCards"></div>
+
+  <div class="box">
+    <div class="filters">
+
+      <input
+        class="wide"
+        id="receiveSearch"
+        placeholder="Buscar nome, placa ou transação"
+      >
+
+      <select id="receiveType">
+        <option value="">Tudo</option>
+        <option value="rental">Aluguéis</option>
+        <option value="charge">Cargas manuais</option>
+        <option value="ocpp">Eletroposto OCPP</option>
+      </select>
+
+    </div>
+
+    <div
+      class="table-wrap"
+      id="receivableList"
+    ></div>
+  </div>
+</section>
       <section class="tab" id="clients"><div class="toolbar"><button class="btn" onclick="openClientModal()">+ Novo cliente</button></div><div class="box"><div class="filters"><input class="wide" id="clientSearch" placeholder="Buscar cliente, telefone ou placa"></div><div class="table-wrap" id="clientsList"></div></div></section>
       <section class="tab" id="expenses"><div class="toolbar"><button class="btn" onclick="openExpenseModal()">+ Nova despesa</button></div><div class="box"><div class="filters"><input id="expenseMonth" type="month"><select id="expenseCategory"><option value="">Todas</option><option>Energia</option><option>Manutenção</option><option>Seguro</option><option>Limpeza</option><option>Impostos</option><option>Outros</option></select></div><div class="table-wrap" id="expensesList"></div></div></section>
       <section class="tab" id="reports"><div class="box"><div class="filters"><input id="reportMonth" type="month"><button class="btn secondary" onclick="renderReports()">Atualizar</button></div><div id="reportBody"></div></div></section>
