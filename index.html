@@ -148,7 +148,488 @@ async function removeCharge(id){if(!confirm('Excluir carga?'))return;try{await d
 function openExpenseModal(){showModal('Nova despesa',`<div class="form-grid"><div><label>Data *</label><input id="exDate" type="date" value="${isoToday()}"></div><div><label>Categoria</label><select id="exCat"><option>Energia</option><option>Manutenção</option><option>Seguro</option><option>Limpeza</option><option>Impostos</option><option>Outros</option></select></div><div><label>Valor *</label><input id="exValue" type="number" step=".01"></div><div class="full"><label>Descrição</label><input id="exDesc"></div></div><div style="height:14px"></div><button class="btn" onclick="saveExpense()">Salvar</button>`) }
 async function saveExpense(){try{const value=num(exValue.value);if(value<=0)return alert('Informe o valor.');await ins('expenses',{user_id:currentUser.id,expense_date:exDate.value,category:exCat.value,amount:value,description:exDesc.value.trim()});closeModal();await loadAll()}catch(e){alert(e.message)}}
 async function removeExpense(id){if(!confirm('Excluir despesa?'))return;try{await del('expenses',id);await loadAll()}catch(e){alert(e.message)}}
-function renderDashboard(){const t=isoToday(),active=db.drivers.filter(d=>driverActiveOn(d,t)&&d.active),exp=num(active.reduce((s,d)=>s+Number(d.daily_value),0)),rec=num(db.rentalPayments.filter(p=>p.payment_date===t).reduce((s,p)=>s+Number(p.amount),0)),charges=db.charges.filter(c=>c.charge_date===t),chargeSales=num(charges.reduce((s,c)=>s+Number(c.amount),0)),rOpen=num(db.drivers.reduce((s,d)=>s+openRental(d),0)),cOpen=num(db.charges.reduce((s,c)=>s+openCharge(c),0));dashCards.innerHTML=`<div class="card"><div class="label">Diárias previstas hoje</div><div class="num">${money(exp)}</div></div><div class="card"><div class="label">Pix de diárias hoje</div><div class="num">${money(rec)}</div></div><div class="card"><div class="label">Cargas hoje</div><div class="num">${money(chargeSales)}</div></div><div class="card"><div class="label">Total em aberto</div><div class="num">${money(rOpen+cOpen)}</div></div>`;const items=[];db.drivers.forEach(d=>{const o=openRental(d);if(o>0)items.push({name:d.name,plate:d.plate,open:o,act:`receiveRental('${d.id}')`,phone:d.phone})});db.charges.forEach(c=>{const o=openCharge(c);if(o>0)items.push({name:c.customer_name,plate:c.plate,open:o,act:`receiveCharge('${c.id}')`,phone:db.clients.find(x=>x.id===c.client_id)?.phone||''})});items.sort((a,b)=>b.open-a.open);priorityList.innerHTML=items.length?items.slice(0,10).map(x=>`<div class="attention"><div><b>${esc(x.name)}</b><div class="tiny">${esc(x.plate)} • ${money(x.open)}</div></div><div><button class="btn small" onclick="${x.act}">Receber</button>${x.phone?` <button class="btn secondary small" onclick="whats('${esc(x.phone)}','Olá ${esc(x.name)}, consta ${money(x.open)} em aberto.')">WA</button>`:''}</div></div>`).join(''):'<div class="empty">Nenhuma pendência 🎉</div>'}
+function renderDashboard(){
+
+  const t =
+    isoToday();
+
+
+  // =========================================================
+  // LOCAÇÃO
+  // =========================================================
+
+  const active =
+    db.drivers.filter(
+      d =>
+        driverActiveOn(d,t) &&
+        d.active
+    );
+
+
+  const exp =
+    num(
+      active.reduce(
+        (s,d) =>
+          s +
+          Number(
+            d.daily_value || 0
+          ),
+        0
+      )
+    );
+
+
+  const rec =
+    num(
+      db.rentalPayments
+        .filter(
+          p =>
+            p.payment_date === t
+        )
+        .reduce(
+          (s,p) =>
+            s +
+            Number(
+              p.amount || 0
+            ),
+          0
+        )
+    );
+
+
+  // =========================================================
+  // COBRANÇAS / MÓDULOS ANTIGOS
+  // =========================================================
+
+  const charges =
+    db.charges.filter(
+      c =>
+        c.charge_date === t
+    );
+
+
+  const chargeSales =
+    num(
+      charges.reduce(
+        (s,c) =>
+          s +
+          Number(
+            c.amount || 0
+          ),
+        0
+      )
+    );
+
+
+  // =========================================================
+  // OCPP
+  // =========================================================
+
+  const ocppSessions =
+    db.ocppSessions || [];
+
+
+  /*
+   * Receita OCPP:
+   * só entra no financeiro central
+   * depois que o pagamento está confirmado.
+   */
+  const ocppPaidToday =
+    num(
+      ocppSessions
+        .filter(
+          s => {
+
+            if (
+              s.payment_status !==
+              'paid'
+            ) {
+              return false;
+            }
+
+            const paidAt =
+              s.payment_approved_at ||
+              s.paid_at ||
+              s.updated_at ||
+              '';
+
+            return (
+              String(paidAt)
+                .slice(0,10) ===
+              t
+            );
+          }
+        )
+        .reduce(
+          (sum,s) =>
+            sum +
+            Number(
+              s.amount_paid ||
+              s.total_amount ||
+              0
+            ),
+          0
+        )
+    );
+
+
+  /*
+   * Valores OCPP que ainda não
+   * foram recebidos.
+   */
+  const ocppOpen =
+    num(
+      ocppSessions
+        .filter(
+          s =>
+            s.payment_status !==
+            'paid'
+        )
+        .reduce(
+          (sum,s) => {
+
+            const total =
+              Number(
+                s.total_amount ||
+                0
+              );
+
+            const paid =
+              Number(
+                s.amount_paid ||
+                0
+              );
+
+            return (
+              sum +
+              Math.max(
+                0,
+                total - paid
+              )
+            );
+          },
+          0
+        )
+    );
+
+
+  // =========================================================
+  // TOTAIS EM ABERTO
+  // =========================================================
+
+  const rOpen =
+    num(
+      db.drivers.reduce(
+        (s,d) =>
+          s +
+          openRental(d),
+        0
+      )
+    );
+
+
+  const cOpen =
+    num(
+      db.charges.reduce(
+        (s,c) =>
+          s +
+          openCharge(c),
+        0
+      )
+    );
+
+
+  const totalOpen =
+    num(
+      rOpen +
+      cOpen +
+      ocppOpen
+    );
+
+
+  // =========================================================
+  // CARDS PRINCIPAIS
+  // =========================================================
+
+  dashCards.innerHTML = `
+    <div class="card">
+
+      <div class="label">
+        Diárias previstas hoje
+      </div>
+
+      <div class="num">
+        ${money(exp)}
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <div class="label">
+        Recebido em diárias hoje
+      </div>
+
+      <div class="num">
+        ${money(rec)}
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <div class="label">
+        OCPP recebido hoje
+      </div>
+
+      <div class="num">
+        ${money(ocppPaidToday)}
+      </div>
+
+      <div class="sub">
+        Somente pagamentos confirmados
+      </div>
+
+    </div>
+
+
+    <div class="card">
+
+      <div class="label">
+        Total em aberto
+      </div>
+
+      <div class="num">
+        ${money(totalOpen)}
+      </div>
+
+      <div class="sub">
+        OCPP ${money(ocppOpen)}
+      </div>
+
+    </div>
+  `;
+
+
+  // =========================================================
+  // LISTA DE PRIORIDADES / CONTAS A RECEBER
+  // =========================================================
+
+  const items = [];
+
+
+  db.drivers.forEach(
+    d => {
+
+      const o =
+        openRental(d);
+
+      if (o > 0) {
+
+        items.push({
+          type:
+            'rental',
+
+          name:
+            d.name,
+
+          plate:
+            d.plate,
+
+          open:
+            o,
+
+          act:
+            `receiveRental('${d.id}')`,
+
+          phone:
+            d.phone
+        });
+      }
+    }
+  );
+
+
+  db.charges.forEach(
+    c => {
+
+      const o =
+        openCharge(c);
+
+      if (o > 0) {
+
+        items.push({
+          type:
+            'charge',
+
+          name:
+            c.customer_name,
+
+          plate:
+            c.plate,
+
+          open:
+            o,
+
+          act:
+            `receiveCharge('${c.id}')`,
+
+          phone:
+            db.clients
+              .find(
+                x =>
+                  x.id ===
+                  c.client_id
+              )
+              ?.phone ||
+            ''
+        });
+      }
+    }
+  );
+
+
+  /*
+   * Pendências do módulo OCPP
+   * entram no financeiro central.
+   */
+  ocppSessions
+    .filter(
+      s =>
+        s.session_status ===
+          'finished' &&
+        s.payment_status !==
+          'paid'
+    )
+    .forEach(
+      s => {
+
+        const total =
+          Number(
+            s.total_amount ||
+            0
+          );
+
+        const paid =
+          Number(
+            s.amount_paid ||
+            0
+          );
+
+        const open =
+          Math.max(
+            0,
+            total - paid
+          );
+
+
+        if (open <= 0) {
+          return;
+        }
+
+
+        items.push({
+          type:
+            'ocpp',
+
+          name:
+            s.customer_name ||
+            `Recarga OCPP #${s.transaction_id || '-'}`,
+
+          plate:
+            s.plate ||
+            `Conector ${s.connector_id || '-'}`,
+
+          open,
+
+          act:
+            `openManualPayment('${s.id}')`,
+
+          phone:
+            ''
+        });
+      }
+    );
+
+
+  items.sort(
+    (a,b) =>
+      b.open -
+      a.open
+  );
+
+
+  priorityList.innerHTML =
+    items.length
+      ? items
+          .slice(
+            0,
+            10
+          )
+          .map(
+            x => `
+              <div class="attention">
+
+                <div>
+
+                  <b>
+                    ${esc(x.name)}
+                  </b>
+
+                  <div class="tiny">
+                    ${esc(x.plate)}
+                    •
+                    ${money(x.open)}
+                    ${
+                      x.type ===
+                      'ocpp'
+                        ? ' • OCPP'
+                        : ''
+                    }
+                  </div>
+
+                </div>
+
+
+                <div>
+
+                  <button
+                    class="btn small"
+                    onclick="${x.act}"
+                  >
+                    Receber
+                  </button>
+
+                  ${
+                    x.phone
+                      ? `
+                        <button
+                          class="btn secondary small"
+                          onclick="whats(
+                            '${esc(x.phone)}',
+                            'Olá ${esc(x.name)}, consta ${money(x.open)} em aberto.'
+                          )"
+                        >
+                          WA
+                        </button>
+                      `
+                      : ''
+                  }
+
+                </div>
+
+              </div>
+            `
+          )
+          .join('')
+      : `
+          <div class="empty">
+            Nenhuma pendência 🎉
+          </div>
+        `;
+}
 function renderDrivers(){const q=(driverSearch.value||'').toLowerCase(),f=driverStatus.value;let a=db.drivers.filter(d=>!q||(d.name+' '+d.car+' '+d.plate).toLowerCase().includes(q));if(f==='active')a=a.filter(d=>d.active&&!d.end_date);if(f==='inactive')a=a.filter(d=>!d.active||d.end_date);if(f==='open')a=a.filter(d=>openRental(d)>0);if(f==='paid')a=a.filter(d=>openRental(d)<=0);driversList.innerHTML=a.length?`<table><tr><th>Motorista</th><th>Carro</th><th>Diária</th><th>Previsto</th><th>Recebido</th><th>Aberto</th><th>Ações</th></tr>${a.map(d=>{const due=dueUntil(d),paid=rentalPaidUntil(d),open=Math.max(0,due-paid);return `<tr><td><b>${esc(d.name)}</b><br><span class="tiny">${esc(d.phone)}</span></td><td>${esc(d.car)}<br><b>${esc(d.plate)}</b></td><td>${money(d.daily_value)}</td><td>${money(due)}</td><td>${money(paid)}</td><td><b>${money(open)}</b></td><td class="nowrap"><button class="btn small" onclick="receiveRental('${d.id}')">+ Pix</button> <button class="btn secondary small" onclick="openDriverModal('${d.id}')">Editar</button> <button class="btn danger small" onclick="removeDriver('${d.id}')">×</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum motorista.</div>'}
 function renderDaily(){const date=dailyDate.value||isoToday(),selected=dailyDriver.value,drivers=db.drivers.filter(d=>driverActiveOn(d,date)&&(!selected||d.id===selected));dailyList.innerHTML=drivers.length?`<table><tr><th>Motorista</th><th>Placa</th><th>Devido</th><th>Recebido</th><th>Status</th><th></th></tr>${drivers.map(d=>{const due=num(d.daily_value),paid=rentalPaidOn(d,date);let st=paid===0?badge('pending','NÃO PAGO'):paid<due?badge('partial','FALTANDO'):paid>due?badge('extra','A MAIS'):badge('paid','PAGO');return `<tr><td><b>${esc(d.name)}</b></td><td>${esc(d.plate)}</td><td>${money(due)}</td><td>${money(paid)}</td><td>${st}</td><td><button class="btn small" onclick="receiveRental('${d.id}','${date}')">Registrar Pix</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum motorista ativo nessa data.</div>'}
 function renderCharges(){const q=(chargeSearch.value||'').toLowerCase(),f=chargeStatus.value,m=chargeMonth.value;let a=db.charges.filter(c=>(!q||(c.customer_name+' '+c.plate).toLowerCase().includes(q))&&(!m||monthOf(c.charge_date)===m));if(f==='open')a=a.filter(c=>openCharge(c)>0);if(f==='paid')a=a.filter(c=>openCharge(c)<=0);a.sort((x,y)=>(y.charge_date+(y.charge_time||'')).localeCompare(x.charge_date+(x.charge_time||'')));chargesList.innerHTML=a.length?`<table><tr><th>Data</th><th>Cliente</th><th>Valor</th><th>Recebido</th><th>Aberto</th><th>Ações</th></tr>${a.map(c=>`<tr><td>${dateBR(c.charge_date)}<br><span class="tiny">${esc(c.charge_time||'')}</span></td><td><b>${esc(c.customer_name)}</b><br>${esc(c.plate)}</td><td>${money(c.amount)}</td><td>${money(chargePaid(c))}</td><td><b>${money(openCharge(c))}</b></td><td class="nowrap"><button class="btn small" onclick="receiveCharge('${c.id}')">+ Pix</button> <button class="btn secondary small" onclick="openChargeModal('${c.id}')">Editar</button> <button class="btn danger small" onclick="removeCharge('${c.id}')">×</button></td></tr>`).join('')}</table>`:'<div class="empty">Nenhuma carga.</div>'}
