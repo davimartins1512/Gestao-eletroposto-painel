@@ -1017,10 +1017,315 @@ const token =
     );
   }
 }
- function openReconciliationSession(
+function openReconciliationSession(
   sessionId
 ){
 
+  const session =
+    (db.ocppSessions || [])
+      .find(
+        s =>
+          s.id === sessionId
+      );
+
+  if (!session) {
+    alert(
+      'Sessão não encontrada.'
+    );
+    return;
+  }
+
+  showModal(
+    'Regularizar sessão',
+    `
+      <div class="form-grid">
+
+        <div class="full">
+          <label>
+            Transação OCPP
+          </label>
+
+          <input
+            value="${esc(
+              session.transaction_id ||
+              '-'
+            )}"
+            disabled
+          >
+        </div>
+
+        <div>
+          <label>
+            Última energia conhecida
+          </label>
+
+          <input
+            value="${Number(
+              session.energy_kwh || 0
+            ).toFixed(3)} kWh"
+            disabled
+          >
+        </div>
+
+        <div>
+          <label>
+            Último valor conhecido
+          </label>
+
+          <input
+            value="R$ ${Number(
+              session.total_amount || 0
+            )
+              .toFixed(2)
+              .replace('.', ',')}"
+            disabled
+          >
+        </div>
+
+        <div class="full">
+          <label>
+            Como deseja regularizar?
+          </label>
+
+          <select
+            id="reconciliationMode"
+            onchange="toggleReconciliationEnergy()"
+          >
+            <option value="last">
+              Usar última leitura conhecida
+            </option>
+
+            <option value="manual">
+              Informar leitura final manualmente
+            </option>
+          </select>
+        </div>
+
+        <div
+          class="full"
+          id="reconciliationEnergyWrap"
+          style="display:none"
+        >
+          <label>
+            Energia final
+          </label>
+
+          <input
+            id="reconciliationEnergy"
+            type="number"
+            min="0"
+            step="0.001"
+            placeholder="Ex.: 18.250"
+          >
+        </div>
+
+        <div class="full">
+          <label>
+            Observação
+          </label>
+
+          <input
+            id="reconciliationNote"
+            placeholder="Ex.: botão de emergência / queda de comunicação"
+          >
+        </div>
+
+      </div>
+
+      <div style="height:14px"></div>
+
+      <button
+        class="btn"
+        onclick="confirmReconciliation('${esc(session.id)}')"
+      >
+        Confirmar regularização
+      </button>
+    `
+  );
+}
+  function toggleReconciliationEnergy(){
+
+  const mode =
+    document
+      .getElementById(
+        'reconciliationMode'
+      )
+      ?.value;
+
+  const wrap =
+    document
+      .getElementById(
+        'reconciliationEnergyWrap'
+      );
+
+  if (!wrap) {
+    return;
+  }
+
+  wrap.style.display =
+    mode === 'manual'
+      ? 'block'
+      : 'none';
+}
+
+
+async function confirmReconciliation(
+  sessionId
+){
+
+  try {
+
+    const mode =
+      document
+        .getElementById(
+          'reconciliationMode'
+        )
+        ?.value ||
+      'last';
+
+
+    const useLastReading =
+      mode === 'last';
+
+
+    const energyElement =
+      document
+        .getElementById(
+          'reconciliationEnergy'
+        );
+
+
+    const energyKwh =
+      useLastReading
+        ? null
+        : Number(
+            energyElement?.value
+          );
+
+
+    if (
+      !useLastReading &&
+      (
+        !Number.isFinite(
+          energyKwh
+        ) ||
+        energyKwh < 0
+      )
+    ) {
+      alert(
+        'Informe uma energia final válida.'
+      );
+      return;
+    }
+
+
+    const note =
+      document
+        .getElementById(
+          'reconciliationNote'
+        )
+        ?.value
+        ?.trim() ||
+      '';
+
+
+    const {
+      data: {
+        session
+      }
+    } =
+      await supa.auth.getSession();
+
+
+    if (!session?.access_token) {
+      alert(
+        'Sua sessão administrativa expirou. Faça login novamente.'
+      );
+      return;
+    }
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        '/api/admin/charging/reconcile-session',
+        {
+          method:
+            'POST',
+
+          headers:{
+            'content-type':
+              'application/json',
+
+            'authorization':
+              `Bearer ${session.access_token}`
+          },
+
+          body:
+            JSON.stringify({
+              session_id:
+                sessionId,
+
+              use_last_reading:
+                useLastReading,
+
+              energy_kwh:
+                useLastReading
+                  ? null
+                  : energyKwh,
+
+              note
+            })
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.error ||
+        body.message ||
+        'Falha ao regularizar sessão.'
+      );
+    }
+
+
+    closeModal();
+
+
+    alert(
+      `Sessão regularizada com sucesso.\n\n` +
+      `Energia: ${Number(
+        body.energy_kwh || 0
+      ).toFixed(3)} kWh\n` +
+      `Valor: R$ ${Number(
+        body.total_amount || 0
+      )
+        .toFixed(2)
+        .replace('.', ',')}`
+    );
+
+
+    await loadAll();
+
+  } catch (err) {
+
+    alert(
+      err.message ||
+      'Erro ao regularizar sessão.'
+    );
+  }
+}
   const session =
     (db.ocppSessions || [])
       .find(
