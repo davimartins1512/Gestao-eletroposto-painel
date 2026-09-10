@@ -4268,25 +4268,82 @@ function renderClients(){
       </div>
 
 
-      <div class="box">
+     <div class="box">
 
-        <b>Limites financeiros</b>
+  <b>Controle do cliente</b>
 
-        <div style="margin-top:10px;line-height:1.8;">
+  <div style="margin-top:10px;line-height:1.8;">
 
-          Pendências:
-          <b>${maxCharges}</b>
+    Status:
+    <b>${status}</b>
 
-          <br>
+    <br>
 
-          Valor máximo:
-          <b>${maxAmount}</b>
+    Limite de pendências:
+    <b>${maxCharges}</b>
 
-        </div>
+    <br>
 
-      </div>
+    Limite em aberto:
+    <b>${maxAmount}</b>
 
-    </div>
+  </div>
+
+
+  <div
+    style="
+      display:flex;
+      gap:6px;
+      flex-wrap:wrap;
+      margin-top:12px;
+    "
+  >
+
+    ${
+      customer.approval_status !== 'approved'
+        ? `
+          <button
+            class="btn small"
+            onclick="approveOcppCustomer('${customer.id}')"
+          >
+            Aprovar
+          </button>
+        `
+        : ''
+    }
+
+
+    ${
+      customer.blocked
+        ? `
+          <button
+            class="btn small"
+            onclick="unblockOcppCustomer('${customer.id}')"
+          >
+            Desbloquear
+          </button>
+        `
+        : `
+          <button
+            class="btn danger small"
+            onclick="blockOcppCustomer('${customer.id}')"
+          >
+            Bloquear
+          </button>
+        `
+    }
+
+
+    <button
+      class="btn secondary small"
+      onclick="openCustomerLimits('${customer.id}')"
+    >
+      Alterar limites
+    </button>
+
+  </div>
+
+</div>
 
 
     <div class="box" style="margin-bottom:18px;">
@@ -4330,6 +4387,152 @@ function renderClients(){
   `
 );
 }
+
+  async function adminCustomerAction(
+  customerId,
+  action,
+  bodyData = null
+){
+
+  try {
+
+    const token =
+      await getAdminAccessToken();
+
+    if (!token) {
+      return alert(
+        'Sessão de administrador inválida.'
+      );
+    }
+
+
+    const options = {
+      method:'POST',
+
+      headers:{
+        'authorization':
+          `Bearer ${token}`
+      }
+    };
+
+
+    if (bodyData) {
+
+      options.headers['content-type'] =
+        'application/json';
+
+      options.body =
+        JSON.stringify(
+          bodyData
+        );
+    }
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        `/api/admin/customers/${customerId}/${action}`,
+        options
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      body.success === false
+    ) {
+      throw new Error(
+        body.error ||
+        'Falha ao atualizar cliente.'
+      );
+    }
+
+
+    closeModal();
+
+    await loadAll();
+
+    openOcppCustomer(
+      customerId
+    );
+
+  }
+  catch(err) {
+
+    alert(
+      err?.message ||
+      'Erro ao atualizar cliente.'
+    );
+  }
+}
+
+
+async function approveOcppCustomer(
+  customerId
+){
+
+  if (
+    !confirm(
+      'Aprovar este cliente para realizar recargas?'
+    )
+  ) {
+    return;
+  }
+
+
+  await adminCustomerAction(
+    customerId,
+    'approve'
+  );
+}
+
+
+async function blockOcppCustomer(
+  customerId
+){
+
+  if (
+    !confirm(
+      'Bloquear este cliente? Ele não poderá iniciar novas recargas.'
+    )
+  ) {
+    return;
+  }
+
+
+  await adminCustomerAction(
+    customerId,
+    'block'
+  );
+}
+
+
+async function unblockOcppCustomer(
+  customerId
+){
+
+  if (
+    !confirm(
+      'Desbloquear este cliente?'
+    )
+  ) {
+    return;
+  }
+
+
+  await adminCustomerAction(
+    customerId,
+    'unblock'
+  );
+}
+  
   async function getAdminAccessToken(){
 
   const {
@@ -4345,6 +4548,94 @@ function renderClients(){
   );
 }
 
+  function openCustomerLimits(customerId){
+
+  const customer =
+    (db.ocppCustomers || [])
+      .find(
+        c =>
+          c.id === customerId
+      );
+
+
+  if (!customer) {
+    return alert(
+      'Cliente não encontrado.'
+    );
+  }
+
+
+  showModal(
+    `Limites — ${esc(customer.name || 'Cliente')}`,
+    `
+
+      <div class="form-grid">
+
+        <div class="full">
+
+          <label>
+            Máximo de cobranças pendentes
+          </label>
+
+          <input
+            id="customerMaxPendingCharges"
+            type="number"
+            min="0"
+            step="1"
+            value="${
+              customer.max_pending_charges ??
+              ''
+            }"
+            placeholder="Vazio = sem limite"
+          >
+
+          <div class="tiny">
+            Deixe vazio para não limitar a quantidade.
+          </div>
+
+        </div>
+
+
+        <div class="full">
+
+          <label>
+            Máximo total em aberto
+          </label>
+
+          <input
+            id="customerMaxPendingAmount"
+            type="number"
+            min="0"
+            step="0.01"
+            value="${
+              customer.max_pending_amount ??
+              ''
+            }"
+            placeholder="Vazio = sem limite"
+          >
+
+          <div class="tiny">
+            Deixe vazio para não limitar o valor.
+          </div>
+
+        </div>
+
+      </div>
+
+
+      <div style="height:14px"></div>
+
+
+      <button
+        class="btn"
+        onclick="saveCustomerLimits('${customerId}')"
+      >
+        Salvar limites
+      </button>
+
+    `
+  );
+}
 
 function openAddCustomerVehicle(customerId){
 
@@ -4417,6 +4708,136 @@ function openAddCustomerVehicle(customerId){
   );
 }
 
+  async function saveCustomerLimits(
+  customerId
+){
+
+  try {
+
+    const chargesEl =
+      document.getElementById(
+        'customerMaxPendingCharges'
+      );
+
+    const amountEl =
+      document.getElementById(
+        'customerMaxPendingAmount'
+      );
+
+
+    const maxPendingCharges =
+      chargesEl?.value === ''
+        ? null
+        : Number(
+            chargesEl?.value
+          );
+
+
+    const maxPendingAmount =
+      amountEl?.value === ''
+        ? null
+        : Number(
+            amountEl?.value
+          );
+
+
+    if (
+      maxPendingCharges !== null &&
+      (
+        !Number.isInteger(
+          maxPendingCharges
+        ) ||
+        maxPendingCharges < 0
+      )
+    ) {
+      return alert(
+        'Quantidade de pendências inválida.'
+      );
+    }
+
+
+    if (
+      maxPendingAmount !== null &&
+      (
+        !Number.isFinite(
+          maxPendingAmount
+        ) ||
+        maxPendingAmount < 0
+      )
+    ) {
+      return alert(
+        'Valor máximo inválido.'
+      );
+    }
+
+
+    const token =
+      await getAdminAccessToken();
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        `/api/admin/customers/${customerId}/limits`,
+        {
+          method:'PATCH',
+
+          headers:{
+            'content-type':
+              'application/json',
+
+            'authorization':
+              `Bearer ${token}`
+          },
+
+          body:
+            JSON.stringify({
+              max_pending_charges:
+                maxPendingCharges,
+
+              max_pending_amount:
+                maxPendingAmount
+            })
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      body.success === false
+    ) {
+      throw new Error(
+        body.error ||
+        'Falha ao atualizar limites.'
+      );
+    }
+
+
+    closeModal();
+
+    await loadAll();
+
+    openOcppCustomer(
+      customerId
+    );
+
+  }
+  catch(err) {
+
+    alert(
+      err?.message ||
+      'Erro ao atualizar limites.'
+    );
+  }
+}
 
 async function confirmAddCustomerVehicle(customerId){
 
