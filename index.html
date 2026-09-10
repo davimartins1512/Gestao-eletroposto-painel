@@ -4072,120 +4072,38 @@ function renderClients(){
         `;
 
 
-  const modalEl =
-    document.getElementById('modal');
+  showModal(
+  `Ficha do cliente — ${esc(customer.name || 'Cliente')}`,
+  `
 
-  const modalBackEl =
-    document.getElementById('modalBack');
-
-
-  if (
-    !modalEl ||
-    !modalBackEl
-  ) {
-    return;
-  }
-
-
-  modalEl.innerHTML = `
-
-    <div
-      style="
-        display:flex;
-        justify-content:space-between;
-        align-items:flex-start;
-        gap:15px;
-        margin-bottom:18px;
-      "
-    >
-
-      <div>
-
-        <div class="tiny">
-          FICHA DO CLIENTE
-        </div>
-
-        <h2
-          style="
-            margin:4px 0;
-          "
-        >
-          ${esc(customer.name || 'Cliente')}
-        </h2>
-
-        <div class="muted">
-          ${status}
-        </div>
-
-      </div>
-
-
-      <button
-        class="btn secondary small"
-        onclick="closeModal()"
-      >
-        ✕
-      </button>
-
-    </div>
-
-
-    <div
-      class="grid"
-      style="
-        margin-bottom:16px;
-      "
-    >
+    <div class="grid" style="margin-bottom:16px;">
 
       <div class="card">
-
-        <div class="label">
-          Recargas
-        </div>
-
+        <div class="label">Recargas</div>
         <div class="num">
           ${finished.length}
         </div>
-
       </div>
 
-
       <div class="card">
-
-        <div class="label">
-          Energia consumida
-        </div>
-
+        <div class="label">Energia consumida</div>
         <div class="num">
           ${totalKwh.toFixed(2)} kWh
         </div>
-
       </div>
 
-
       <div class="card">
-
-        <div class="label">
-          Total pago
-        </div>
-
+        <div class="label">Total pago</div>
         <div class="num">
           ${money(totalPaid)}
         </div>
-
       </div>
 
-
       <div class="card">
-
-        <div class="label">
-          Em aberto
-        </div>
-
+        <div class="label">Em aberto</div>
         <div class="num">
           ${money(totalOpen)}
         </div>
-
       </div>
 
     </div>
@@ -4205,24 +4123,15 @@ function renderClients(){
 
         <b>Dados do cliente</b>
 
-        <div
-          style="
-            margin-top:10px;
-            line-height:1.8;
-          "
-        >
+        <div style="margin-top:10px;line-height:1.8;">
 
           Telefone:
-          <b>
-            ${esc(customer.phone || '-')}
-          </b>
+          <b>${esc(customer.phone || '-')}</b>
 
           <br>
 
           Status:
-          <b>
-            ${status}
-          </b>
+          <b>${status}</b>
 
         </div>
 
@@ -4233,24 +4142,15 @@ function renderClients(){
 
         <b>Limites financeiros</b>
 
-        <div
-          style="
-            margin-top:10px;
-            line-height:1.8;
-          "
-        >
+        <div style="margin-top:10px;line-height:1.8;">
 
           Pendências:
-          <b>
-            ${maxCharges}
-          </b>
+          <b>${maxCharges}</b>
 
           <br>
 
           Valor máximo:
-          <b>
-            ${maxAmount}
-          </b>
+          <b>${maxAmount}</b>
 
         </div>
 
@@ -4259,18 +4159,9 @@ function renderClients(){
     </div>
 
 
-    <div
-      class="box"
-      style="
-        margin-bottom:18px;
-      "
-    >
+    <div class="box" style="margin-bottom:18px;">
 
-      <h3
-        style="
-          margin-top:0;
-        "
-      >
+      <h3 style="margin-top:0;">
         🚗 Veículos
       </h3>
 
@@ -4281,14 +4172,9 @@ function renderClients(){
 
     <div class="box">
 
-      <h3
-        style="
-          margin-top:0;
-        "
-      >
+      <h3 style="margin-top:0;">
         ⚡ Histórico de recargas
       </h3>
-
 
       <div class="table-wrap">
 
@@ -4311,12 +4197,8 @@ function renderClients(){
 
     </div>
 
-  `;
-
-
-  modalBackEl.classList.add(
-    'show'
-  );
+  `
+);
 }
 function renderExpenses(){const m=expenseMonth.value,cat=expenseCategory.value;let a=db.expenses.filter(x=>(!m||monthOf(x.expense_date)===m)&&(!cat||x.category===cat)).sort((x,y)=>y.expense_date.localeCompare(x.expense_date));expensesList.innerHTML=a.length?`<table><tr><th>Data</th><th>Categoria</th><th>Descrição</th><th>Valor</th><th></th></tr>${a.map(x=>`<tr><td>${dateBR(x.expense_date)}</td><td>${esc(x.category)}</td><td>${esc(x.description)}</td><td>${money(x.amount)}</td><td><button class="btn danger small" onclick="removeExpense('${x.id}')">×</button></td></tr>`).join('')}</table>`:'<div class="empty">Nenhuma despesa.</div>'}
 function renderReports(){const m=reportMonth.value||monthOf(isoToday()),first=m+'-01',tmp=new Date(first+'T12:00:00'),last=new Date(tmp.getFullYear(),tmp.getMonth()+1,0).toISOString().slice(0,10);let rentExp=0;db.drivers.forEach(d=>{const s=d.start_date>first?d.start_date:first,e=d.end_date&&d.end_date<last?d.end_date:last;if(s<=e&&d.start_date<=last)rentExp+=daysInclusive(s,e)*Number(d.daily_value||0)});const rentRec=num(db.rentalPayments.filter(p=>monthOf(p.payment_date)===m).reduce((s,p)=>s+p.amount,0)),chargeSales=num(db.charges.filter(c=>monthOf(c.charge_date)===m).reduce((s,c)=>s+c.amount,0)),chargeRec=num(db.chargePayments.filter(p=>monthOf(p.payment_date)===m).reduce((s,p)=>s+p.amount,0)),expenses=num(db.expenses.filter(x=>monthOf(x.expense_date)===m).reduce((s,x)=>s+x.amount,0)),profit=num(rentRec+chargeRec-expenses);reportBody.innerHTML=`<div class="grid"><div class="card"><div class="label">Diárias previstas</div><div class="num">${money(rentExp)}</div><div class="sub">Recebido ${money(rentRec)}</div></div><div class="card"><div class="label">Cargas lançadas</div><div class="num">${money(chargeSales)}</div><div class="sub">Recebido ${money(chargeRec)}</div></div><div class="card"><div class="label">Despesas</div><div class="num">${money(expenses)}</div></div><div class="card"><div class="label">Resultado caixa</div><div class="num">${money(profit)}</div></div></div>`}
