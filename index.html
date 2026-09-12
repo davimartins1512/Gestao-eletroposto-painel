@@ -5761,6 +5761,34 @@ function renderClients(){
     Limite em aberto:
     <b>${maxAmount}</b>
 
+    <br><br>
+
+    🔐 Acesso do cliente:
+    ${
+      customer.pin_set
+        ? `
+          <b style="color:#166534;">
+            ✅ PIN cadastrado
+          </b>
+        `
+        : `
+          <b style="color:#b45309;">
+            ⚠️ PIN não cadastrado
+          </b>
+        `
+    }
+
+    ${
+      customer.must_change_pin
+        ? `
+          <br>
+          <span class="tiny">
+            ⚠️ Cliente deverá trocar a senha no próximo acesso.
+          </span>
+        `
+        : ''
+    }
+
   </div>
 
 
@@ -5774,24 +5802,24 @@ function renderClients(){
   >
 
     ${
-  customer.approval_status !== 'approved'
-    ? `
-      <button
-        class="btn small"
-        onclick="approveOcppCustomer('${customer.id}')"
-      >
-        Aprovar
-      </button>
+      customer.approval_status !== 'approved'
+        ? `
+          <button
+            class="btn small"
+            onclick="approveOcppCustomer('${customer.id}')"
+          >
+            Aprovar
+          </button>
 
-      <button
-        class="btn danger small"
-        onclick="rejectOcppCustomer('${customer.id}')"
-      >
-        Rejeitar
-      </button>
-    `
-    : ''
-}
+          <button
+            class="btn danger small"
+            onclick="rejectOcppCustomer('${customer.id}')"
+          >
+            Rejeitar
+          </button>
+        `
+        : ''
+    }
 
 
     ${
@@ -5820,6 +5848,18 @@ function renderClients(){
       onclick="openCustomerLimits('${customer.id}')"
     >
       Alterar limites
+    </button>
+
+
+    <button
+      class="btn secondary small"
+      onclick="openCustomerPinModal('${customer.id}')"
+    >
+      ${
+        customer.pin_set
+          ? '🔐 Redefinir PIN'
+          : '🔐 Definir PIN'
+      }
     </button>
 
   </div>
@@ -5867,6 +5907,286 @@ function renderClients(){
 
   `
 );
+}
+
+  function openCustomerPinModal(
+  customerId
+) {
+
+  const customer =
+    (db.ocppCustomers || [])
+      .find(
+        c =>
+          String(c.id) ===
+          String(customerId)
+      );
+
+  if (!customer) {
+    alert(
+      'Cliente não encontrado.'
+    );
+    return;
+  }
+
+  showModal(
+    customer.pin_set
+      ? `Redefinir PIN — ${esc(customer.name || 'Cliente')}`
+      : `Definir PIN — ${esc(customer.name || 'Cliente')}`,
+    `
+
+      <div class="box">
+
+        <div style="margin-bottom:14px;">
+
+          <b>
+            ${esc(customer.name || '-')}
+          </b>
+
+          <div class="tiny">
+            CPF:
+            ${esc(customer.cpf || '-')}
+          </div>
+
+        </div>
+
+
+        <label>
+          Nova senha de 4 dígitos
+        </label>
+
+        <input
+          id="customerPinInput"
+          type="password"
+          inputmode="numeric"
+          maxlength="4"
+          autocomplete="new-password"
+          placeholder="••••"
+          style="
+            width:100%;
+            margin-top:6px;
+          "
+        >
+
+
+        <label
+          style="
+            display:block;
+            margin-top:14px;
+          "
+        >
+          Confirmar senha
+        </label>
+
+        <input
+          id="customerPinConfirmInput"
+          type="password"
+          inputmode="numeric"
+          maxlength="4"
+          autocomplete="new-password"
+          placeholder="••••"
+          style="
+            width:100%;
+            margin-top:6px;
+          "
+        >
+
+
+        <label
+          style="
+            display:flex;
+            align-items:center;
+            gap:8px;
+            margin-top:16px;
+          "
+        >
+
+          <input
+            id="customerMustChangePin"
+            type="checkbox"
+          >
+
+          Obrigar cliente a trocar
+          a senha no próximo acesso
+
+        </label>
+
+
+        <div
+          style="
+            margin-top:18px;
+            display:flex;
+            gap:8px;
+            flex-wrap:wrap;
+          "
+        >
+
+          <button
+            class="btn"
+            onclick="saveCustomerPin('${customer.id}')"
+          >
+            Salvar senha
+          </button>
+
+        </div>
+
+      </div>
+    `
+  );
+}
+
+
+async function saveCustomerPin(
+  customerId
+) {
+
+  const pin =
+    String(
+      document
+        .getElementById(
+          'customerPinInput'
+        )
+        ?.value || ''
+    )
+      .replace(/\D/g,'');
+
+  const confirmation =
+    String(
+      document
+        .getElementById(
+          'customerPinConfirmInput'
+        )
+        ?.value || ''
+    )
+      .replace(/\D/g,'');
+
+  const mustChangePin =
+    !!document
+      .getElementById(
+        'customerMustChangePin'
+      )
+      ?.checked;
+
+
+  if (
+    !/^\d{4}$/.test(pin)
+  ) {
+    alert(
+      'A senha deve ter exatamente 4 números.'
+    );
+    return;
+  }
+
+
+  if (
+    pin !== confirmation
+  ) {
+    alert(
+      'As duas senhas não são iguais.'
+    );
+    return;
+  }
+
+
+  try {
+
+    const {
+      data: {
+        session
+      }
+    } =
+      await supa.auth
+        .getSession();
+
+
+    const token =
+      session?.access_token;
+
+
+    if (!token) {
+      alert(
+        'Sua sessão administrativa expirou.'
+      );
+
+      return;
+    }
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        '/api/admin/customers/' +
+        encodeURIComponent(
+          customerId
+        ) +
+        '/pin',
+        {
+          method:
+            'POST',
+
+          headers: {
+            'content-type':
+              'application/json',
+
+            'authorization':
+              `Bearer ${token}`
+          },
+
+          body:
+            JSON.stringify({
+              pin:
+                pin,
+
+              must_change_pin:
+                mustChangePin
+            })
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.message ||
+        body.error ||
+        'Não foi possível salvar a senha.'
+      );
+    }
+
+
+    alert(
+      'Senha do cliente salva com sucesso.'
+    );
+
+
+    await loadOcppCustomers();
+
+    openOcppCustomer(
+      customerId
+    );
+
+  }
+  catch(err) {
+
+    console.error(
+      'CUSTOMER PIN SAVE ERROR:',
+      err
+    );
+
+    alert(
+      err.message ||
+      'Erro ao salvar a senha.'
+    );
+  }
 }
 
   async function updatePricePerKwhDisplay(){
