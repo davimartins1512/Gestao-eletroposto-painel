@@ -2926,267 +2926,621 @@ if (reconciliationSessions.length) {
     chargePointsList.innerHTML=cps.length?`<table><tr><th>Carregador</th><th>Identidade</th><th>Status</th><th>Último contato</th><th>Conectores</th><th>Ações</th></tr>${cps.map(cp=>{const cc=conns.filter(c=>c.charge_point_id===cp.id);const hasCharging=sessions.some(s=>s.charge_point_id===cp.id&&s.session_status==='charging');return `<tr><td><b>${esc(cp.name)}</b></td><td>${esc(cp.ocpp_identity)}</td><td>${cp.online?badge('paid','ONLINE'):badge('pending','OFFLINE')}</td><td>${cp.last_seen_at?new Date(cp.last_seen_at).toLocaleString('pt-BR'):'-'}</td><td>${cc.length?cc.map(c=>`#${c.connector_id} ${badge(c.status==='Available'?'paid':c.status==='Charging'?'partial':'pending',c.status||'Unknown')}`).join(' '):'-'}</td><td class="nowrap"><button class="btn small" onclick="openManualStartCharge('${cp.id}')">Iniciar</button> <button class="btn danger small" onclick="openManualStopCharge('${cp.id}')" ${hasCharging?'':'disabled'}>Encerrar</button> <button class="btn secondary small" onclick="openResetChargePoint('${esc(cp.ocpp_identity)}')">Reiniciar</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum carregador cadastrado.</div>';
   const q=(ocppSearch?.value||'').toLowerCase(), pf=ocppPaymentStatus?.value||'';
   const filtered=sessions.filter(s=>{const cp=cps.find(c=>c.id===s.charge_point_id);const text=`${cp?.name||''} ${cp?.ocpp_identity||''} ${s.plate||''} ${s.transaction_id||''}`.toLowerCase();return (!q||text.includes(q))&&(!pf||s.payment_status===pf)});
-  ocppSessionsList.innerHTML =
-  filtered.length
-    ? `
-      <table>
-        <tr>
-          <th>Início</th>
-          <th>Fim</th>
-          <th>Duração</th>
-          <th>Cliente</th>
-          <th>Placa</th>
-          <th>Carregador</th>
-          <th>Transação</th>
-          <th>Energia</th>
-          <th>Tarifa</th>
-          <th>Valor</th>
-          <th>Sessão</th>
-          <th>Pagamento</th>
-          <th>Cobrança</th>
-          <th>Detalhes</th>
-        </tr>
+function formatOcppDuration(
+  start,
+  end,
+  status
+) {
 
-        ${
-          filtered
-            .slice(0,200)
-            .map(s => {
+  if (!start) {
+    return '-';
+  }
 
-              const cp =
-                cps.find(
-                  c =>
-                    String(c.id) ===
-                    String(s.charge_point_id)
-                );
+  const startDate =
+    new Date(start);
 
-              const customer =
-                (db.ocppCustomers || [])
-                  .find(
-                    c =>
-                      String(c.id) ===
-                      String(s.customer_id)
-                  );
+  const endDate =
+    end
+      ? new Date(end)
+      : String(status || '')
+          .toLowerCase() ===
+        'charging'
+        ? new Date()
+        : null;
 
-              const vehicle =
-                (customer?.vehicles || [])
-                  .find(
-                    v =>
-                      String(v.id) ===
-                      String(s.vehicle_id)
-                  );
+  if (!endDate) {
+    return '-';
+  }
 
-              const customerName =
-                s.customer_name ||
-                customer?.name ||
-                '-';
+  let diff =
+    Math.max(
+      0,
+      endDate.getTime() -
+      startDate.getTime()
+    );
 
-              const plate =
-                s.plate ||
-                vehicle?.plate ||
-                '-';
+  const hours =
+    Math.floor(
+      diff / 3600000
+    );
 
-              const endAt =
-                s.ended_at ||
-                s.stopped_at ||
-                s.finished_at ||
-                null;
+  diff -=
+    hours * 3600000;
 
-              const pst =
-                s.payment_status === 'paid'
-                  ? badge(
-                      'paid',
-                      'PAGO'
-                    )
-                  : s.payment_status ===
-                    'checkout_error'
-                    ? badge(
-                        'pending',
-                        'ERRO'
-                      )
-                    : badge(
-                        'partial',
-                        String(
-                          s.payment_status ||
-                          'PENDENTE'
-                        ).toUpperCase()
-                      );
+  const minutes =
+    Math.floor(
+      diff / 60000
+    );
 
-              return `
-                <tr>
+  const seconds =
+    Math.floor(
+      (
+        diff -
+        minutes * 60000
+      ) / 1000
+    );
 
-                  <td>
-                    ${
-                      s.started_at
-                        ? new Date(
-                            s.started_at
-                          ).toLocaleString(
-                            'pt-BR'
-                          )
-                        : '-'
-                    }
-                  </td>
+  return (
+    String(hours)
+      .padStart(2,'0') +
+    ':' +
+    String(minutes)
+      .padStart(2,'0') +
+    ':' +
+    String(seconds)
+      .padStart(2,'0')
+  );
+}
 
-                  <td>
-                    ${
-                      endAt
-                        ? new Date(
-                            endAt
-                          ).toLocaleString(
-                            'pt-BR'
-                          )
-                        : s.session_status ===
-                          'charging'
-                          ? 'Em andamento'
-                          : '-'
-                    }
-                  </td>
 
-                  <td>
-                    ${
-                      formatOcppDuration(
-                        s.started_at,
-                        endAt,
-                        s.session_status
-                      )
-                    }
-                  </td>
+function openOcppSessionDetails(
+  sessionId
+) {
 
-                  <td>
-                    <b>
-                      ${esc(customerName)}
-                    </b>
-                  </td>
+  const s =
+    (db.ocppSessions || [])
+      .find(
+        x =>
+          String(x.id) ===
+          String(sessionId)
+      );
 
-                  <td>
-                    ${
-                      plate !== '-'
-                        ? `<b>${esc(plate)}</b>`
-                        : '-'
-                    }
-                  </td>
+  if (!s) {
+    alert(
+      'Sessão não encontrada.'
+    );
+    return;
+  }
 
-                  <td>
-                    <b>
-                      ${esc(cp?.name || '-')}
-                    </b>
 
-                    <br>
+  const cp =
+    (db.chargePoints || [])
+      .find(
+        c =>
+          String(c.id) ===
+          String(
+            s.charge_point_id
+          )
+      );
 
-                    <span class="tiny">
-                      Conector
-                      ${esc(s.connector_id)}
-                    </span>
-                  </td>
 
-                  <td>
-                    #
-                    ${esc(s.transaction_id)}
-                  </td>
+  const customer =
+    (db.ocppCustomers || [])
+      .find(
+        c =>
+          String(c.id) ===
+          String(
+            s.customer_id
+          )
+      );
 
-                  <td>
-                    ${
-                      Number(
-                        s.energy_kwh || 0
-                      ).toFixed(2)
-                    }
-                    kWh
-                  </td>
 
-                  <td>
-                    ${
-                      money(
-                        s.price_per_kwh ||
-                        OCPP_PRICE_PER_KWH
-                      )
-                    }
-                  </td>
+  const vehicle =
+    (customer?.vehicles || [])
+      .find(
+        v =>
+          String(v.id) ===
+          String(
+            s.vehicle_id
+          )
+      );
 
-                  <td>
-                    <b>
-                      ${
-                        money(
-                          s.total_amount
-                        )
-                      }
-                    </b>
-                  </td>
 
-                  <td>
-                    ${
-                      badge(
-                        s.session_status ===
-                        'finished'
-                          ? 'paid'
-                          : 'partial',
+  const customerName =
+    s.customer_name ||
+    customer?.name ||
+    '-';
 
-                        String(
-                          s.session_status ||
-                          '-'
-                        ).toUpperCase()
-                      )
-                    }
-                  </td>
 
-                  <td>
-                    ${pst}
-                  </td>
+  const customerCpf =
+    customer?.cpf ||
+    '-';
 
-                  <td>
 
-                    ${
-                      s.checkout_url
-                        ? `
-                          <button
-                            class="btn secondary small"
-                            onclick="window.open('${esc(s.checkout_url)}','_blank')"
-                          >
-                            Abrir
-                          </button>
-                        `
-                        : ''
-                    }
+  const plate =
+    s.plate ||
+    vehicle?.plate ||
+    '-';
 
-                    ${
-                      String(
-                        s.payment_status ||
-                        ''
-                      ).toLowerCase() ===
-                      'pending'
-                        ? `
-                          <button
-                            class="btn secondary small"
-                            onclick="openManualPayment('${esc(s.id)}')"
-                          >
-                            Pagamento manual
-                          </button>
-                        `
-                        : ''
-                    }
 
-                  </td>
+  const endAt =
+    s.ended_at ||
+    s.stopped_at ||
+    s.finished_at ||
+    null;
 
-                  <td>
-                    <button
-                      class="btn secondary small"
-                      onclick="openOcppSessionDetails('${esc(s.id)}')"
-                    >
-                      Ver detalhes
-                    </button>
-                  </td>
 
-                </tr>
-              `;
-            })
-            .join('')
-        }
+  const startSoc =
+    s.soc_start ??
+    s.start_soc_percent ??
+    null;
 
-      </table>
+
+  const endSoc =
+    s.soc_end ??
+    s.end_soc_percent ??
+    (
+      String(
+        s.session_status || ''
+      ).toLowerCase() ===
+      'finished'
+        ? s.soc_percent
+        : null
+    );
+
+
+  const currentSoc =
+    s.soc_percent ??
+    null;
+
+
+  const paymentStatus =
+    String(
+      s.payment_status ||
+      '-'
+    ).toUpperCase();
+
+
+  showModal(
+    'Detalhes da carga',
     `
-    : `
-      <div class="empty">
-        Nenhuma sessão OCPP encontrada.
+
+      <div
+        class="grid"
+        style="
+          margin-bottom:16px;
+        "
+      >
+
+        <div class="card">
+
+          <div class="label">
+            Cliente
+          </div>
+
+          <div class="num">
+            ${esc(customerName)}
+          </div>
+
+          <div class="sub">
+            CPF:
+            ${esc(customerCpf)}
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="label">
+            Veículo
+          </div>
+
+          <div class="num">
+            ${esc(plate)}
+          </div>
+
+          <div class="sub">
+            Conector
+            ${esc(s.connector_id || '-')}
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="label">
+            Energia
+          </div>
+
+          <div class="num">
+            ${
+              Number(
+                s.energy_kwh || 0
+              ).toFixed(2)
+            }
+            kWh
+          </div>
+
+          <div class="sub">
+            ${
+              money(
+                s.price_per_kwh ||
+                OCPP_PRICE_PER_KWH
+              )
+            }/kWh
+          </div>
+
+        </div>
+
+
+        <div class="card">
+
+          <div class="label">
+            Valor
+          </div>
+
+          <div class="num">
+            ${
+              money(
+                s.total_amount || 0
+              )
+            }
+          </div>
+
+          <div class="sub">
+            ${esc(paymentStatus)}
+          </div>
+
+        </div>
+
       </div>
-    `;
+
+
+      <div class="box">
+
+        <table>
+
+          <tr>
+            <td>
+              <b>Carregador</b>
+            </td>
+
+            <td>
+              ${esc(
+                cp?.name ||
+                cp?.ocpp_identity ||
+                '-'
+              )}
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Conector</b>
+            </td>
+
+            <td>
+              ${esc(
+                s.connector_id ??
+                '-'
+              )}
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Transação</b>
+            </td>
+
+            <td>
+              #${esc(
+                s.transaction_id ??
+                '-'
+              )}
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Início</b>
+            </td>
+
+            <td>
+              ${
+                s.started_at
+                  ? new Date(
+                      s.started_at
+                    ).toLocaleString(
+                      'pt-BR'
+                    )
+                  : '-'
+              }
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Fim</b>
+            </td>
+
+            <td>
+              ${
+                endAt
+                  ? new Date(
+                      endAt
+                    ).toLocaleString(
+                      'pt-BR'
+                    )
+                  : String(
+                      s.session_status ||
+                      ''
+                    ).toLowerCase() ===
+                    'charging'
+                    ? 'Em andamento'
+                    : '-'
+              }
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Duração</b>
+            </td>
+
+            <td>
+              ${
+                formatOcppDuration(
+                  s.started_at,
+                  endAt,
+                  s.session_status
+                )
+              }
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Bateria na entrada</b>
+            </td>
+
+            <td>
+              ${
+                startSoc != null
+                  ? `${Number(startSoc).toFixed(0)}%`
+                  : 'Não disponível'
+              }
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Bateria na saída</b>
+            </td>
+
+            <td>
+              ${
+                endSoc != null
+                  ? `${Number(endSoc).toFixed(0)}%`
+                  : currentSoc != null &&
+                    String(
+                      s.session_status ||
+                      ''
+                    ).toLowerCase() ===
+                    'charging'
+                    ? `${Number(currentSoc).toFixed(0)}% atual`
+                    : 'Não disponível'
+              }
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Potência registrada</b>
+            </td>
+
+            <td>
+              ${
+                s.power_kw != null
+                  ? `${Number(s.power_kw).toFixed(2)} kW`
+                  : '-'
+              }
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Tensão</b>
+            </td>
+
+            <td>
+              ${
+                s.voltage_v != null
+                  ? `${Number(s.voltage_v).toFixed(1)} V`
+                  : '-'
+              }
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Corrente</b>
+            </td>
+
+            <td>
+              ${
+                s.current_a != null
+                  ? `${Number(s.current_a).toFixed(1)} A`
+                  : '-'
+              }
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Energia consumida</b>
+            </td>
+
+            <td>
+              ${
+                Number(
+                  s.energy_kwh || 0
+                ).toFixed(2)
+              }
+              kWh
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Tarifa</b>
+            </td>
+
+            <td>
+              ${
+                money(
+                  s.price_per_kwh ||
+                  OCPP_PRICE_PER_KWH
+                )
+              }/kWh
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Valor total</b>
+            </td>
+
+            <td>
+              <b>
+                ${
+                  money(
+                    s.total_amount ||
+                    0
+                  )
+                }
+              </b>
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Status da sessão</b>
+            </td>
+
+            <td>
+              ${esc(
+                String(
+                  s.session_status ||
+                  '-'
+                ).toUpperCase()
+              )}
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Status do pagamento</b>
+            </td>
+
+            <td>
+              ${esc(
+                paymentStatus
+              )}
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Forma de pagamento</b>
+            </td>
+
+            <td>
+              ${esc(
+                s.payment_method ||
+                '-'
+              )}
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Origem do início</b>
+            </td>
+
+            <td>
+              ${esc(
+                s.start_source ||
+                '-'
+              )}
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Origem do encerramento</b>
+            </td>
+
+            <td>
+              ${esc(
+                s.stop_source ||
+                '-'
+              )}
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>ID Tag</b>
+            </td>
+
+            <td>
+              ${esc(
+                s.id_tag ||
+                '-'
+              )}
+            </td>
+          </tr>
+
+
+          <tr>
+            <td>
+              <b>Autorização</b>
+            </td>
+
+            <td class="tiny">
+              ${esc(
+                s.authorization_id ||
+                '-'
+              )}
+            </td>
+          </tr>
+
+        </table>
+
+      </div>
+    `
+  );
 }
 
   function formatOcppDuration(
