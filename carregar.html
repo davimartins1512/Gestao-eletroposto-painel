@@ -3420,8 +3420,8 @@ if (savedAuthorization) {
 
     const response =
       await fetch(
-        BACKEND_URL +
-        '/api/public/charging/session?authorization_id=' +
+       API_BASE +
+'/api/public/charging/session?authorization_id=' +
         encodeURIComponent(
           authorizationId
         )
