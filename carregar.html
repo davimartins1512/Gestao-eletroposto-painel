@@ -788,25 +788,169 @@ input:focus{
       </button>
 
 
-      <button
-        class="btn secondary"
-        id="openRegisterButton"
-        type="button"
-      >
-        Criar cadastro
-      </button>
+     <!-- ===================================================== -->
+<!-- CADASTRO -->
+<!-- ===================================================== -->
 
-    </form>
+<section
+  class="card hidden"
+  id="screenRegister"
+>
 
+  <div class="hero">
 
-    <div class="tariff">
-      Tarifa:
-      <strong>
-        R$ 1,69 / kWh
-      </strong>
+    <div class="hero-icon">
+      👤
     </div>
 
-  </section>
+    <h1>
+      Criar cadastro
+    </h1>
+
+    <p>
+      Informe seus dados e crie
+      sua senha de acesso.
+    </p>
+
+  </div>
+
+
+  <form id="registerForm">
+
+    <div class="form-group">
+
+      <label for="registerName">
+        Nome completo
+      </label>
+
+      <input
+        id="registerName"
+        autocomplete="name"
+        placeholder="Seu nome completo"
+        required
+      >
+
+    </div>
+
+
+    <div class="form-group">
+
+      <label for="registerCpf">
+        CPF
+      </label>
+
+      <input
+        id="registerCpf"
+        inputmode="numeric"
+        autocomplete="off"
+        maxlength="14"
+        placeholder="000.000.000-00"
+        required
+      >
+
+    </div>
+
+
+    <div class="form-group">
+
+      <label for="registerPhone">
+        WhatsApp
+      </label>
+
+      <input
+        id="registerPhone"
+        inputmode="tel"
+        autocomplete="tel"
+        maxlength="16"
+        placeholder="(27) 99999-9999"
+        required
+      >
+
+    </div>
+
+
+    <div class="form-group">
+
+      <label for="registerPlate">
+        Placa
+      </label>
+
+      <input
+        id="registerPlate"
+        maxlength="7"
+        autocomplete="off"
+        autocapitalize="characters"
+        placeholder="ABC1D23"
+        required
+      >
+
+    </div>
+
+
+    <div class="form-group">
+
+      <label for="registerPin">
+        Crie uma senha de 4 números
+      </label>
+
+      <input
+        id="registerPin"
+        type="password"
+        inputmode="numeric"
+        autocomplete="new-password"
+        maxlength="4"
+        placeholder="••••"
+        required
+      >
+
+    </div>
+
+
+    <div class="form-group">
+
+      <label for="registerPinConfirmation">
+        Confirme sua senha
+      </label>
+
+      <input
+        id="registerPinConfirmation"
+        type="password"
+        inputmode="numeric"
+        autocomplete="new-password"
+        maxlength="4"
+        placeholder="••••"
+        required
+      >
+
+    </div>
+
+
+    <div
+      id="registerMessage"
+      class="hidden"
+    ></div>
+
+
+    <button
+      class="btn"
+      id="registerButton"
+      type="submit"
+    >
+      Criar cadastro
+    </button>
+
+
+    <button
+      class="btn secondary"
+      type="button"
+      onclick="showScreen('identify')"
+    >
+      Já tenho cadastro
+    </button>
+
+  </form>
+
+</section>
 
 
   <!-- ===================================================== -->
@@ -1959,6 +2103,35 @@ $('registerCpf')
     }
   );
 
+  $('registerPin')
+  .addEventListener(
+    'input',
+    event => {
+
+      event.target.value =
+        String(
+          event.target.value || ''
+        )
+          .replace(/\D/g,'')
+          .slice(0,4);
+    }
+  );
+
+
+$('registerPinConfirmation')
+  .addEventListener(
+    'input',
+    event => {
+
+      event.target.value =
+        String(
+          event.target.value || ''
+        )
+          .replace(/\D/g,'')
+          .slice(0,4);
+    }
+  );
+
 
 // ============================================================
 // WHATSAPP
@@ -2714,27 +2887,40 @@ $('registerForm')
       );
 
 
-      const name =
-        $('registerName')
-          .value
-          .trim();
+     const name =
+  $('registerName')
+    .value
+    .trim();
 
-      currentCpf =
-        normalizeCpf(
-          $('registerCpf').value
-        );
+currentCpf =
+  normalizeCpf(
+    $('registerCpf').value
+  );
 
-      const phone =
-        String(
-          $('registerPhone')
-            .value ||
-          ''
-        ).replace(/\D/g,'');
+const phone =
+  String(
+    $('registerPhone')
+      .value ||
+    ''
+  ).replace(/\D/g,'');
 
-      currentPlate =
-        normalizePlate(
-          $('registerPlate').value
-        );
+currentPlate =
+  normalizePlate(
+    $('registerPlate').value
+  );
+
+const pin =
+  String(
+    $('registerPin').value ||
+    ''
+  ).replace(/\D/g,'');
+
+const pinConfirmation =
+  String(
+    $('registerPinConfirmation')
+      .value ||
+    ''
+  ).replace(/\D/g,'');
 
 
       if (
@@ -2782,6 +2968,41 @@ $('registerForm')
         );
       }
 
+      if (
+  !/^\d{4}$/.test(pin)
+) {
+  return setMessage(
+    $('registerMessage'),
+    'error',
+    'Crie uma senha com exatamente 4 números.'
+  );
+}
+
+
+if (
+  !/^\d{4}$/.test(
+    pinConfirmation
+  )
+) {
+  return setMessage(
+    $('registerMessage'),
+    'error',
+    'Confirme sua senha de 4 números.'
+  );
+}
+
+
+if (
+  pin !==
+  pinConfirmation
+) {
+  return setMessage(
+    $('registerMessage'),
+    'error',
+    'As senhas não são iguais.'
+  );
+}
+
 
       setButtonLoading(
         $('registerButton'),
@@ -2802,17 +3023,23 @@ $('registerForm')
             {
               method:'POST',
 
-              body:
-                JSON.stringify({
-                  name,
-                  cpf:
-                    currentCpf,
-                  phone,
-                  plate:
-                    currentPlate
-                })
-            }
-          );
+             body:
+  JSON.stringify({
+    name,
+
+    cpf:
+      currentCpf,
+
+    phone,
+
+    plate:
+      currentPlate,
+
+    pin,
+
+    pin_confirmation:
+      pinConfirmation
+  })
 
 
         if (
