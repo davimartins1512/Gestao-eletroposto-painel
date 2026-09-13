@@ -682,7 +682,7 @@ input:focus{
   </section>
 
 
-  <!-- ===================================================== -->
+   <!-- ===================================================== -->
   <!-- IDENTIFICAÇÃO -->
   <!-- ===================================================== -->
 
@@ -694,16 +694,16 @@ input:focus{
     <div class="hero">
 
       <div class="hero-icon">
-        🔋
+        🔐
       </div>
 
       <h1>
-        Iniciar recarga
+        Acessar sua conta
       </h1>
 
       <p>
-        Identifique-se para liberar
-        o carregador.
+        Entre com seu CPF e seu PIN
+        de 4 dígitos para continuar.
       </p>
 
       <div class="charger-pill">
@@ -745,7 +745,7 @@ input:focus{
         <input
           id="cpf"
           inputmode="numeric"
-          autocomplete="off"
+          autocomplete="username"
           maxlength="14"
           placeholder="000.000.000-00"
           required
@@ -756,16 +756,17 @@ input:focus{
 
       <div class="form-group">
 
-        <label for="plate">
-          Placa do veículo
+        <label for="pin">
+          PIN de 4 dígitos
         </label>
 
         <input
-          id="plate"
-          maxlength="7"
-          autocomplete="off"
-          autocapitalize="characters"
-          placeholder="ABC1D23"
+          id="pin"
+          type="password"
+          inputmode="numeric"
+          autocomplete="current-password"
+          maxlength="4"
+          placeholder="••••"
           required
         >
 
@@ -783,7 +784,16 @@ input:focus{
         id="identifyButton"
         type="submit"
       >
-        Continuar
+        Entrar
+      </button>
+
+
+      <button
+        class="btn secondary"
+        id="openRegisterButton"
+        type="button"
+      >
+        Criar cadastro
       </button>
 
     </form>
@@ -800,7 +810,49 @@ input:focus{
 
 
   <!-- ===================================================== -->
-  <!-- CADASTRO -->
+  <!-- VEÍCULOS -->
+  <!-- ===================================================== -->
+
+  <section
+    class="card hidden"
+    id="screenVehicles"
+  >
+
+    <div class="hero">
+
+      <div class="hero-icon">
+        🚗
+      </div>
+
+      <h1>
+        Escolha o veículo
+      </h1>
+
+      <p>
+        Selecione qual veículo será usado
+        nesta recarga.
+      </p>
+
+    </div>
+
+
+    <div id="vehicleList"></div>
+
+
+    <button
+      class="btn secondary"
+      type="button"
+      onclick="showScreen('identify')"
+    >
+      Voltar
+    </button>
+
+  </section>
+
+
+  <!-- ===================================================== -->
+
+   <!-- CADASTRO -->
   <!-- ===================================================== -->
 
   <section
@@ -815,12 +867,12 @@ input:focus{
       </div>
 
       <h1>
-        Primeiro acesso
+        Criar cadastro
       </h1>
 
       <p>
-        Complete seu cadastro para
-        solicitar a liberação.
+        Informe seus dados para solicitar
+        o primeiro acesso.
       </p>
 
     </div>
@@ -838,6 +890,24 @@ input:focus{
           id="registerName"
           autocomplete="name"
           placeholder="Seu nome completo"
+          required
+        >
+
+      </div>
+
+
+      <div class="form-group">
+
+        <label for="registerCpf">
+          CPF
+        </label>
+
+        <input
+          id="registerCpf"
+          inputmode="numeric"
+          autocomplete="off"
+          maxlength="14"
+          placeholder="000.000.000-00"
           required
         >
 
@@ -864,27 +934,17 @@ input:focus{
 
       <div class="form-group">
 
-        <label>
-          CPF
-        </label>
-
-        <input
-          id="registerCpf"
-          disabled
-        >
-
-      </div>
-
-
-      <div class="form-group">
-
-        <label>
+        <label for="registerPlate">
           Placa
         </label>
 
         <input
           id="registerPlate"
-          disabled
+          maxlength="7"
+          autocomplete="off"
+          autocapitalize="characters"
+          placeholder="ABC1D23"
+          required
         >
 
       </div>
@@ -917,6 +977,8 @@ input:focus{
 
   </section>
 
+
+  <!-- ===================================================== -->
 
   <!-- ===================================================== -->
   <!-- AGUARDANDO APROVAÇÃO -->
@@ -1488,6 +1550,9 @@ const connectorId =
 
 let currentCpf = '';
 let currentPlate = '';
+let customerToken = '';
+let currentCustomer = null;
+let currentVehicles = [];
 let authorizationId = null;
 let pollTimer = null;
 let lastSessionData = null;
@@ -1732,6 +1797,9 @@ const screens = {
   identify:
     $('screenIdentify'),
 
+  vehicles:
+    $('screenVehicles'),
+
   register:
     $('screenRegister'),
 
@@ -1821,10 +1889,25 @@ $('cpf')
 
 
 // ============================================================
-// PLACA
+// PIN / CAMPOS DO CADASTRO
 // ============================================================
 
-$('plate')
+$('pin')
+  .addEventListener(
+    'input',
+    event => {
+
+      event.target.value =
+        String(
+          event.target.value || ''
+        )
+          .replace(/\D/g,'')
+          .slice(0,4);
+    }
+  );
+
+
+$('registerPlate')
   .addEventListener(
     'input',
     event => {
@@ -1833,6 +1916,46 @@ $('plate')
         normalizePlate(
           event.target.value
         ).slice(0,7);
+    }
+  );
+
+
+$('registerCpf')
+  .addEventListener(
+    'input',
+    event => {
+
+      let value =
+        normalizeCpf(
+          event.target.value
+        ).slice(0,11);
+
+      if (value.length > 9) {
+        value =
+          value.replace(
+            /^(\d{3})(\d{3})(\d{3})(\d{0,2}).*/,
+            '$1.$2.$3-$4'
+          );
+      } else if (
+        value.length > 6
+      ) {
+        value =
+          value.replace(
+            /^(\d{3})(\d{3})(\d{0,3}).*/,
+            '$1.$2.$3'
+          );
+      } else if (
+        value.length > 3
+      ) {
+        value =
+          value.replace(
+            /^(\d{3})(\d{0,3}).*/,
+            '$1.$2'
+          );
+      }
+
+      event.target.value =
+        value;
     }
   );
 
@@ -1967,8 +2090,361 @@ async function loadConnector() {
 
 
 // ============================================================
-// IDENTIFICAR CLIENTE
+// LOGIN DO CLIENTE
 // ============================================================
+
+$('openRegisterButton')
+  .addEventListener(
+    'click',
+    () => {
+
+      clearMessage(
+        $('registerMessage')
+      );
+
+      $('registerCpf').value =
+        $('cpf').value;
+
+      $('registerPlate').value =
+        '';
+
+      showScreen(
+        'register'
+      );
+    }
+  );
+
+
+function resumeActiveSession(
+  activeSession
+) {
+
+  const activeAuthorizationId =
+    String(
+      activeSession
+        ?.authorization_id ||
+      ''
+    ).trim();
+
+  if (!activeAuthorizationId) {
+    return false;
+  }
+
+  authorizationId =
+    activeAuthorizationId;
+
+  currentPlate =
+    normalizePlate(
+      activeSession?.plate ||
+      activeSession
+        ?.vehicle?.plate ||
+      ''
+    );
+
+  saveActiveAuthorization(
+    authorizationId
+  );
+
+  showScreen(
+    'waiting'
+  );
+
+  startPolling();
+
+  return true;
+}
+
+
+function renderVehicleSelection() {
+
+  const list =
+    $('vehicleList');
+
+  list.innerHTML = '';
+
+  if (
+    !Array.isArray(
+      currentVehicles
+    ) ||
+    !currentVehicles.length
+  ) {
+
+    const message =
+      document.createElement(
+        'div'
+      );
+
+    message.className =
+      'msg warning';
+
+    message.textContent =
+      'Nenhum veículo está vinculado ao seu cadastro.';
+
+    list.appendChild(
+      message
+    );
+
+    showScreen(
+      'vehicles'
+    );
+
+    return;
+  }
+
+
+  currentVehicles.forEach(
+    vehicle => {
+
+      const plate =
+        normalizePlate(
+          vehicle?.plate
+        );
+
+      if (!plate) {
+        return;
+      }
+
+      const button =
+        document.createElement(
+          'button'
+        );
+
+      button.type =
+        'button';
+
+      button.className =
+        'btn secondary';
+
+      button.style.marginTop =
+        '10px';
+
+      const active =
+        vehicle?.active !== false;
+
+      button.textContent =
+        active
+          ? '🚗 ' + plate
+          : '🚫 ' + plate +
+            ' • Inativo';
+
+      button.disabled =
+        !active;
+
+      if (active) {
+        button.addEventListener(
+          'click',
+          () =>
+            selectVehicle(
+              plate
+            )
+        );
+      }
+
+      list.appendChild(
+        button
+      );
+    }
+  );
+
+
+  showScreen(
+    'vehicles'
+  );
+}
+
+
+async function selectVehicle(
+  plate
+) {
+
+  currentPlate =
+    normalizePlate(
+      plate
+    );
+
+  if (
+    currentPlate.length !==
+    7
+  ) {
+    showError(
+      'Veículo inválido',
+      'Não foi possível identificar a placa selecionada.'
+    );
+
+    return;
+  }
+
+  await checkSelectedVehicle();
+}
+
+
+async function checkSelectedVehicle() {
+
+  try {
+
+    const {
+      response,
+      body
+    } =
+      await api(
+        '/api/public/charging/check-customer',
+        {
+          method:'POST',
+
+          body:
+            JSON.stringify({
+              cpf:
+                currentCpf,
+
+              plate:
+                currentPlate
+            })
+        }
+      );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.message ||
+        'Não foi possível verificar o cadastro.'
+      );
+    }
+
+
+    if (
+      body.approval_status ===
+      'pending'
+    ) {
+      showScreen(
+        'approval'
+      );
+
+      return;
+    }
+
+
+    if (
+      body.approval_status ===
+      'rejected'
+    ) {
+      showError(
+        'Cadastro não aprovado',
+        'Procure o atendimento do eletroposto.'
+      );
+
+      return;
+    }
+
+
+    if (body.blocked) {
+      showError(
+        'Cadastro bloqueado',
+        'Seu cadastro está bloqueado para novos carregamentos. Procure o atendimento.'
+      );
+
+      return;
+    }
+
+
+    if (
+      !body.vehicle_registered
+    ) {
+      showError(
+        'Veículo não cadastrado',
+        'Esta placa não está vinculada ao seu cadastro.'
+      );
+
+      return;
+    }
+
+
+    if (
+      body.vehicle_active ===
+      false
+    ) {
+      showError(
+        'Veículo indisponível',
+        'Este veículo está desativado no cadastro.'
+      );
+
+      return;
+    }
+
+
+    if (
+      body.allowed_by_limits ===
+      false
+    ) {
+
+      const pendingCharges =
+        Number(
+          body.pending_charges ||
+          0
+        );
+
+      const pendingAmount =
+        Number(
+          body.pending_amount ||
+          0
+        );
+
+
+      if (
+        body.limit_reason ===
+        'pending_charges_limit'
+      ) {
+
+        showError(
+          'Pagamento pendente',
+          pendingCharges === 1
+            ? `Você possui 1 recarga pendente no valor de ${money(pendingAmount)}. Quite o pagamento para realizar uma nova recarga.`
+            : `Você possui ${pendingCharges} recargas pendentes no valor total de ${money(pendingAmount)}. Quite uma pendência para realizar uma nova recarga.`
+        );
+
+        return;
+      }
+
+
+      if (
+        body.limit_reason ===
+        'pending_amount_limit'
+      ) {
+
+        showError(
+          'Limite de crédito atingido',
+          `Você possui ${money(pendingAmount)} em aberto e atingiu seu limite para novas recargas.`
+        );
+
+        return;
+      }
+
+
+      showError(
+        'Recarga não liberada',
+        'Seu limite para novas recargas foi atingido. Procure o atendimento.'
+      );
+
+      return;
+    }
+
+
+    prepareReadyScreen(
+      body
+    );
+
+  } catch (err) {
+
+    showError(
+      'Não foi possível continuar',
+      err.message ||
+      'Erro ao verificar o veículo.'
+    );
+  }
+}
+
 
 $('identifyForm')
   .addEventListener(
@@ -1986,10 +2462,12 @@ $('identifyForm')
           $('cpf').value
         );
 
-      currentPlate =
-        normalizePlate(
-          $('plate').value
-        );
+      const pin =
+        String(
+          $('pin').value ||
+          ''
+        ).replace(/\D/g,'');
+
 
       if (
         currentCpf.length !==
@@ -2002,23 +2480,25 @@ $('identifyForm')
         );
       }
 
+
       if (
-        currentPlate.length !==
-        7
+        !/^\d{4}$/.test(pin)
       ) {
         return setMessage(
           $('identifyMessage'),
           'error',
-          'Informe uma placa válida.'
+          'Informe seu PIN de 4 dígitos.'
         );
       }
+
 
       setButtonLoading(
         $('identifyButton'),
         true,
-        'Continuar',
-        'Verificando...'
+        'Entrar',
+        'Entrando...'
       );
+
 
       try {
 
@@ -2027,7 +2507,7 @@ $('identifyForm')
           body
         } =
           await api(
-            '/api/public/charging/check-customer',
+            '/api/public/customers/login',
             {
               method:'POST',
 
@@ -2036,171 +2516,76 @@ $('identifyForm')
                   cpf:
                     currentCpf,
 
-                  plate:
-                    currentPlate
+                  pin
                 })
             }
           );
 
 
         if (
-          !response.ok
+          !response.ok ||
+          !body.success
         ) {
           throw new Error(
             body.message ||
-            'Não foi possível verificar o cadastro.'
+            'CPF ou PIN inválido.'
           );
         }
+
+
+        customerToken =
+          String(
+            body.token ||
+            ''
+          );
+
+        currentCustomer =
+          body.customer ||
+          null;
+
+        currentVehicles =
+          Array.isArray(
+            body.vehicles
+          )
+            ? body.vehicles
+            : [];
 
 
         if (
-          body.needs_registration ||
-          body.exists === false
+          body.active_session &&
+          resumeActiveSession(
+            body.active_session
+          )
         ) {
-
-          $('registerCpf')
-            .value =
-              $('cpf').value;
-
-          $('registerPlate')
-            .value =
-              currentPlate;
-
-          showScreen(
-            'register'
-          );
-
           return;
         }
+
+
+        const activeVehicles =
+          currentVehicles.filter(
+            vehicle =>
+              vehicle?.active !==
+              false &&
+              normalizePlate(
+                vehicle?.plate
+              ).length === 7
+          );
 
 
         if (
-          body.approval_status ===
-          'pending'
+          activeVehicles.length ===
+          1
         ) {
-          showScreen(
-            'approval'
+          await selectVehicle(
+            activeVehicles[0]
+              .plate
           );
 
           return;
         }
 
 
-        if (
-          body.approval_status ===
-          'rejected'
-        ) {
-          showError(
-            'Cadastro não aprovado',
-            'Procure o atendimento do eletroposto.'
-          );
-
-          return;
-        }
-
-
-        if (body.blocked) {
-          showError(
-            'Cadastro bloqueado',
-            'Seu cadastro está bloqueado para novos carregamentos. Procure o atendimento.'
-          );
-
-          return;
-        }
-
-
-        if (
-          !body.vehicle_registered
-        ) {
-          showError(
-            'Veículo não cadastrado',
-            'Esta placa não está vinculada ao seu cadastro.'
-          );
-
-          return;
-        }
-
-
-        if (
-          body.vehicle_active ===
-          false
-        ) {
-          showError(
-            'Veículo indisponível',
-            'Este veículo está desativado no cadastro.'
-          );
-
-          return;
-        }
-
-
-        /*
-         * A verificação é apenas para
-         * experiência da tela.
-         *
-         * O backend verificará TODAS
-         * as regras novamente quando
-         * o botão iniciar for usado.
-         */
-if (
-  body.allowed_by_limits ===
-  false
-) {
-
-  const pendingCharges =
-    Number(
-      body.pending_charges ||
-      0
-    );
-
-  const pendingAmount =
-    Number(
-      body.pending_amount ||
-      0
-    );
-
-
-  if (
-    body.limit_reason ===
-    'pending_charges_limit'
-  ) {
-
-    showError(
-      'Pagamento pendente',
-      pendingCharges === 1
-        ? `Você possui 1 recarga pendente no valor de ${money(pendingAmount)}. Quite o pagamento para realizar uma nova recarga.`
-        : `Você possui ${pendingCharges} recargas pendentes no valor total de ${money(pendingAmount)}. Quite uma pendência para realizar uma nova recarga.`
-    );
-
-    return;
-  }
-
-
-  if (
-    body.limit_reason ===
-    'pending_amount_limit'
-  ) {
-
-    showError(
-      'Limite de crédito atingido',
-      `Você possui ${money(pendingAmount)} em aberto e atingiu seu limite para novas recargas.`
-    );
-
-    return;
-  }
-
-
-  showError(
-    'Recarga não liberada',
-    'Seu limite para novas recargas foi atingido. Procure o atendimento.'
-  );
-
-  return;
-}
-        
-        prepareReadyScreen(
-          body
-        );
+        renderVehicleSelection();
 
       } catch (err) {
 
@@ -2208,7 +2593,7 @@ if (
           $('identifyMessage'),
           'error',
           err.message ||
-          'Erro ao verificar cadastro.'
+          'Erro ao entrar na conta.'
         );
 
       } finally {
@@ -2216,13 +2601,15 @@ if (
         setButtonLoading(
           $('identifyButton'),
           false,
-          'Continuar',
-          'Verificando...'
+          'Entrar',
+          'Entrando...'
         );
       }
     }
   );
 
+
+// ============================================================
 
 // ============================================================
 // TELA PRONTA
@@ -2332,12 +2719,22 @@ $('registerForm')
           .value
           .trim();
 
+      currentCpf =
+        normalizeCpf(
+          $('registerCpf').value
+        );
+
       const phone =
         String(
           $('registerPhone')
             .value ||
           ''
         ).replace(/\D/g,'');
+
+      currentPlate =
+        normalizePlate(
+          $('registerPlate').value
+        );
 
 
       if (
@@ -2352,12 +2749,36 @@ $('registerForm')
 
 
       if (
+        currentCpf.length !==
+        11
+      ) {
+        return setMessage(
+          $('registerMessage'),
+          'error',
+          'Informe um CPF válido.'
+        );
+      }
+
+
+      if (
         phone.length < 10
       ) {
         return setMessage(
           $('registerMessage'),
           'error',
           'Informe um WhatsApp válido.'
+        );
+      }
+
+
+      if (
+        currentPlate.length !==
+        7
+      ) {
+        return setMessage(
+          $('registerMessage'),
+          'error',
+          'Informe uma placa válida.'
         );
       }
 
@@ -3463,15 +3884,18 @@ if (savedAuthorization) {
        * quando existe uma situação
        * real que ainda deve acompanhar.
        */
-      if (
+            if (
+        phase === 'waiting_start' ||
         phase === 'charging' ||
         phase === 'finished'
       ) {
 
         showScreen(
-          phase === 'charging'
-            ? 'charging'
-            : 'finished'
+          phase === 'waiting_start'
+            ? 'waiting'
+            : phase === 'charging'
+              ? 'charging'
+              : 'finished'
         );
 
         startPolling();
