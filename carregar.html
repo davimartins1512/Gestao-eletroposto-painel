@@ -1591,6 +1591,7 @@ const connectorId =
 let currentCpf = '';
 let currentPlate = '';
 let customerToken = '';
+  let chargePointName = '';
 let currentCustomer = null;
 let currentVehicles = [];
 let authorizationId = null;
@@ -2085,7 +2086,7 @@ $('registerPhone')
 async function loadConnector() {
 
   $('cpBadge').textContent =
-    chargePoint;
+    'Carregador';
 
   $('connectorBadge')
     .textContent =
@@ -2127,6 +2128,15 @@ async function loadConnector() {
 
       return;
     }
+
+    chargePointName =
+  String(
+    body.charge_point_name ||
+    chargePoint
+  ).trim();
+
+$('cpBadge').textContent =
+  chargePointName;
 
     $('onlineBadge')
       .textContent =
@@ -2688,8 +2698,9 @@ function prepareReadyScreen(
   checkData
 ) {
 
-  $('readyCp').textContent =
-    chargePoint;
+$('readyCp').textContent =
+  chargePointName ||
+  chargePoint;
 
   $('readyConnector')
     .textContent =
