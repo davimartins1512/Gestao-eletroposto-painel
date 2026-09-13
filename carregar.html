@@ -734,61 +734,123 @@ input:focus{
     </div>
 
 
-    <form id="identifyForm">
+  <form id="identifyForm">
 
-      <div class="form-group">
+  <div class="form-group">
 
-        <label for="cpf">
-          CPF
-        </label>
+    <label for="cpf">
+      CPF
+    </label>
 
-        <input
-          id="cpf"
-          inputmode="numeric"
-          autocomplete="username"
-          maxlength="14"
-          placeholder="000.000.000-00"
-          required
-        >
+    <input
+      id="cpf"
+      inputmode="numeric"
+      autocomplete="username"
+      maxlength="14"
+      placeholder="000.000.000-00"
+      required
+    >
 
-      </div>
-
-
-      <div class="form-group">
-
-        <label for="pin">
-          PIN de 4 dígitos
-        </label>
-
-        <input
-          id="pin"
-          type="password"
-          inputmode="numeric"
-          autocomplete="current-password"
-          maxlength="4"
-          placeholder="••••"
-          required
-        >
-
-      </div>
+  </div>
 
 
-      <div
-        id="identifyMessage"
-        class="hidden"
-      ></div>
+  <div class="form-group">
+
+    <label for="pin">
+      PIN de 4 dígitos
+    </label>
+
+    <input
+      id="pin"
+      type="password"
+      inputmode="numeric"
+      autocomplete="current-password"
+      maxlength="4"
+      placeholder="••••"
+      required
+    >
+
+  </div>
 
 
-      <button
-        class="btn"
-        id="identifyButton"
-        type="submit"
-      >
-        Entrar
-      </button>
+  <div
+    id="identifyMessage"
+    class="hidden"
+  ></div>
 
 
-     <!-- ===================================================== -->
+  <button
+    class="btn"
+    id="identifyButton"
+    type="submit"
+  >
+    Entrar
+  </button>
+
+
+  <button
+    class="btn secondary"
+    id="openRegisterButton"
+    type="button"
+  >
+    Criar cadastro
+  </button>
+
+</form>
+
+
+<div class="tariff">
+  Tarifa:
+  <strong>
+    R$ 1,69 / kWh
+  </strong>
+</div>
+
+</section>
+
+
+<!-- ===================================================== -->
+<!-- VEÍCULOS -->
+<!-- ===================================================== -->
+
+<section
+  class="card hidden"
+  id="screenVehicles"
+>
+
+  <div class="hero">
+
+    <div class="hero-icon">
+      🚗
+    </div>
+
+    <h1>
+      Escolha o veículo
+    </h1>
+
+    <p>
+      Selecione qual veículo será usado
+      nesta recarga.
+    </p>
+
+  </div>
+
+
+  <div id="vehicleList"></div>
+
+
+  <button
+    class="btn secondary"
+    type="button"
+    onclick="showScreen('identify')"
+  >
+    Voltar
+  </button>
+
+</section>
+
+
+<!-- ===================================================== -->
 <!-- CADASTRO -->
 <!-- ===================================================== -->
 
@@ -953,173 +1015,7 @@ input:focus{
 </section>
 
 
-  <!-- ===================================================== -->
-  <!-- VEÍCULOS -->
-  <!-- ===================================================== -->
-
-  <section
-    class="card hidden"
-    id="screenVehicles"
-  >
-
-    <div class="hero">
-
-      <div class="hero-icon">
-        🚗
-      </div>
-
-      <h1>
-        Escolha o veículo
-      </h1>
-
-      <p>
-        Selecione qual veículo será usado
-        nesta recarga.
-      </p>
-
-    </div>
-
-
-    <div id="vehicleList"></div>
-
-
-    <button
-      class="btn secondary"
-      type="button"
-      onclick="showScreen('identify')"
-    >
-      Voltar
-    </button>
-
-  </section>
-
-
-  <!-- ===================================================== -->
-
-   <!-- CADASTRO -->
-  <!-- ===================================================== -->
-
-  <section
-    class="card hidden"
-    id="screenRegister"
-  >
-
-    <div class="hero">
-
-      <div class="hero-icon">
-        👤
-      </div>
-
-      <h1>
-        Criar cadastro
-      </h1>
-
-      <p>
-        Informe seus dados para solicitar
-        o primeiro acesso.
-      </p>
-
-    </div>
-
-
-    <form id="registerForm">
-
-      <div class="form-group">
-
-        <label for="registerName">
-          Nome completo
-        </label>
-
-        <input
-          id="registerName"
-          autocomplete="name"
-          placeholder="Seu nome completo"
-          required
-        >
-
-      </div>
-
-
-      <div class="form-group">
-
-        <label for="registerCpf">
-          CPF
-        </label>
-
-        <input
-          id="registerCpf"
-          inputmode="numeric"
-          autocomplete="off"
-          maxlength="14"
-          placeholder="000.000.000-00"
-          required
-        >
-
-      </div>
-
-
-      <div class="form-group">
-
-        <label for="registerPhone">
-          WhatsApp
-        </label>
-
-        <input
-          id="registerPhone"
-          inputmode="tel"
-          autocomplete="tel"
-          maxlength="16"
-          placeholder="(27) 99999-9999"
-          required
-        >
-
-      </div>
-
-
-      <div class="form-group">
-
-        <label for="registerPlate">
-          Placa
-        </label>
-
-        <input
-          id="registerPlate"
-          maxlength="7"
-          autocomplete="off"
-          autocapitalize="characters"
-          placeholder="ABC1D23"
-          required
-        >
-
-      </div>
-
-
-      <div
-        id="registerMessage"
-        class="hidden"
-      ></div>
-
-
-      <button
-        class="btn"
-        id="registerButton"
-        type="submit"
-      >
-        Enviar cadastro
-      </button>
-
-
-      <button
-        class="btn secondary"
-        type="button"
-        onclick="showScreen('identify')"
-      >
-        Voltar
-      </button>
-
-    </form>
-
-  </section>
+<!-- ===================================================== -->
 
 
   <!-- ===================================================== -->
@@ -3014,32 +2910,34 @@ if (
 
       try {
 
-        const {
-          response,
-          body
-        } =
-          await api(
-            '/api/public/customers/register',
-            {
-              method:'POST',
+       const {
+  response,
+  body
+} =
+  await api(
+    '/api/public/customers/register',
+    {
+      method:'POST',
 
-             body:
-  JSON.stringify({
-    name,
+      body:
+        JSON.stringify({
+          name,
 
-    cpf:
-      currentCpf,
+          cpf:
+            currentCpf,
 
-    phone,
+          phone,
 
-    plate:
-      currentPlate,
+          plate:
+            currentPlate,
 
-    pin,
+          pin,
 
-    pin_confirmation:
-      pinConfirmation
-  })
+          pin_confirmation:
+            pinConfirmation
+        })
+    }
+  );
 
 
         if (
