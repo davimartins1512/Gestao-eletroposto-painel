@@ -5160,21 +5160,53 @@ function renderClients(){
         return `
           <tr>
 
-            <td>
-              <b>
-                ${esc(c.name || 'Sem nome')}
-              </b>
+          <td>
 
-              ${
-                c.phone
-                  ? `
-                    <div class="tiny">
-                      ${esc(c.phone)}
-                    </div>
-                  `
-                  : ''
-              }
-            </td>
+  <b>
+    ${esc(c.name || 'Sem nome')}
+  </b>
+
+  ${
+    c.phone
+      ? `
+        <div class="tiny">
+          ${esc(c.phone)}
+        </div>
+      `
+      : ''
+  }
+
+  <div style="margin-top:5px;">
+
+    ${
+      c.customer_type === 'vip'
+        ? `
+          <span
+            class="badge paid"
+            style="
+              background:#e0e7ff;
+              color:#3730a3;
+            "
+          >
+            VIP
+          </span>
+        `
+        : `
+          <span
+            class="badge"
+            style="
+              background:#fef3c7;
+              color:#92400e;
+            "
+          >
+            PRÉ-PAGO
+          </span>
+        `
+    }
+
+  </div>
+
+</td>
 
 
             <td>
@@ -5725,22 +5757,99 @@ function renderClients(){
 
       <div class="box">
 
-        <b>Dados do cliente</b>
+        <div class="box">
 
-        <div style="margin-top:10px;line-height:1.8;">
+  <div
+    style="
+      display:flex;
+      justify-content:space-between;
+      align-items:center;
+      gap:10px;
+      flex-wrap:wrap;
+    "
+  >
 
-          Telefone:
-          <b>${esc(customer.phone || '-')}</b>
+    <b>Dados do cliente</b>
 
-          <br>
+    <button
+      class="btn secondary small"
+      onclick="openEditOcppCustomer('${customer.id}')"
+    >
+      ✏️ Editar dados
+    </button>
 
-          Status:
-          <b>${status}</b>
+  </div>
 
-        </div>
 
-      </div>
+  <div
+    style="
+      margin-top:12px;
+      line-height:1.9;
+    "
+  >
 
+    Nome:
+    <b>
+      ${esc(customer.name || '-')}
+    </b>
+
+    <br>
+
+
+    CPF:
+    <b>
+      ${esc(customer.cpf || '-')}
+    </b>
+
+    <br>
+
+
+    WhatsApp:
+    <b>
+      ${esc(customer.phone || '-')}
+    </b>
+
+    <br>
+
+
+    Tipo:
+    ${
+      customer.customer_type === 'vip'
+
+        ? `
+          <span
+            class="badge"
+            style="
+              background:#e0e7ff;
+              color:#3730a3;
+            "
+          >
+            VIP
+          </span>
+        `
+
+        : `
+          <span
+            class="badge"
+            style="
+              background:#fef3c7;
+              color:#92400e;
+            "
+          >
+            PRÉ-PAGO
+          </span>
+        `
+    }
+
+    <br>
+
+
+    Status:
+    <b>${status}</b>
+
+  </div>
+
+</div>
 
      <div class="box">
 
@@ -6686,6 +6795,384 @@ async function unblockOcppCustomer(
     session?.access_token ||
     ''
   );
+}
+
+  // ============================================================
+// EDITAR DADOS DO CLIENTE OCPP
+// ============================================================
+
+function openEditOcppCustomer(
+  customerId
+) {
+
+  const customer =
+    (db.ocppCustomers || [])
+      .find(
+        c =>
+          String(c.id) ===
+          String(customerId)
+      );
+
+
+  if (!customer) {
+
+    return alert(
+      'Cliente não encontrado.'
+    );
+  }
+
+
+  const currentType =
+    String(
+      customer.customer_type ||
+      'prepaid'
+    )
+      .trim()
+      .toLowerCase();
+
+
+  showModal(
+    `Editar cliente — ${esc(customer.name || 'Cliente')}`,
+    `
+
+      <div class="form-grid">
+
+
+        <div class="full">
+
+          <label>
+            Nome
+          </label>
+
+          <input
+            id="editOcppCustomerName"
+            value="${esc(customer.name || '')}"
+            autocomplete="name"
+          >
+
+        </div>
+
+
+        <div class="full">
+
+          <label>
+            WhatsApp
+          </label>
+
+          <input
+            id="editOcppCustomerPhone"
+            value="${esc(customer.phone || '')}"
+            inputmode="tel"
+            autocomplete="tel"
+            placeholder="Ex.: 27999999999"
+          >
+
+          <div class="tiny">
+            Informe DDD + número.
+          </div>
+
+        </div>
+
+
+        <div class="full">
+
+          <label>
+            Tipo de cliente
+          </label>
+
+          <select
+            id="editOcppCustomerType"
+          >
+
+            <option
+              value="prepaid"
+              ${
+                currentType ===
+                'prepaid'
+                  ? 'selected'
+                  : ''
+              }
+            >
+              Pré-pago
+            </option>
+
+            <option
+              value="vip"
+              ${
+                currentType ===
+                'vip'
+                  ? 'selected'
+                  : ''
+              }
+            >
+              VIP
+            </option>
+
+          </select>
+
+          <div
+            class="tiny"
+            style="margin-top:6px;"
+          >
+            Por enquanto o tipo é apenas uma classificação.
+            O fluxo de cobrança continua igual para todos.
+          </div>
+
+        </div>
+
+
+        <div class="full">
+
+          <label>
+            CPF
+          </label>
+
+          <input
+            value="${esc(customer.cpf || '')}"
+            disabled
+          >
+
+          <div class="tiny">
+            O CPF não pode ser alterado por esta tela.
+          </div>
+
+        </div>
+
+
+      </div>
+
+
+      <div
+        style="
+          height:16px;
+        "
+      ></div>
+
+
+      <button
+        class="btn"
+        id="saveOcppCustomerButton"
+        onclick="saveOcppCustomer('${customer.id}')"
+      >
+        Salvar alterações
+      </button>
+
+    `
+  );
+}
+
+
+// ============================================================
+// SALVAR DADOS DO CLIENTE OCPP
+// ============================================================
+
+async function saveOcppCustomer(
+  customerId
+) {
+
+  const nameEl =
+    document.getElementById(
+      'editOcppCustomerName'
+    );
+
+
+  const phoneEl =
+    document.getElementById(
+      'editOcppCustomerPhone'
+    );
+
+
+  const typeEl =
+    document.getElementById(
+      'editOcppCustomerType'
+    );
+
+
+  const button =
+    document.getElementById(
+      'saveOcppCustomerButton'
+    );
+
+
+  const name =
+    String(
+      nameEl?.value ||
+      ''
+    )
+      .trim()
+      .replace(/\s+/g,' ');
+
+
+  const phone =
+    phoneDigits(
+      phoneEl?.value
+    );
+
+
+  const customerType =
+    String(
+      typeEl?.value ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (
+    name.length < 3
+  ) {
+
+    return alert(
+      'Informe um nome válido.'
+    );
+  }
+
+
+  if (
+    phone.length < 10 ||
+    phone.length > 13
+  ) {
+
+    return alert(
+      'Informe um WhatsApp válido com DDD.'
+    );
+  }
+
+
+  if (
+    ![
+      'vip',
+      'prepaid'
+    ].includes(
+      customerType
+    )
+  ) {
+
+    return alert(
+      'Tipo de cliente inválido.'
+    );
+  }
+
+
+  try {
+
+    if (button) {
+
+      button.disabled =
+        true;
+
+      button.textContent =
+        'Salvando...';
+    }
+
+
+    const token =
+      await getAdminAccessToken();
+
+
+    if (!token) {
+
+      throw new Error(
+        'Sua sessão administrativa expirou. Faça login novamente.'
+      );
+    }
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        '/api/admin/customers/' +
+        encodeURIComponent(
+          customerId
+        ),
+        {
+
+          method:
+            'PATCH',
+
+          headers: {
+
+            'content-type':
+              'application/json',
+
+            'authorization':
+              `Bearer ${token}`
+          },
+
+          body:
+            JSON.stringify({
+
+              name,
+
+              phone,
+
+              customer_type:
+                customerType
+
+            })
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+
+      throw new Error(
+        body.message ||
+        body.error ||
+        'Não foi possível atualizar o cliente.'
+      );
+    }
+
+
+    /*
+     * Atualiza os dados vindos
+     * do backend e reabre a ficha.
+     */
+    await loadOcppCustomers();
+
+
+    closeModal();
+
+
+    openOcppCustomer(
+      customerId
+    );
+
+
+  } catch (err) {
+
+    console.error(
+      'CUSTOMER EDIT ERROR:',
+      err
+    );
+
+
+    alert(
+      err.message ||
+      'Erro ao atualizar o cliente.'
+    );
+
+
+    if (button) {
+
+      button.disabled =
+        false;
+
+      button.textContent =
+        'Salvar alterações';
+    }
+  }
 }
 
   function openCustomerLimits(customerId){
