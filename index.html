@@ -5908,6 +5908,405 @@ const customers =
         </div>
       `;
 }
+
+// ============================================================
+// CARTEIRA DO CLIENTE
+// ============================================================
+
+function walletPaymentMethodLabel(
+  metadata
+) {
+
+  const raw =
+    String(
+      metadata?.capture_method ||
+      metadata?.payment_method ||
+      ''
+    )
+      .trim()
+      .toLowerCase();
+
+
+  if (
+    raw.includes('pix')
+  ) {
+    return '🟢 PIX';
+  }
+
+
+  if (
+    raw.includes('credit')
+  ) {
+    return '💳 Cartão de crédito';
+  }
+
+
+  if (
+    raw.includes('debit')
+  ) {
+    return '💳 Cartão de débito';
+  }
+
+
+  if (
+    raw.includes('card')
+  ) {
+    return '💳 Cartão';
+  }
+
+
+  return raw
+    ? raw.toUpperCase()
+    : '—';
+}
+
+
+async function openCustomerWallet(
+  customerId
+) {
+
+  try {
+
+    const token =
+      await getAdminAccessToken();
+
+
+    if (!token) {
+
+      return alert(
+        'Sessão de administrador inválida.'
+      );
+    }
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        `/api/admin/customers/${customerId}/wallet`,
+        {
+          method:'GET',
+
+          headers:{
+            'authorization':
+              `Bearer ${token}`
+          }
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+
+      throw new Error(
+        body.message ||
+        body.error ||
+        'Não foi possível carregar a carteira.'
+      );
+    }
+
+
+    const customer =
+      body.customer || {};
+
+
+    const wallet =
+      body.wallet || {};
+
+
+    const transactions =
+      Array.isArray(
+        body.transactions
+      )
+        ? body.transactions
+        : [];
+
+
+    const historyHtml =
+      transactions.length
+
+        ? transactions
+            .map(
+              tx => {
+
+                const type =
+                  String(
+                    tx.transaction_type ||
+                    ''
+                  ).toLowerCase();
+
+
+                const isCredit =
+                  type === 'credit' ||
+                  type === 'refund';
+
+
+                const signal =
+                  isCredit
+                    ? '+'
+                    : '-';
+
+
+                const method =
+                  walletPaymentMethodLabel(
+                    tx.metadata
+                  );
+
+
+                const date =
+                  tx.created_at
+                    ? new Date(
+                        tx.created_at
+                      )
+                        .toLocaleString(
+                          'pt-BR'
+                        )
+                    : '-';
+
+
+                const operation =
+                  type === 'credit'
+                    ? 'Saldo adicionado'
+                    : type === 'debit'
+                      ? 'Recarga utilizada'
+                      : type === 'refund'
+                        ? 'Estorno'
+                        : 'Ajuste';
+
+
+                return `
+                  <tr>
+
+                    <td>
+                      ${date}
+                    </td>
+
+                    <td>
+                      <b>
+                        ${operation}
+                      </b>
+
+                      ${
+                        tx.note
+                          ? `
+                            <div class="tiny">
+                              ${esc(tx.note)}
+                            </div>
+                          `
+                          : ''
+                      }
+                    </td>
+
+                    <td>
+                      ${method}
+                    </td>
+
+                    <td>
+                      <b
+                        style="
+                          color:${
+                            isCredit
+                              ? '#15803d'
+                              : '#b91c1c'
+                          };
+                        "
+                      >
+                        ${signal}
+                        ${money(
+                          Number(
+                            tx.amount || 0
+                          )
+                        )}
+                      </b>
+                    </td>
+
+                    <td>
+                      ${money(
+                        Number(
+                          tx.balance_after ||
+                          0
+                        )
+                      )}
+                    </td>
+
+                  </tr>
+                `;
+              }
+            )
+            .join('')
+
+        : `
+            <tr>
+              <td colspan="5">
+                <div class="empty">
+                  Nenhuma movimentação encontrada.
+                </div>
+              </td>
+            </tr>
+          `;
+
+
+    showModal(
+      `Carteira — ${esc(customer.name || 'Cliente')}`,
+      `
+
+        <div
+          class="grid"
+          style="margin-bottom:16px;"
+        >
+
+          <div class="card">
+
+            <div class="label">
+              Saldo total
+            </div>
+
+            <div class="num">
+              ${money(
+                Number(
+                  wallet.balance || 0
+                )
+              )}
+            </div>
+
+          </div>
+
+
+          <div class="card">
+
+            <div class="label">
+              Reservado
+            </div>
+
+            <div class="num">
+              ${money(
+                Number(
+                  wallet.reserved_balance ||
+                  0
+                )
+              )}
+            </div>
+
+          </div>
+
+
+          <div class="card">
+
+            <div class="label">
+              Disponível
+            </div>
+
+            <div class="num">
+              ${money(
+                Number(
+                  wallet.available_balance ||
+                  0
+                )
+              )}
+            </div>
+
+          </div>
+
+        </div>
+
+
+        <div
+          class="box"
+          style="margin-bottom:16px;"
+        >
+
+          <div
+            style="
+              display:flex;
+              justify-content:space-between;
+              align-items:center;
+              gap:10px;
+              flex-wrap:wrap;
+            "
+          >
+
+            <div>
+
+              <b>
+                💰 Extrato da carteira
+              </b>
+
+              <div class="tiny">
+                Entradas, saídas e forma de pagamento.
+              </div>
+
+            </div>
+
+
+            <button
+              class="btn secondary small"
+              onclick="openCustomerWallet('${customerId}')"
+            >
+              ↻ Atualizar
+            </button>
+
+          </div>
+
+
+          <div
+            class="table-wrap"
+            style="margin-top:14px;"
+          >
+
+            <table>
+
+              <tr>
+                <th>Data</th>
+                <th>Movimentação</th>
+                <th>Forma</th>
+                <th>Valor</th>
+                <th>Saldo</th>
+              </tr>
+
+              ${historyHtml}
+
+            </table>
+
+          </div>
+
+        </div>
+
+
+        <button
+          class="btn secondary"
+          onclick="openOcppCustomer('${customerId}')"
+        >
+          ← Voltar para ficha
+        </button>
+
+      `
+    );
+
+
+  } catch(err) {
+
+    console.error(
+      'CUSTOMER WALLET ERROR:',
+      err
+    );
+
+
+    alert(
+      err.message ||
+      'Erro ao carregar carteira.'
+    );
+  }
+}
+  
  function openOcppCustomer(customerId){
 
   const customer =
