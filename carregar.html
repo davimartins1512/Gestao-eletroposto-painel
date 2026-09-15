@@ -1145,27 +1145,28 @@ input:focus{
       class="hidden"
     ></div>
 
-    <!-- ===================================================== -->
-<!-- CARTEIRA PRÉ-PAGA -->
+  <!-- ===================================================== -->
+<!-- CARTEIRA PRÉ-PAGA - COMPACTA -->
 <!-- ===================================================== -->
 
 <div
   id="walletBox"
   class="hidden"
   style="
-    margin:18px 0;
-    padding:18px;
-    border:1px solid #dbe3e8;
+    margin:14px 0;
+    padding:16px;
+    border:1px solid rgba(52,211,153,.25);
     border-radius:16px;
-    background:#f8fafc;
+    background:rgba(16,45,34,.78);
   "
 >
 
+  <!-- SALDO -->
   <div
     style="
       display:flex;
+      align-items:center;
       justify-content:space-between;
-      align-items:flex-start;
       gap:12px;
       margin-bottom:14px;
     "
@@ -1175,20 +1176,24 @@ input:focus{
 
       <div
         style="
-          font-size:13px;
-          font-weight:700;
-          color:#64748b;
+          font-size:11px;
+          font-weight:800;
+          letter-spacing:.06em;
+          color:#86efac;
+          text-transform:uppercase;
         "
       >
-        SALDO DISPONÍVEL
+        Saldo disponível
       </div>
 
       <div
         id="walletBalance"
         style="
-          font-size:32px;
-          font-weight:900;
           margin-top:3px;
+          font-size:28px;
+          line-height:1;
+          font-weight:900;
+          color:#ffffff;
         "
       >
         R$ 0,00
@@ -1198,12 +1203,19 @@ input:focus{
 
 
     <button
-      class="btn secondary"
       type="button"
       onclick="loadWallet()"
+      aria-label="Atualizar saldo"
       style="
-        width:auto;
-        padding:10px 12px;
+        width:42px;
+        height:42px;
+        flex:0 0 42px;
+        border-radius:12px;
+        border:1px solid rgba(255,255,255,.12);
+        background:rgba(255,255,255,.07);
+        color:#ffffff;
+        font-size:20px;
+        cursor:pointer;
       "
     >
       ↻
@@ -1212,13 +1224,17 @@ input:focus{
   </div>
 
 
+  <!-- SALDO RESERVADO -->
   <div
     id="walletReservedRow"
     class="hidden"
     style="
-      font-size:13px;
-      color:#64748b;
-      margin-bottom:14px;
+      padding:8px 10px;
+      margin-bottom:12px;
+      border-radius:10px;
+      background:rgba(251,191,36,.10);
+      color:#fde68a;
+      font-size:12px;
     "
   >
     Saldo reservado:
@@ -1228,45 +1244,60 @@ input:focus{
   </div>
 
 
-  <div
-    style="
-      font-weight:800;
-      margin-bottom:8px;
-    "
-  >
-    Adicionar saldo
-  </div>
-
-
+  <!-- VALORES RÁPIDOS -->
   <div
     style="
       display:grid;
       grid-template-columns:repeat(3,1fr);
-      gap:8px;
+      gap:7px;
       margin-bottom:10px;
     "
   >
 
     <button
-      class="btn secondary"
       type="button"
       onclick="setWalletTopupAmount(10)"
+      style="
+        padding:10px 4px;
+        border-radius:10px;
+        border:1px solid rgba(52,211,153,.28);
+        background:rgba(52,211,153,.09);
+        color:#d1fae5;
+        font-weight:800;
+        cursor:pointer;
+      "
     >
       + R$ 10
     </button>
 
     <button
-      class="btn secondary"
       type="button"
       onclick="setWalletTopupAmount(20)"
+      style="
+        padding:10px 4px;
+        border-radius:10px;
+        border:1px solid rgba(52,211,153,.28);
+        background:rgba(52,211,153,.09);
+        color:#d1fae5;
+        font-weight:800;
+        cursor:pointer;
+      "
     >
       + R$ 20
     </button>
 
     <button
-      class="btn secondary"
       type="button"
       onclick="setWalletTopupAmount(50)"
+      style="
+        padding:10px 4px;
+        border-radius:10px;
+        border:1px solid rgba(52,211,153,.28);
+        background:rgba(52,211,153,.09);
+        color:#d1fae5;
+        font-weight:800;
+        cursor:pointer;
+      "
     >
       + R$ 50
     </button>
@@ -1274,21 +1305,74 @@ input:focus{
   </div>
 
 
-  <div class="form-group">
+  <!-- OUTRO VALOR -->
+  <div
+    style="
+      display:grid;
+      grid-template-columns:1fr auto;
+      gap:8px;
+      align-items:end;
+    "
+  >
 
-    <label for="walletTopupAmount">
-      Outro valor
-    </label>
+    <div>
 
-    <input
-      id="walletTopupAmount"
-      type="number"
-      inputmode="decimal"
-      min="5"
-      max="500"
-      step="0.01"
-      placeholder="Ex.: 10,00"
+      <label
+        for="walletTopupAmount"
+        style="
+          display:block;
+          margin-bottom:5px;
+          font-size:11px;
+          font-weight:800;
+          color:#94a3b8;
+          text-transform:uppercase;
+        "
+      >
+        Outro valor
+      </label>
+
+      <input
+        id="walletTopupAmount"
+        type="number"
+        inputmode="decimal"
+        min="5"
+        max="500"
+        step="0.01"
+        placeholder="Ex.: 10,00"
+        style="
+          width:100%;
+          height:44px;
+          box-sizing:border-box;
+          border-radius:11px;
+          border:1px solid rgba(255,255,255,.14);
+          background:rgba(255,255,255,.06);
+          color:#ffffff;
+          padding:0 12px;
+          outline:none;
+        "
+      >
+
+    </div>
+
+
+    <button
+      id="walletTopupButton"
+      type="button"
+      onclick="createWalletTopup()"
+      style="
+        height:44px;
+        padding:0 16px;
+        border:0;
+        border-radius:11px;
+        background:#22c55e;
+        color:#04130a;
+        font-weight:900;
+        white-space:nowrap;
+        cursor:pointer;
+      "
     >
+      + Saldo
+    </button>
 
   </div>
 
@@ -1296,52 +1380,25 @@ input:focus{
   <div
     id="walletMessage"
     class="hidden"
+    style="
+      margin-top:10px;
+    "
   ></div>
-
-
-  <button
-    class="btn"
-    id="walletTopupButton"
-    type="button"
-    onclick="createWalletTopup()"
-  >
-    💳 Adicionar saldo
-  </button>
 
 
   <div
     style="
-      margin-top:10px;
-      font-size:12px;
-      line-height:1.5;
-      color:#64748b;
+      margin-top:9px;
+      font-size:11px;
+      line-height:1.4;
+      color:#94a3b8;
     "
   >
-    Após o pagamento, volte para esta página.
-    O saldo será atualizado automaticamente.
+    Pagamento seguro via InfinitePay.
+    O saldo é atualizado após a confirmação.
   </div>
 
 </div>
-
-    <button
-      class="btn"
-      id="startButton"
-      type="button"
-    >
-      ⚡ Iniciar recarga
-    </button>
-
-
-    <button
-      class="btn secondary"
-      type="button"
-      onclick="showScreen('identify')"
-    >
-      Voltar
-    </button>
-
-  </section>
-
 
   <!-- ===================================================== -->
   <!-- AGUARDANDO STARTTRANSACTION -->
