@@ -2057,14 +2057,29 @@ function renderWallet() {
    * Cliente VIP não vê carteira.
    */
   if (
-    !customerIsPrepaid()
-  ) {
+  !customerIsPrepaid()
+) {
 
-    box.classList
-      .add('hidden');
+  box.classList
+    .add('hidden');
 
-    return;
+
+  const startButton =
+    $('startButton');
+
+
+  if (startButton) {
+
+    startButton.disabled =
+      false;
+
+    startButton.textContent =
+      '⚡ Iniciar recarga';
   }
+
+
+  return;
+}
 
 
   box.classList
@@ -2095,6 +2110,25 @@ function renderWallet() {
         availableBalance
       );
 
+  const startButton =
+  $('startButton');
+
+
+if (startButton) {
+
+  const hasBalance =
+    availableBalance > 0;
+
+
+  startButton.disabled =
+    !hasBalance;
+
+
+  startButton.textContent =
+    hasBalance
+      ? '⚡ Iniciar recarga'
+      : '💳 Adicione saldo para carregar';
+}
 
   $('walletReserved')
     .textContent =
