@@ -4799,8 +4799,13 @@ function clearActiveAuthorization() {
 // NOVA CARGA
 // ============================================================
 
-$('newChargeButton')
-  ?.addEventListener(
+const newChargeButton =
+  $('newChargeButton');
+
+
+if (newChargeButton) {
+
+  newChargeButton.addEventListener(
     'click',
     () => {
 
@@ -4820,6 +4825,7 @@ $('newChargeButton')
     }
   );
 }
+
 
 
 // ============================================================
