@@ -1776,6 +1776,16 @@ let lastSessionData = null;
 
 
 /*
+ * Nome amigável do carregador.
+ * Começa usando o ID do QR como fallback
+ * e depois loadConnector() troca pelo nome
+ * retornado pelo backend.
+ */
+let chargePointName =
+  chargePoint;
+
+
+/*
  * Carteira pré-paga.
  */
 let currentWallet = null;
