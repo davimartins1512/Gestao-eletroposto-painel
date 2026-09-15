@@ -4795,37 +4795,30 @@ function clearActiveAuthorization() {
   } catch {}
 }
 
-
 // ============================================================
 // NOVA CARGA
 // ============================================================
 
-const newChargeButton =
-  $('newChargeButton');
+$('newChargeButton')
+  ?.addEventListener(
+    'click',
+    () => {
 
+      stopPolling();
 
-if (newChargeButton) {
+      clearActiveAuthorization();
 
-  newChargeButton
-    .addEventListener(
-      'click',
-      () => {
+      authorizationId =
+        null;
 
-        stopPolling();
+      lastSessionData =
+        null;
 
-        clearActiveAuthorization();
-
-        authorizationId =
-          null;
-
-        lastSessionData =
-          null;
-
-        showScreen(
-          'identify'
-        );
-      }
-    );
+      showScreen(
+        'identify'
+      );
+    }
+  );
 }
 
 
