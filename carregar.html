@@ -1145,6 +1145,183 @@ input:focus{
       class="hidden"
     ></div>
 
+    <!-- ===================================================== -->
+<!-- CARTEIRA PRÉ-PAGA -->
+<!-- ===================================================== -->
+
+<div
+  id="walletBox"
+  class="hidden"
+  style="
+    margin:18px 0;
+    padding:18px;
+    border:1px solid #dbe3e8;
+    border-radius:16px;
+    background:#f8fafc;
+  "
+>
+
+  <div
+    style="
+      display:flex;
+      justify-content:space-between;
+      align-items:flex-start;
+      gap:12px;
+      margin-bottom:14px;
+    "
+  >
+
+    <div>
+
+      <div
+        style="
+          font-size:13px;
+          font-weight:700;
+          color:#64748b;
+        "
+      >
+        SALDO DISPONÍVEL
+      </div>
+
+      <div
+        id="walletBalance"
+        style="
+          font-size:32px;
+          font-weight:900;
+          margin-top:3px;
+        "
+      >
+        R$ 0,00
+      </div>
+
+    </div>
+
+
+    <button
+      class="btn secondary"
+      type="button"
+      onclick="loadWallet()"
+      style="
+        width:auto;
+        padding:10px 12px;
+      "
+    >
+      ↻
+    </button>
+
+  </div>
+
+
+  <div
+    id="walletReservedRow"
+    class="hidden"
+    style="
+      font-size:13px;
+      color:#64748b;
+      margin-bottom:14px;
+    "
+  >
+    Saldo reservado:
+    <b id="walletReserved">
+      R$ 0,00
+    </b>
+  </div>
+
+
+  <div
+    style="
+      font-weight:800;
+      margin-bottom:8px;
+    "
+  >
+    Adicionar saldo
+  </div>
+
+
+  <div
+    style="
+      display:grid;
+      grid-template-columns:repeat(3,1fr);
+      gap:8px;
+      margin-bottom:10px;
+    "
+  >
+
+    <button
+      class="btn secondary"
+      type="button"
+      onclick="setWalletTopupAmount(10)"
+    >
+      + R$ 10
+    </button>
+
+    <button
+      class="btn secondary"
+      type="button"
+      onclick="setWalletTopupAmount(20)"
+    >
+      + R$ 20
+    </button>
+
+    <button
+      class="btn secondary"
+      type="button"
+      onclick="setWalletTopupAmount(50)"
+    >
+      + R$ 50
+    </button>
+
+  </div>
+
+
+  <div class="form-group">
+
+    <label for="walletTopupAmount">
+      Outro valor
+    </label>
+
+    <input
+      id="walletTopupAmount"
+      type="number"
+      inputmode="decimal"
+      min="5"
+      max="500"
+      step="0.01"
+      placeholder="Ex.: 10,00"
+    >
+
+  </div>
+
+
+  <div
+    id="walletMessage"
+    class="hidden"
+  ></div>
+
+
+  <button
+    class="btn"
+    id="walletTopupButton"
+    type="button"
+    onclick="createWalletTopup()"
+  >
+    💳 Adicionar saldo
+  </button>
+
+
+  <div
+    style="
+      margin-top:10px;
+      font-size:12px;
+      line-height:1.5;
+      color:#64748b;
+    "
+  >
+    Após o pagamento, volte para esta página.
+    O saldo será atualizado automaticamente.
+  </div>
+
+</div>
 
     <button
       class="btn"
@@ -1591,7 +1768,6 @@ const connectorId =
 let currentCpf = '';
 let currentPlate = '';
 let customerToken = '';
-  let chargePointName = '';
 let currentCustomer = null;
 let currentVehicles = [];
 let authorizationId = null;
@@ -1599,6 +1775,13 @@ let pollTimer = null;
 let lastSessionData = null;
 
 
+/*
+ * Carteira pré-paga.
+ */
+let currentWallet = null;
+let currentWalletTopupId = null;
+let walletPollTimer = null;
+let walletPollAttempts = 0;
 // ============================================================
 // HELPERS
 // ============================================================
@@ -1824,6 +2007,571 @@ async function api(
     response,
     body
   };
+}
+
+  // ============================================================
+// CARTEIRA PRÉ-PAGA
+// ============================================================
+
+function customerIsPrepaid() {
+
+  return (
+    String(
+      currentCustomer
+        ?.customer_type ||
+      ''
+    )
+      .trim()
+      .toLowerCase() ===
+    'prepaid'
+  );
+}
+
+
+// ============================================================
+// MOSTRAR SALDO
+// ============================================================
+
+function renderWallet() {
+
+  const box =
+    $('walletBox');
+
+
+  if (!box) {
+    return;
+  }
+
+
+  /*
+   * Cliente VIP não vê carteira.
+   */
+  if (
+    !customerIsPrepaid()
+  ) {
+
+    box.classList
+      .add('hidden');
+
+    return;
+  }
+
+
+  box.classList
+    .remove('hidden');
+
+
+  const wallet =
+    currentWallet || {};
+
+
+  const availableBalance =
+    Number(
+      wallet.available_balance ||
+      0
+    );
+
+
+  const reservedBalance =
+    Number(
+      wallet.reserved_balance ||
+      0
+    );
+
+
+  $('walletBalance')
+    .textContent =
+      money(
+        availableBalance
+      );
+
+
+  $('walletReserved')
+    .textContent =
+      money(
+        reservedBalance
+      );
+
+
+  if (
+    reservedBalance > 0
+  ) {
+
+    $('walletReservedRow')
+      .classList
+      .remove('hidden');
+
+  } else {
+
+    $('walletReservedRow')
+      .classList
+      .add('hidden');
+  }
+}
+
+
+// ============================================================
+// CONSULTAR CARTEIRA
+// ============================================================
+
+async function loadWallet(
+  silent = false
+) {
+
+  /*
+   * VIP não chama a API de carteira.
+   */
+  if (
+    !customerIsPrepaid()
+  ) {
+
+    currentWallet =
+      null;
+
+    renderWallet();
+
+    return null;
+  }
+
+
+  if (!customerToken) {
+
+    if (!silent) {
+
+      setMessage(
+        $('walletMessage'),
+        'error',
+        'Sua sessão expirou. Entre novamente.'
+      );
+    }
+
+    return null;
+  }
+
+
+  try {
+
+    const {
+      response,
+      body
+    } =
+      await api(
+        '/api/public/wallet',
+        {
+          method:
+            'GET',
+
+          headers: {
+
+            authorization:
+              `Bearer ${customerToken}`
+
+          }
+        }
+      );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+
+      throw new Error(
+        body.message ||
+        'Não foi possível consultar seu saldo.'
+      );
+    }
+
+
+    if (
+      body.wallet_enabled !==
+      true
+    ) {
+
+      currentWallet =
+        null;
+
+      renderWallet();
+
+      return body;
+    }
+
+
+    currentWallet =
+      body.wallet || {
+        balance:0,
+        reserved_balance:0,
+        available_balance:0
+      };
+
+
+    renderWallet();
+
+
+    /*
+     * Verifica se a recarga que estamos
+     * aguardando já foi paga.
+     */
+    if (
+      currentWalletTopupId &&
+      Array.isArray(
+        body.topups
+      )
+    ) {
+
+      const currentTopup =
+        body.topups.find(
+          topup =>
+            String(topup.id) ===
+            String(
+              currentWalletTopupId
+            )
+        );
+
+
+      if (
+        currentTopup?.status ===
+        'paid'
+      ) {
+
+        stopWalletPolling();
+
+
+        currentWalletTopupId =
+          null;
+
+
+        setMessage(
+          $('walletMessage'),
+          'success',
+          '✅ Pagamento confirmado. Saldo adicionado com sucesso!'
+        );
+      }
+    }
+
+
+    return body;
+
+  } catch (err) {
+
+    console.error(
+      'WALLET LOAD ERROR:',
+      err
+    );
+
+
+    if (!silent) {
+
+      setMessage(
+        $('walletMessage'),
+        'error',
+        err.message ||
+        'Erro ao consultar saldo.'
+      );
+    }
+
+
+    return null;
+  }
+}
+
+
+// ============================================================
+// VALOR RÁPIDO
+// ============================================================
+
+function setWalletTopupAmount(
+  amount
+) {
+
+  const input =
+    $('walletTopupAmount');
+
+
+  if (!input) {
+    return;
+  }
+
+
+  input.value =
+    Number(amount)
+      .toFixed(2);
+
+
+  input.focus();
+}
+
+
+// ============================================================
+// CRIAR CHECKOUT
+// ============================================================
+
+async function createWalletTopup() {
+
+  if (
+    !customerIsPrepaid()
+  ) {
+    return;
+  }
+
+
+  clearMessage(
+    $('walletMessage')
+  );
+
+
+  const amount =
+    Math.round(
+      Number(
+        $('walletTopupAmount')
+          ?.value ||
+        0
+      ) * 100
+    ) / 100;
+
+
+  if (
+    !Number.isFinite(amount) ||
+    amount < 5 ||
+    amount > 500
+  ) {
+
+    return setMessage(
+      $('walletMessage'),
+      'error',
+      'Informe um valor entre R$ 5,00 e R$ 500,00.'
+    );
+  }
+
+
+  /*
+   * Abrimos uma aba imediatamente.
+   *
+   * Isso evita que alguns celulares
+   * bloqueiem a abertura depois do fetch.
+   */
+  const checkoutWindow =
+    window.open(
+      '',
+      '_blank'
+    );
+
+
+  setButtonLoading(
+    $('walletTopupButton'),
+    true,
+    '💳 Adicionar saldo',
+    'Gerando pagamento...'
+  );
+
+
+  try {
+
+    const {
+      response,
+      body
+    } =
+      await api(
+        '/api/public/wallet/topup',
+        {
+
+          method:
+            'POST',
+
+          headers: {
+
+            authorization:
+              `Bearer ${customerToken}`
+
+          },
+
+          body:
+            JSON.stringify({
+              amount
+            })
+        }
+      );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+
+      throw new Error(
+        body.message ||
+        'Não foi possível criar o pagamento.'
+      );
+    }
+
+
+    const checkoutUrl =
+      String(
+        body.topup
+          ?.checkout_url ||
+        ''
+      );
+
+
+    if (!checkoutUrl) {
+
+      throw new Error(
+        'O servidor não retornou o link de pagamento.'
+      );
+    }
+
+
+    currentWalletTopupId =
+      body.topup?.id ||
+      null;
+
+
+    setMessage(
+      $('walletMessage'),
+      'success',
+      'Pagamento criado. Conclua o pagamento na InfinitePay e depois volte para esta página.'
+    );
+
+
+    /*
+     * Começa a consultar o saldo.
+     */
+    startWalletPolling();
+
+
+    /*
+     * Abre checkout.
+     */
+    if (
+      checkoutWindow &&
+      !checkoutWindow.closed
+    ) {
+
+      checkoutWindow.location.href =
+        checkoutUrl;
+
+    } else {
+
+      /*
+       * Fallback para celular/navegador
+       * que bloqueou nova aba.
+       */
+      window.location.href =
+        checkoutUrl;
+    }
+
+
+  } catch (err) {
+
+    console.error(
+      'WALLET TOPUP ERROR:',
+      err
+    );
+
+
+    if (
+      checkoutWindow &&
+      !checkoutWindow.closed
+    ) {
+
+      checkoutWindow.close();
+    }
+
+
+    setMessage(
+      $('walletMessage'),
+      'error',
+      err.message ||
+      'Erro ao criar pagamento.'
+    );
+
+  } finally {
+
+    setButtonLoading(
+      $('walletTopupButton'),
+      false,
+      '💳 Adicionar saldo',
+      'Gerando pagamento...'
+    );
+  }
+}
+
+
+// ============================================================
+// ATUALIZAÇÃO AUTOMÁTICA APÓS PAGAMENTO
+// ============================================================
+
+function stopWalletPolling() {
+
+  if (
+    walletPollTimer
+  ) {
+
+    clearInterval(
+      walletPollTimer
+    );
+
+    walletPollTimer =
+      null;
+  }
+
+
+  walletPollAttempts =
+    0;
+}
+
+
+function startWalletPolling() {
+
+  stopWalletPolling();
+
+
+  walletPollAttempts =
+    0;
+
+
+  /*
+   * Consulta imediatamente.
+   */
+  loadWallet(
+    true
+  );
+
+
+  walletPollTimer =
+    setInterval(
+      async () => {
+
+        walletPollAttempts++;
+
+
+        await loadWallet(
+          true
+        );
+
+
+        /*
+         * 100 tentativas x 3 segundos
+         * = aproximadamente 5 minutos.
+         */
+        if (
+          walletPollAttempts >=
+          100
+        ) {
+
+          stopWalletPolling();
+
+
+          setMessage(
+            $('walletMessage'),
+            'warning',
+            'O pagamento ainda não apareceu. Se você já pagou, toque no botão ↻ para atualizar o saldo.'
+          );
+        }
+
+      },
+      3000
+    );
 }
 
 
@@ -2629,6 +3377,39 @@ $('identifyForm')
             ? body.vehicles
             : [];
 
+        currentCustomer =
+  body.customer ||
+  null;
+
+currentVehicles =
+  Array.isArray(
+    body.vehicles
+  )
+    ? body.vehicles
+    : [];
+
+
+/*
+ * Se for cliente pré-pago,
+ * já consulta o saldo.
+ *
+ * Uma eventual falha de carteira
+ * NÃO interrompe o login nesta fase.
+ */
+if (
+  customerIsPrepaid()
+) {
+
+  await loadWallet(
+    true
+  );
+
+} else {
+
+  currentWallet =
+    null;
+}
+
 
         if (
           body.active_session &&
@@ -2771,7 +3552,13 @@ $('readyCp').textContent =
       .add('hidden');
   }
 
+renderWallet();
 
+
+showScreen(
+  'ready'
+);
+  
   showScreen(
     'ready'
   );
