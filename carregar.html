@@ -4800,26 +4800,33 @@ function clearActiveAuthorization() {
 // NOVA CARGA
 // ============================================================
 
-$('newChargeButton')
-  .addEventListener(
-    'click',
-    () => {
+const newChargeButton =
+  $('newChargeButton');
 
-      stopPolling();
 
-      clearActiveAuthorization();
+if (newChargeButton) {
 
-      authorizationId =
-        null;
+  newChargeButton
+    .addEventListener(
+      'click',
+      () => {
 
-      lastSessionData =
-        null;
+        stopPolling();
 
-      showScreen(
-        'identify'
-      );
-    }
-  );
+        clearActiveAuthorization();
+
+        authorizationId =
+          null;
+
+        lastSessionData =
+          null;
+
+        showScreen(
+          'identify'
+        );
+      }
+    );
+}
 
 
 // ============================================================
