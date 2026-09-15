@@ -141,7 +141,64 @@ h3{font-size:17px;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,t
     ></div>
   </div>
 </section>
-      <section class="tab" id="clients"><div class="toolbar"><button class="btn" onclick="openClientModal()">+ Novo cliente</button></div><div class="box"><div class="filters"><input class="wide" id="clientSearch" placeholder="Buscar cliente, telefone ou placa"></div><div class="table-wrap" id="clientsList"></div></div></section>
+     <section
+  class="tab"
+  id="clients"
+>
+
+  <div class="toolbar">
+
+    <button
+      class="btn"
+      onclick="openClientModal()"
+    >
+      + Novo cliente
+    </button>
+
+  </div>
+
+
+  <div class="box">
+
+    <div class="filters">
+
+      <input
+        class="wide"
+        id="clientSearch"
+        placeholder="Buscar cliente, telefone ou placa"
+      >
+
+
+      <select
+        id="clientType"
+        onchange="renderClients()"
+      >
+
+        <option value="">
+          Todos os tipos
+        </option>
+
+        <option value="vip">
+          VIP
+        </option>
+
+        <option value="prepaid">
+          Pré-pago
+        </option>
+
+      </select>
+
+    </div>
+
+
+    <div
+      class="table-wrap"
+      id="clientsList"
+    ></div>
+
+  </div>
+
+</section>
       <section class="tab" id="expenses"><div class="toolbar"><button class="btn" onclick="openExpenseModal()">+ Nova despesa</button></div><div class="box"><div class="filters"><input id="expenseMonth" type="month"><select id="expenseCategory"><option value="">Todas</option><option>Energia</option><option>Manutenção</option><option>Seguro</option><option>Limpeza</option><option>Impostos</option><option>Outros</option></select></div><div class="table-wrap" id="expensesList"></div></div></section>
       <section class="tab" id="reports"><div class="box"><div class="filters"><input id="reportMonth" type="month"><button class="btn secondary" onclick="renderReports()">Atualizar</button></div><div id="reportBody"></div></div></section>
       <section class="tab" id="data"><div class="box"><h3>Backup / migração</h3><p class="muted">A V5 usa banco online. Você também pode importar um backup JSON da V4.</p><div class="toolbar"><button class="btn" onclick="downloadBackup()">Baixar backup</button><button class="btn secondary" onclick="document.getElementById('restoreFile').click()">Importar backup V4</button><input id="restoreFile" type="file" accept=".json" style="display:none"></div></div><div class="box"><h3>Conta</h3><div id="systemInfo"></div></div></section>
@@ -4991,54 +5048,99 @@ function renderReceivable(){
 }
 function renderClients(){
 
-  const clientSearchEl =
-    document.getElementById('clientSearch');
+ const clientSearchEl =
+  document.getElementById(
+    'clientSearch'
+  );
 
-  const clientsListEl =
-    document.getElementById('clientsList');
+const clientTypeEl =
+  document.getElementById(
+    'clientType'
+  );
 
-  if (!clientsListEl) {
-    return;
-  }
-
-  const q =
-    (
-      clientSearchEl?.value ||
-      ''
-    ).toLowerCase();
+const clientsListEl =
+  document.getElementById(
+    'clientsList'
+  );
 
 
-  const customers =
-    (db.ocppCustomers || [])
-      .filter(
-        c => {
+if (!clientsListEl) {
+  return;
+}
 
-          const vehicles =
-            c.vehicles || [];
 
-          const vehicleText =
-            vehicles
-              .map(
-                v =>
-                  `${v.plate || ''} ${v.nickname || ''}`
-              )
-              .join(' ');
+const q =
+  String(
+    clientSearchEl?.value ||
+    ''
+  )
+    .trim()
+    .toLowerCase();
 
-          const searchable =
-            `
-              ${c.name || ''}
-              ${c.phone || ''}
-              ${c.cpf || ''}
-              ${vehicleText}
-            `
-              .toLowerCase();
 
-          return (
-            !q ||
-            searchable.includes(q)
-          );
-        }
-      );
+const selectedType =
+  String(
+    clientTypeEl?.value ||
+    ''
+  )
+    .trim()
+    .toLowerCase();
+
+
+const customers =
+  (db.ocppCustomers || [])
+    .filter(
+      c => {
+
+        const vehicles =
+          c.vehicles || [];
+
+
+        const vehicleText =
+          vehicles
+            .map(
+              v =>
+                `${v.plate || ''} ${v.nickname || ''}`
+            )
+            .join(' ');
+
+
+        const searchable =
+          `
+            ${c.name || ''}
+            ${c.phone || ''}
+            ${c.cpf || ''}
+            ${vehicleText}
+          `
+            .toLowerCase();
+
+
+        const matchesSearch =
+          !q ||
+          searchable.includes(q);
+
+
+        const customerType =
+          String(
+            c.customer_type ||
+            'prepaid'
+          )
+            .trim()
+            .toLowerCase();
+
+
+        const matchesType =
+          !selectedType ||
+          customerType ===
+            selectedType;
+
+
+        return (
+          matchesSearch &&
+          matchesType
+        );
+      }
+    );
 
 
   const rows =
