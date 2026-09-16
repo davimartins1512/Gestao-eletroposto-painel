@@ -1415,7 +1415,12 @@ input:focus{
   class="btn"
   id="startButton"
   type="button"
-  style="margin-top:14px;"
+  onclick="startCharging()"
+  style="
+    display:block;
+    width:100%;
+    margin-top:14px;
+  "
 >
   ⚡ Iniciar recarga
 </button>
@@ -2159,6 +2164,9 @@ function renderWallet() {
     startButton.disabled =
       false;
 
+    startButton.style.display =
+  'block';
+
     startButton.textContent =
       '⚡ Iniciar recarga';
   }
@@ -2196,11 +2204,15 @@ function renderWallet() {
         availableBalance
       );
 
-  const startButton =
+ const startButton =
   $('startButton');
 
 
 if (startButton) {
+
+  startButton.style.display =
+    'block';
+
 
   const hasBalance =
     availableBalance > 0;
