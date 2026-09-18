@@ -4207,6 +4207,31 @@ async function startCharging() {
       authorizationId
     );
 
+    // ============================================================
+// RESETAR BOTÃO DE PARADA PARA A NOVA RECARGA
+// ============================================================
+
+const stopButton =
+  $('stopChargeButton');
+
+
+if (stopButton) {
+
+  stopButton.disabled =
+    false;
+
+  stopButton.textContent =
+    '■ Encerrar recarga';
+
+  stopButton.classList
+    .remove(
+      'hidden'
+    );
+
+  stopButton.style.display =
+    '';
+}
+
 
     showScreen(
       'waiting'
@@ -4500,16 +4525,39 @@ function renderCharging(
   session
 ) {
 
-  showScreen(
-    'charging'
-  );
-  if (
-  !$('stopChargeButton')
-    .disabled
-) {
-  $('stopChargeButton')
-    .textContent =
-      '■ Encerrar recarga';
+ showScreen(
+  'charging'
+);
+
+
+// ============================================================
+// GARANTIR BOTÃO DE ENCERRAMENTO DISPONÍVEL
+//
+// Toda sessão nova/em andamento precisa oferecer ao cliente
+// uma forma de parar a carga.
+//
+// Não herdamos disabled/texto de uma carga anterior.
+// ============================================================
+
+const stopButton =
+  $('stopChargeButton');
+
+
+if (stopButton) {
+
+  stopButton.disabled =
+    false;
+
+  stopButton.textContent =
+    '■ Encerrar recarga';
+
+  stopButton.classList
+    .remove(
+      'hidden'
+    );
+
+  stopButton.style.display =
+    '';
 }
 
 
@@ -4630,6 +4678,26 @@ function renderFinished(
   showScreen(
     'finished'
   );
+  const stopButton =
+  $('stopChargeButton');
+
+
+if (stopButton) {
+
+  stopButton.disabled =
+    false;
+
+  stopButton.textContent =
+    '■ Encerrar recarga';
+
+  stopButton.classList
+    .remove(
+      'hidden'
+    );
+
+  stopButton.style.display =
+    '';
+}
 
 
   $('finalAmount')
