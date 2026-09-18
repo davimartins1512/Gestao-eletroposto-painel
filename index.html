@@ -1641,7 +1641,99 @@ function openResetChargePoint(cpIdentity){
     `
   );
 }
+  
+async function payPendingWithWallet(
+  customerId,
+  sessionId
+) {
 
+  if (
+    !confirm(
+      'Quitar o valor pendente desta recarga usando o saldo disponível da carteira do cliente?'
+    )
+  ) {
+    return;
+  }
+
+
+  try {
+
+    const token =
+      await getAdminAccessToken();
+
+
+    if (!token) {
+
+      return alert(
+        'Sessão administrativa inválida.'
+      );
+    }
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        `/api/admin/payments/${sessionId}/pay-with-wallet`,
+        {
+          method:
+            'POST',
+
+          headers: {
+            'authorization':
+              `Bearer ${token}`
+          }
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+
+      throw new Error(
+        body.error ||
+        body.message ||
+        'Não foi possível quitar a pendência.'
+      );
+    }
+
+
+    alert(
+      'Pendência quitada com sucesso.\n\n' +
+      'Debitado da carteira: ' +
+      money(
+        body.result
+          ?.charged_amount ||
+        0
+      )
+    );
+
+
+    await loadAll();
+
+
+    openOcppCustomer(
+      customerId
+    );
+
+
+  } catch (err) {
+
+    alert(
+      err?.message ||
+      'Erro ao quitar pendência com a carteira.'
+    );
+  }
+}
 
 async function resetChargePointAdmin(
   cpIdentity
@@ -7479,19 +7571,50 @@ async function openCustomerWallet(
                   </td>
 
                   <td>
-                    ${
-                      !paid &&
-                      amount > 0
-                        ? `
-                          <button
-                            class="btn small"
-                            onclick="openManualPayment('${s.id}')"
-                          >
-                            Receber
-                          </button>
-                        `
-                        : ''
-                    }
+                   ${
+
+  !paid &&
+  amount > 0
+
+    ? `
+
+      ${
+        customer.customer_type ===
+        'prepaid'
+
+          ? `
+            <button
+              class="btn secondary small"
+              onclick="
+                payPendingWithWallet(
+                  '${customer.id}',
+                  '${s.id}'
+                )
+              "
+            >
+              💳 Quitar carteira
+            </button>
+          `
+
+          : ''
+      }
+
+
+      <button
+        class="btn small"
+        onclick="
+          openManualPayment(
+            '${s.id}'
+          )
+        "
+      >
+        Receber
+      </button>
+
+    `
+
+    : ''
+}
                   </td>
 
                 </tr>
