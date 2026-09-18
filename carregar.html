@@ -1464,6 +1464,14 @@ input:focus{
       <div class="msg success">
         Não desconecte o cabo.
       </div>
+      <button
+  class="btn secondary"
+  id="cancelStartButton"
+  type="button"
+  style="margin-top:14px;"
+>
+  Cancelar tentativa
+</button>
 
     </div>
 
@@ -2852,7 +2860,111 @@ $('registerPlate')
         ).slice(0,7);
     }
   );
+  
+const cancelStartButton =
+  $('cancelStartButton');
 
+
+if (cancelStartButton) {
+
+  cancelStartButton
+    .addEventListener(
+      'click',
+      async () => {
+
+        if (!authorizationId) {
+
+          stopPolling();
+
+          clearActiveAuthorization();
+
+          authorizationId =
+            null;
+
+          lastSessionData =
+            null;
+
+          showScreen(
+            'identify'
+          );
+
+          return;
+        }
+
+
+        cancelStartButton.disabled =
+          true;
+
+        cancelStartButton.textContent =
+          'Cancelando...';
+
+
+        try {
+
+          const {
+            response,
+            body
+          } =
+            await api(
+              '/api/public/charging/cancel-start',
+              {
+                method:
+                  'POST',
+
+                body:
+                  JSON.stringify({
+                    authorization_id:
+                      authorizationId
+                  })
+              }
+            );
+
+
+          if (
+            !response.ok ||
+            !body.success
+          ) {
+
+            throw new Error(
+              body.message ||
+              'Não foi possível cancelar.'
+            );
+          }
+
+
+          stopPolling();
+
+          clearActiveAuthorization();
+
+          authorizationId =
+            null;
+
+          lastSessionData =
+            null;
+
+
+          showScreen(
+            'identify'
+          );
+
+
+        } catch (err) {
+
+          alert(
+            err.message ||
+            'Erro ao cancelar tentativa.'
+          );
+
+
+          cancelStartButton.disabled =
+            false;
+
+          cancelStartButton.textContent =
+            'Cancelar tentativa';
+        }
+      }
+    );
+}
 
 $('registerCpf')
   .addEventListener(
