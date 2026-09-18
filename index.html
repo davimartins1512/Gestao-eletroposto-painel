@@ -2517,6 +2517,129 @@ const token =
     );
   }
 }
+
+// ============================================================
+// ADMIN - FINALIZAR SESSÃO TRAVADA
+// ============================================================
+
+async function forceFinishStaleSession(
+  sessionId,
+  transactionId
+) {
+
+  const confirmed =
+    confirm(
+      'ATENÇÃO\n\n' +
+      'Você está tentando remover uma sessão que aparenta estar travada.\n\n' +
+
+      (
+        transactionId
+          ? 'Transação #' +
+            transactionId +
+            '\n\n'
+          : ''
+      ) +
+
+      'Esse comando NÃO envia parada para o carro.\n' +
+      'Ele apenas limpa uma sessão antiga do sistema.\n\n' +
+
+      'O servidor vai verificar novamente se essa sessão realmente não é a carga física atual.\n\n' +
+
+      'Deseja continuar?'
+    );
+
+
+  if (!confirmed) {
+    return;
+  }
+
+
+  try {
+
+    const {
+      data: {
+        session
+      }
+    } =
+      await supa
+        .auth
+        .getSession();
+
+
+    if (
+      !session?.access_token
+    ) {
+
+      return alert(
+        'Sua sessão administrativa expirou. Faça login novamente.'
+      );
+    }
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        '/api/admin/charging/force-finish-stale',
+        {
+          method:
+            'POST',
+
+          headers: {
+
+            'content-type':
+              'application/json',
+
+            'authorization':
+              `Bearer ${session.access_token}`
+          },
+
+          body:
+            JSON.stringify({
+              session_id:
+                sessionId
+            })
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      body.success === false
+    ) {
+
+      throw new Error(
+        body.message ||
+        body.error ||
+        'Não foi possível finalizar a sessão travada.'
+      );
+    }
+
+
+    alert(
+      body.message ||
+      'Sessão travada finalizada com sucesso.'
+    );
+
+
+    await loadAll();
+
+  } catch (err) {
+
+    alert(
+      err?.message ||
+      'Erro ao finalizar sessão travada.'
+    );
+  }
+}
+  
 function openReconciliationSession(
   sessionId
 ){
@@ -3079,6 +3202,194 @@ async function confirmManualPayment(
     s =>
       s.session_status === 'charging'
   );
+
+    // ============================================================
+// SESSÕES POSSIVELMENTE TRAVADAS
+// ============================================================
+
+const staleSessions =
+  sessions.filter(
+    s => {
+
+      if (
+        s.session_status !==
+        'charging'
+      ) {
+        return false;
+      }
+
+
+      const connector =
+        conns.find(
+          c =>
+            String(
+              c.charge_point_id
+            ) ===
+            String(
+              s.charge_point_id
+            ) &&
+            Number(
+              c.connector_id
+            ) ===
+            Number(
+              s.connector_id
+            )
+        );
+
+
+      const currentSessionId =
+        String(
+          connector
+            ?.current_session_id ||
+          ''
+        );
+
+
+      const thisSessionId =
+        String(
+          s.id ||
+          ''
+        );
+
+
+      /*
+       * Existe uma carga mais nova
+       * marcada como charging no mesmo
+       * carregador/conector.
+       */
+      const newerSession =
+        sessions.some(
+          other => {
+
+            if (
+              String(other.id) ===
+              String(s.id)
+            ) {
+              return false;
+            }
+
+
+            if (
+              other.session_status !==
+              'charging'
+            ) {
+              return false;
+            }
+
+
+            if (
+              String(
+                other.charge_point_id
+              ) !==
+              String(
+                s.charge_point_id
+              )
+            ) {
+              return false;
+            }
+
+
+            if (
+              Number(
+                other.connector_id
+              ) !==
+              Number(
+                s.connector_id
+              )
+            ) {
+              return false;
+            }
+
+
+            return (
+              new Date(
+                other.started_at ||
+                0
+              ).getTime() >
+              new Date(
+                s.started_at ||
+                0
+              ).getTime()
+            );
+          }
+        );
+
+
+      /*
+       * Última atividade conhecida.
+       */
+      const lastActivity =
+        s.last_meter_at ||
+        s.updated_at ||
+        s.started_at ||
+        null;
+
+
+      const lastActivityMs =
+        lastActivity
+          ? new Date(
+              lastActivity
+            ).getTime()
+          : 0;
+
+
+      const inactiveMinutes =
+        lastActivityMs > 0
+          ? (
+              Date.now() -
+              lastActivityMs
+            ) /
+            60000
+          : 0;
+
+
+      const connectorStatus =
+        String(
+          connector?.status ||
+          ''
+        )
+          .trim()
+          .toLowerCase();
+
+
+      /*
+       * Critérios para aparecer
+       * como POSSIVELMENTE TRAVADA.
+       *
+       * O backend ainda fará outra
+       * validação antes de finalizar.
+       */
+      return (
+
+        (
+          currentSessionId &&
+          currentSessionId !==
+            thisSessionId
+        )
+
+        ||
+
+        newerSession
+
+        ||
+
+        (
+          connector &&
+          connectorStatus !==
+            'charging' &&
+          inactiveMinutes >= 10
+        )
+
+        ||
+
+        (
+          !connector &&
+          inactiveMinutes >= 30
+        )
+
+      );
+    }
+  );
    
   ocppCards.innerHTML=`<div class="card"><div class="label">Carregadores online</div><div class="num">${online}/${cps.length}</div></div><div class="card"><div class="label">Cargas em andamento</div><div class="num">${charging}</div></div><div class="card"><div class="label">Energia hoje</div><div class="num">${todayKwh.toFixed(2)} kWh</div><div class="sub">Tarifa ${money(OCPP_PRICE_PER_KWH)}/kWh</div></div><div class="card"><div class="label">Faturamento OCPP hoje</div><div class="num">${money(todayValue)}</div><div class="sub">Pendente total ${money(pending)}</div></div>`;
   if (reconciliationSessions.length) {
@@ -3200,6 +3511,215 @@ if (reconciliationSessions.length) {
     </div>
   `;
 }
+    
+// ============================================================
+// CARD - SESSÕES POSSIVELMENTE TRAVADAS
+// ============================================================
+
+if (
+  staleSessions.length
+) {
+
+  ocppCards.innerHTML += `
+    <div
+      class="card"
+      style="
+        grid-column:1/-1;
+        padding:16px;
+        border:2px solid #dc2626;
+        background:#fff7f7;
+      "
+    >
+
+      <div
+        style="
+          display:flex;
+          justify-content:space-between;
+          align-items:center;
+          gap:10px;
+          margin-bottom:12px;
+        "
+      >
+
+        <div>
+
+          <div
+            style="
+              font-size:16px;
+              font-weight:900;
+              color:#b91c1c;
+            "
+          >
+            ⚠️ Sessões possivelmente travadas
+          </div>
+
+          <div
+            class="muted"
+            style="
+              margin-top:4px;
+            "
+          >
+            ${staleSessions.length}
+            sessão(ões) marcada(s) como carregando,
+            mas com indício de estado antigo.
+          </div>
+
+        </div>
+
+      </div>
+
+
+      ${staleSessions
+        .map(
+          s => {
+
+            const cp =
+              cps.find(
+                c =>
+                  String(c.id) ===
+                  String(
+                    s.charge_point_id
+                  )
+              );
+
+
+            const customer =
+              (db.ocppCustomers || [])
+                .find(
+                  c =>
+                    String(c.id) ===
+                    String(
+                      s.customer_id
+                    )
+                );
+
+
+            const lastActivity =
+              s.last_meter_at ||
+              s.updated_at ||
+              s.started_at ||
+              null;
+
+
+            return `
+              <div
+                style="
+                  display:flex;
+                  justify-content:space-between;
+                  align-items:center;
+                  gap:14px;
+                  padding:12px 0;
+                  border-top:1px solid #fecaca;
+                "
+              >
+
+                <div>
+
+                  <div
+                    style="
+                      font-weight:800;
+                    "
+                  >
+                    ${esc(
+                      customer?.name ||
+                      s.customer_name ||
+                      'Cliente não identificado'
+                    )}
+                  </div>
+
+
+                  <div
+                    class="muted"
+                    style="
+                      margin-top:3px;
+                    "
+                  >
+                    ${esc(
+                      cp?.name ||
+                      cp?.ocpp_identity ||
+                      'Carregador'
+                    )}
+                    · Conector
+                    ${esc(
+                      s.connector_id ||
+                      '-'
+                    )}
+                    · Transação #
+                    ${esc(
+                      s.transaction_id ||
+                      '-'
+                    )}
+                  </div>
+
+
+                  <div
+                    class="muted"
+                    style="
+                      margin-top:3px;
+                    "
+                  >
+                    ${Number(
+                      s.energy_kwh ||
+                      0
+                    ).toFixed(2)}
+                    kWh
+
+                    ·
+
+                    ${money(
+                      s.total_amount ||
+                      0
+                    )}
+                  </div>
+
+
+                  <div
+                    class="tiny"
+                    style="
+                      margin-top:4px;
+                      color:#991b1b;
+                    "
+                  >
+                    Última atividade:
+                    ${
+                      lastActivity
+                        ? new Date(
+                            lastActivity
+                          ).toLocaleString(
+                            'pt-BR'
+                          )
+                        : 'sem informação'
+                    }
+                  </div>
+
+                </div>
+
+
+                <button
+                  class="btn danger small"
+                  onclick="
+                    forceFinishStaleSession(
+                      '${esc(s.id)}',
+                      '${esc(
+                        s.transaction_id ||
+                        ''
+                      )}'
+                    )
+                  "
+                >
+                  Finalizar travada
+                </button>
+
+              </div>
+            `;
+          }
+        )
+        .join('')}
+
+    </div>
+  `;
+}
+    
     if (liveSessions.length) {
 
   ocppCards.innerHTML += `
