@@ -2302,6 +2302,259 @@ async function manualStartCharge(
   }
 }
 
+  function openEditWalletBalance(
+  customerId,
+  currentBalance,
+  reservedBalance = 0
+) {
+
+  showModal(
+    'Editar saldo da carteira',
+    `
+
+      <div class="form-grid">
+
+        <div>
+          <label>
+            Saldo atual
+          </label>
+
+          <input
+            value="${money(
+              currentBalance || 0
+            )}"
+            disabled
+          >
+        </div>
+
+
+        <div>
+          <label>
+            Saldo reservado
+          </label>
+
+          <input
+            value="${money(
+              reservedBalance || 0
+            )}"
+            disabled
+          >
+        </div>
+
+
+        <div class="full">
+
+          <label>
+            Novo saldo total
+          </label>
+
+          <input
+            id="adminWalletNewBalance"
+            type="number"
+            min="0"
+            step="0.01"
+            value="${Number(
+              currentBalance || 0
+            ).toFixed(2)}"
+          >
+
+        </div>
+
+
+        <div class="full">
+
+          <label>
+            Motivo do ajuste
+          </label>
+
+          <input
+            id="adminWalletNote"
+            placeholder="Ex.: crédito cortesia, correção de saldo..."
+          >
+
+        </div>
+
+      </div>
+
+
+      <div
+        class="tiny"
+        style="
+          margin-top:12px;
+        "
+      >
+        O ajuste ficará registrado no extrato da carteira.
+      </div>
+
+
+      <div style="height:14px"></div>
+
+
+      <button
+        class="btn"
+        onclick="
+          saveWalletBalance(
+            '${customerId}'
+          )
+        "
+      >
+        Salvar novo saldo
+      </button>
+
+    `
+  );
+}
+
+
+async function saveWalletBalance(
+  customerId
+) {
+
+  try {
+
+    const value =
+      Number(
+        document
+          .getElementById(
+            'adminWalletNewBalance'
+          )
+          ?.value
+      );
+
+
+    const note =
+      String(
+        document
+          .getElementById(
+            'adminWalletNote'
+          )
+          ?.value ||
+        ''
+      ).trim();
+
+
+    if (
+      !Number.isFinite(value) ||
+      value < 0
+    ) {
+
+      return alert(
+        'Informe um saldo válido.'
+      );
+    }
+
+
+    if (
+      note.length < 3
+    ) {
+
+      return alert(
+        'Informe o motivo do ajuste.'
+      );
+    }
+
+
+    const token =
+      await getAdminAccessToken();
+
+
+    if (!token) {
+
+      return alert(
+        'Sessão administrativa inválida.'
+      );
+    }
+
+
+    if (
+      !confirm(
+        'Confirma alterar o saldo da carteira para ' +
+        money(value) +
+        '?'
+      )
+    ) {
+
+      return;
+    }
+
+
+    const response =
+      await fetch(
+        BACKEND_URL +
+        `/api/admin/customers/${customerId}/wallet-balance`,
+        {
+          method:
+            'PATCH',
+
+          headers: {
+            'content-type':
+              'application/json',
+
+            'authorization':
+              `Bearer ${token}`
+          },
+
+          body:
+            JSON.stringify({
+              balance:
+                value,
+
+              note
+            })
+        }
+      );
+
+
+    const body =
+      await response
+        .json()
+        .catch(
+          () => ({})
+        );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+
+      throw new Error(
+        body.error ||
+        body.message ||
+        'Não foi possível alterar o saldo.'
+      );
+    }
+
+
+    closeModal();
+
+
+    alert(
+      'Saldo alterado para ' +
+      money(
+        body.wallet?.balance ||
+        value
+      ) +
+      '.'
+    );
+
+
+    await loadAll();
+
+
+    openOcppCustomer(
+      customerId
+    );
+
+  } catch (err) {
+
+    alert(
+      err?.message ||
+      'Erro ao alterar saldo.'
+    );
+  }
+}
+
 
 // ============================================================
 // ADMIN - ENCERRAR CARGA
@@ -6767,13 +7020,37 @@ async function openCustomerWallet(
             </div>
 
 
-            <button
-              class="btn secondary small"
-              onclick="openCustomerWallet('${customerId}')"
-            >
-              ↻ Atualizar
-            </button>
+            <div
+  style="
+    display:flex;
+    gap:8px;
+    flex-wrap:wrap;
+    justify-content:flex-end;
+  "
+>
 
+  <button
+    class="btn secondary small"
+    onclick="
+      openEditWalletBalance(
+        '${customerId}',
+        ${Number(wallet.balance || 0)},
+        ${Number(wallet.reserved_balance || 0)}
+      )
+    "
+  >
+    ✏️ Editar saldo
+  </button>
+
+
+  <button
+    class="btn secondary small"
+    onclick="openCustomerWallet('${customerId}')"
+  >
+    ↻ Atualizar
+  </button>
+
+</div>
           </div>
 
 
