@@ -793,12 +793,21 @@
           ];
 
 
+        const rawSoc =
+          state
+            .active_session
+            ?.soc_percent;
+
+
         const soc =
-          Number(
-            state
-              .active_session
-              ?.soc_percent
-          );
+          rawSoc ===
+            null ||
+          rawSoc ===
+            undefined
+              ? NaN
+              : Number(
+                  rawSoc
+                );
 
 
         if (
