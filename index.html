@@ -335,6 +335,30 @@
       border:1px solid var(--line);
     }
 
+    .availability{
+      margin-top:8px;
+      font-size:12px !important;
+      font-weight:900;
+      letter-spacing:.01em;
+    }
+
+    .availability.loading,
+    .availability.unknown{
+      color:#91a79a !important;
+    }
+
+    .availability.free{
+      color:#75e9a6 !important;
+    }
+
+    .availability.busy{
+      color:#ffd479 !important;
+    }
+
+    .availability.offline{
+      color:#ff9797 !important;
+    }
+
     @media (min-width:700px){
       .page{
         padding-top:55px;
@@ -617,9 +641,17 @@
   <script>
     'use strict';
 
+    const API_BASE =
+      'https://gestao-eletroposto-production.up.railway.app';
+
+    const STATUS_REFRESH_MS =
+      15000;
 
     let selectedCharger =
       null;
+
+    const chargerStates =
+      new Map();
 
 
     const overlay =
@@ -657,6 +689,491 @@
         );
 
 
+    function chargerKey(
+      cp,
+      connector
+    ) {
+
+      return (
+        String(cp) +
+        ':' +
+        String(connector)
+      );
+    }
+
+
+    function formatRemaining(
+      minutes
+    ) {
+
+      const value =
+        Number(minutes);
+
+
+      if (
+        !Number.isFinite(value) ||
+        value <= 0
+      ) {
+
+        return '';
+      }
+
+
+      if (value < 60) {
+
+        return (
+          '~' +
+          Math.ceil(value) +
+          ' min'
+        );
+      }
+
+
+      const hours =
+        Math.floor(
+          value / 60
+        );
+
+
+      const mins =
+        Math.ceil(
+          value % 60
+        );
+
+
+      return (
+        '~' +
+        hours +
+        'h' +
+        (
+          mins > 0
+            ? ' ' +
+              String(mins)
+                .padStart(
+                  2,
+                  '0'
+                ) +
+              'min'
+            : ''
+        )
+      );
+    }
+
+
+    function statusSummary(
+      state
+    ) {
+
+      if (
+        !state ||
+        state.loading
+      ) {
+
+        return 'Consultando status...';
+      }
+
+
+      if (state.error) {
+
+        return 'Status indisponível';
+      }
+
+
+      if (!state.online) {
+
+        return '● Offline';
+      }
+
+
+      if (state.busy) {
+
+        const parts =
+          [
+            '● Ocupado'
+          ];
+
+
+        const soc =
+          Number(
+            state
+              .active_session
+              ?.soc_percent
+          );
+
+
+        if (
+          Number.isFinite(soc)
+        ) {
+
+          parts.push(
+            'Bateria ' +
+            Math.round(soc) +
+            '%'
+          );
+        }
+
+
+        const remaining =
+          formatRemaining(
+            state
+              .active_session
+              ?.estimated_remaining_minutes
+          );
+
+
+        if (remaining) {
+
+          parts.push(
+            remaining
+          );
+        }
+
+
+        return parts.join(
+          ' • '
+        );
+      }
+
+
+      return '● Livre agora';
+    }
+
+
+    function statusClass(
+      state
+    ) {
+
+      if (
+        !state ||
+        state.loading
+      ) {
+
+        return 'loading';
+      }
+
+
+      if (state.error) {
+
+        return 'unknown';
+      }
+
+
+      if (!state.online) {
+
+        return 'offline';
+      }
+
+
+      if (state.busy) {
+
+        return 'busy';
+      }
+
+
+      return 'free';
+    }
+
+
+    function ensureAvailabilityElement(
+      button
+    ) {
+
+      let element =
+        button.querySelector(
+          '.availability'
+        );
+
+
+      if (!element) {
+
+        element =
+          document.createElement(
+            'span'
+          );
+
+        element.className =
+          'availability loading';
+
+        element.textContent =
+          'Consultando status...';
+
+
+        button
+          .querySelector(
+            '.chargerInfo'
+          )
+          ?.appendChild(
+            element
+          );
+      }
+
+
+      return element;
+    }
+
+
+    function renderButtonState(
+      button,
+      state
+    ) {
+
+      const element =
+        ensureAvailabilityElement(
+          button
+        );
+
+
+      if (!element) {
+        return;
+      }
+
+
+      element.className =
+        'availability ' +
+        statusClass(
+          state
+        );
+
+
+      element.textContent =
+        statusSummary(
+          state
+        );
+    }
+
+
+    function renderSelectedState(
+      state
+    ) {
+
+      if (!selectedCharger) {
+        return;
+      }
+
+
+      selectedName
+        .textContent =
+          selectedCharger
+            .name;
+
+
+      selectedInfo
+        .textContent =
+          selectedCharger
+            .location +
+          ' • ' +
+          selectedCharger
+            .power +
+          ' • ' +
+          statusSummary(
+            state
+          );
+
+
+      /*
+       * Se sabemos que está ocupado/offline,
+       * não deixamos o cliente avançar para
+       * uma tentativa que o backend recusaria.
+       *
+       * Em falha apenas da consulta de status,
+       * mantemos o botão disponível para não
+       * bloquear o serviço por um erro visual.
+       */
+      if (
+        state &&
+        !state.error &&
+        !state.loading &&
+        !state.online
+      ) {
+
+        continueButton.disabled =
+          true;
+
+        continueButton.textContent =
+          'Carregador offline';
+
+        return;
+      }
+
+
+      if (
+        state &&
+        !state.error &&
+        !state.loading &&
+        state.busy
+      ) {
+
+        continueButton.disabled =
+          true;
+
+        continueButton.textContent =
+          'Carregador ocupado';
+
+        return;
+      }
+
+
+      continueButton.disabled =
+        false;
+
+      continueButton.textContent =
+        'Sim, continuar';
+    }
+
+
+    async function loadChargerState(
+      button
+    ) {
+
+      const cp =
+        button.dataset.cp;
+
+
+      const connector =
+        button.dataset.connector;
+
+
+      const key =
+        chargerKey(
+          cp,
+          connector
+        );
+
+
+      try {
+
+        const response =
+          await fetch(
+            API_BASE +
+            '/api/public/charging/connector' +
+            '?cp=' +
+            encodeURIComponent(
+              cp
+            ) +
+            '&connector=' +
+            encodeURIComponent(
+              connector
+            ),
+            {
+              cache:
+                'no-store'
+            }
+          );
+
+
+        const body =
+          await response
+            .json()
+            .catch(
+              () => ({})
+            );
+
+
+        const state =
+          (
+            response.ok &&
+            body.success
+          )
+            ? body
+            : {
+                error:
+                  true
+              };
+
+
+        chargerStates.set(
+          key,
+          state
+        );
+
+
+        renderButtonState(
+          button,
+          state
+        );
+
+
+        if (
+          selectedCharger &&
+          selectedCharger.key ===
+            key
+        ) {
+
+          renderSelectedState(
+            state
+          );
+        }
+
+
+        return state;
+
+      } catch (err) {
+
+        console.error(
+          'STATUS DO CARREGADOR:',
+          cp,
+          err
+        );
+
+
+        const state =
+          {
+            error:
+              true
+          };
+
+
+        chargerStates.set(
+          key,
+          state
+        );
+
+
+        renderButtonState(
+          button,
+          state
+        );
+
+
+        if (
+          selectedCharger &&
+          selectedCharger.key ===
+            key
+        ) {
+
+          renderSelectedState(
+            state
+          );
+        }
+
+
+        return state;
+      }
+    }
+
+
+    async function refreshAllChargerStates() {
+
+      const buttons =
+        [
+          ...document
+            .querySelectorAll(
+              '.charger'
+            )
+        ];
+
+
+      await Promise.all(
+        buttons.map(
+          button =>
+            loadChargerState(
+              button
+            )
+        )
+      );
+    }
+
+
     function closeConfirmation() {
 
       overlay
@@ -678,12 +1195,26 @@
       .forEach(
         button => {
 
+          ensureAvailabilityElement(
+            button
+          );
+
+
           button
             .addEventListener(
               'click',
-              () => {
+              async () => {
+
+                const key =
+                  chargerKey(
+                    button.dataset.cp,
+                    button.dataset.connector
+                  );
+
 
                 selectedCharger = {
+
+                  key,
 
                   name:
                     button
@@ -713,19 +1244,14 @@
                 };
 
 
-                selectedName
-                  .textContent =
-                    selectedCharger
-                      .name;
-
-
-                selectedInfo
-                  .textContent =
-                    selectedCharger
-                      .location +
-                    ' • ' +
-                    selectedCharger
-                      .power;
+                renderSelectedState(
+                  chargerStates
+                    .get(key) ||
+                  {
+                    loading:
+                      true
+                  }
+                );
 
 
                 overlay
@@ -733,6 +1259,11 @@
                   .add(
                     'open'
                   );
+
+
+                await loadChargerState(
+                  button
+                );
               }
             );
 
@@ -746,8 +1277,10 @@
         () => {
 
           if (
-            !selectedCharger
+            !selectedCharger ||
+            continueButton.disabled
           ) {
+
             return;
           }
 
@@ -807,6 +1340,15 @@
           }
         }
       );
+
+
+    refreshAllChargerStates();
+
+
+    setInterval(
+      refreshAllChargerStates,
+      STATUS_REFRESH_MS
+    );
   </script>
 </body>
 </html>
