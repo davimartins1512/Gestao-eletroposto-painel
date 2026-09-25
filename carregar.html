@@ -191,6 +191,10 @@ button{
   color:#8affbd;
 }
 
+.pill.busy{
+  color:#ffd479;
+}
+
 .pill.offline{
   color:#ff9a9a;
 }
@@ -3143,20 +3147,104 @@ async function loadConnector() {
 $('cpBadge').textContent =
   chargePointName;
 
-    $('onlineBadge')
-      .textContent =
-        body.online
-          ? '● Online'
-          : '● Offline';
+    const activeSession =
+      body.active_session ||
+      null;
 
-    $('onlineBadge')
-      .className =
-        'pill ' +
-        (
-          body.online
-            ? 'online'
-            : 'offline'
+
+    const rawSoc =
+      activeSession
+        ?.soc_percent;
+
+
+    const soc =
+      rawSoc ===
+        null ||
+      rawSoc ===
+        undefined
+          ? NaN
+          : Number(
+              rawSoc
+            );
+
+
+    const remaining =
+      Number(
+        activeSession
+          ?.estimated_remaining_minutes
+      );
+
+
+    if (!body.online) {
+
+      $('onlineBadge')
+        .textContent =
+          '● Offline';
+
+      $('onlineBadge')
+        .className =
+          'pill offline';
+
+    } else if (body.busy) {
+
+      const parts =
+        [
+          '● Ocupado'
+        ];
+
+
+      if (
+        Number.isFinite(soc)
+      ) {
+
+        parts.push(
+          Math.round(soc) +
+          '%'
         );
+      }
+
+
+      if (
+        Number.isFinite(remaining) &&
+        remaining > 0
+      ) {
+
+        parts.push(
+          remaining < 60
+            ? '~' +
+              Math.ceil(
+                remaining
+              ) +
+              ' min'
+            : '~' +
+              Math.floor(
+                remaining / 60
+              ) +
+              'h'
+        );
+      }
+
+
+      $('onlineBadge')
+        .textContent =
+          parts.join(
+            ' • '
+          );
+
+      $('onlineBadge')
+        .className =
+          'pill busy';
+
+    } else {
+
+      $('onlineBadge')
+        .textContent =
+          '● Livre';
+
+      $('onlineBadge')
+        .className =
+          'pill online';
+    }
 
   } catch (err) {
 
