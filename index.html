@@ -980,29 +980,16 @@
 
 
       /*
-       * Se sabemos que está ocupado/offline,
-       * não deixamos o cliente avançar para
-       * uma tentativa que o backend recusaria.
+       * O status é informativo.
        *
-       * Em falha apenas da consulta de status,
-       * mantemos o botão disponível para não
-       * bloquear o serviço por um erro visual.
+       * Mesmo ocupado, o cliente que já está
+       * carregando pode precisar entrar novamente
+       * para retomar a própria sessão.
+       *
+       * A validação final continua no backend.
        */
-      if (
-        state &&
-        !state.error &&
-        !state.loading &&
-        !state.online
-      ) {
-
-        continueButton.disabled =
-          true;
-
-        continueButton.textContent =
-          'Carregador offline';
-
-        return;
-      }
+      continueButton.disabled =
+        false;
 
 
       if (
@@ -1012,21 +999,24 @@
         state.busy
       ) {
 
-        continueButton.disabled =
-          true;
+        continueButton.textContent =
+          'Continuar • carregador ocupado';
+
+      } else if (
+        state &&
+        !state.error &&
+        !state.loading &&
+        !state.online
+      ) {
 
         continueButton.textContent =
-          'Carregador ocupado';
+          'Continuar • carregador offline';
 
-        return;
+      } else {
+
+        continueButton.textContent =
+          'Sim, continuar';
       }
-
-
-      continueButton.disabled =
-        false;
-
-      continueButton.textContent =
-        'Sim, continuar';
     }
 
 
