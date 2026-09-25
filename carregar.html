@@ -3152,11 +3152,20 @@ $('cpBadge').textContent =
       null;
 
 
+    const rawSoc =
+      activeSession
+        ?.soc_percent;
+
+
     const soc =
-      Number(
-        activeSession
-          ?.soc_percent
-      );
+      rawSoc ===
+        null ||
+      rawSoc ===
+        undefined
+          ? NaN
+          : Number(
+              rawSoc
+            );
 
 
     const remaining =
