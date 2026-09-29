@@ -7914,6 +7914,10 @@ async function openCustomerWallet(
 
     <div class="box">
 
+      ${chargeHistory.review_batches?.length
+        ? `<div class="msg warning">⚠️ ${chargeHistory.review_batches.length} cobrança(s) agrupada(s) exigem conferência na InfinitePay: ${chargeHistory.review_batches.map(batch => esc(batch.order_nsu)).join(', ')}.</div>`
+        : ''}
+
       <h3 style="margin-top:0;">
         ⚠️ Pendências: ${chargeHistory.pending.length} | ${money(totalOpen)}
       </h3>
