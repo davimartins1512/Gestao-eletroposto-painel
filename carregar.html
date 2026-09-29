@@ -3312,6 +3312,20 @@ $('cpBadge').textContent =
         .className =
           'pill offline';
 
+    } else if (
+      String(body.status || '')
+        .toLowerCase() === 'preparing' &&
+      !body.active_session
+    ) {
+
+      $('onlineBadge')
+        .textContent =
+          '● Preparando • aguardando liberação';
+
+      $('onlineBadge')
+        .className =
+          'pill online';
+
     } else if (body.busy) {
 
       const parts =
@@ -3361,19 +3375,6 @@ $('cpBadge').textContent =
       $('onlineBadge')
         .className =
           'pill busy';
-
-    } else if (
-      String(body.status || '')
-        .toLowerCase() === 'preparing'
-    ) {
-
-      $('onlineBadge')
-        .textContent =
-          '● Preparando • aguardando liberação';
-
-      $('onlineBadge')
-        .className =
-          'pill online';
 
     } else {
 
