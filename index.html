@@ -844,6 +844,14 @@
       }
 
 
+      if (
+        String(state.status || '')
+          .toLowerCase() === 'preparing'
+      ) {
+        return '● Preparando • aguardando liberação';
+      }
+
+
       return '● Livre agora';
     }
 
