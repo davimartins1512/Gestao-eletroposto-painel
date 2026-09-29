@@ -3362,6 +3362,19 @@ $('cpBadge').textContent =
         .className =
           'pill busy';
 
+    } else if (
+      String(body.status || '')
+        .toLowerCase() === 'preparing'
+    ) {
+
+      $('onlineBadge')
+        .textContent =
+          '● Preparando • aguardando liberação';
+
+      $('onlineBadge')
+        .className =
+          'pill online';
+
     } else {
 
       $('onlineBadge')
@@ -4644,6 +4657,12 @@ function handleStartError(
 
     charge_point_inactive:
       'Carregador indisponível',
+
+    ocpp_connection_closed:
+      'Conexão encerrada pelo carregador',
+
+    remote_start_timeout:
+      'Carregador sem resposta',
 
     remote_start_rejected:
       'Início recusado'
