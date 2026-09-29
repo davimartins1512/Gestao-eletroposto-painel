@@ -7196,7 +7196,7 @@ async function openCustomerWallet(
   }
 }
   
- function openOcppCustomer(customerId){
+ function openOcppCustomer(customerId, historyPage = 1){
 
   const customer =
     (db.ocppCustomers || [])
@@ -7236,6 +7236,97 @@ async function openCustomerWallet(
         s.session_status === 'finished'
     );
 
+
+  /*
+   * Pendências nunca somem do histórico.
+   * Elas ficam fixadas no topo, mesmo que sejam antigas.
+   *
+   * O histórico normal mostra no máximo 50 registros:
+   * 10 por página, em até 5 páginas.
+   */
+  const pendingSessions =
+    finished.filter(
+      s => {
+        const total =
+          Number(
+            s.total_amount ||
+            0
+          );
+
+        const paidAmount =
+          Number(
+            s.amount_paid ||
+            0
+          );
+
+        return (
+          s.payment_status !==
+            'paid' &&
+          Math.max(
+            0,
+            total - paidAmount
+          ) > 0.005
+        );
+      }
+    );
+
+
+  const pendingIds =
+    new Set(
+      pendingSessions.map(
+        s => String(s.id)
+      )
+    );
+
+
+  const regularHistory =
+    sessions.filter(
+      s =>
+        !pendingIds.has(
+          String(s.id)
+        )
+    );
+
+
+  const historyPageSize = 10;
+  const historyMaxPages = 5;
+
+
+  const limitedHistory =
+    regularHistory.slice(
+      0,
+      historyPageSize *
+        historyMaxPages
+    );
+
+
+  const historyPageCount =
+    Math.max(
+      1,
+      Math.ceil(
+        limitedHistory.length /
+        historyPageSize
+      )
+    );
+
+
+  const currentHistoryPage =
+    Math.min(
+      historyPageCount,
+      Math.max(
+        1,
+        Number(historyPage) || 1
+      )
+    );
+
+
+  const pageSessions =
+    limitedHistory.slice(
+      (currentHistoryPage - 1) *
+        historyPageSize,
+      currentHistoryPage *
+        historyPageSize
+    );
 
   const totalKwh =
     finished.reduce(
@@ -7501,10 +7592,10 @@ async function openCustomerWallet(
 `;
 
 
-  const historyHtml =
-    sessions.length
-      ? sessions
-          .slice(0,10)
+  const renderHistoryRows =
+    sourceSessions =>
+    sourceSessions.length
+      ? sourceSessions
           .map(
             s => {
 
@@ -7632,6 +7723,80 @@ async function openCustomerWallet(
           </tr>
         `;
 
+
+  const pendingHistoryHtml =
+    renderHistoryRows(
+      pendingSessions
+    );
+
+
+  const historyHtml =
+    renderHistoryRows(
+      pageSessions
+    );
+
+
+  const pendingTotal =
+    pendingSessions.reduce(
+      (sum, s) => {
+        const total =
+          Number(
+            s.total_amount ||
+            0
+          );
+
+        const paidAmount =
+          Number(
+            s.amount_paid ||
+            0
+          );
+
+        return (
+          sum +
+          Math.max(
+            0,
+            total - paidAmount
+          )
+        );
+      },
+      0
+    );
+
+
+  const paginationHtml =
+    historyPageCount > 1
+      ? (
+          '<div style="display:flex;gap:6px;flex-wrap:wrap;justify-content:center;margin-top:14px;">' +
+          Array.from(
+            {
+              length:
+                historyPageCount
+            },
+            (_, index) => {
+              const page =
+                index + 1;
+
+              return (
+                '<button class="btn ' +
+                (
+                  page ===
+                    currentHistoryPage
+                    ? ''
+                    : 'secondary'
+                ) +
+                ' small" onclick="openOcppCustomer(\'' +
+                esc(customer.id) +
+                '\',' +
+                page +
+                ')">' +
+                page +
+                '</button>'
+              );
+            }
+          ).join('') +
+          '</div>'
+        )
+      : '';
 
   showModal(
   `Ficha do cliente — ${esc(customer.name || 'Cliente')}`,
@@ -7919,6 +8084,73 @@ async function openCustomerWallet(
     </div>
 
 
+    ${
+      pendingSessions.length
+        ? `
+          <div
+            class="box"
+            style="
+              margin-bottom:18px;
+              border:1px solid #f59e0b;
+              background:#fffbeb;
+            "
+          >
+
+            <div
+              style="
+                display:flex;
+                justify-content:space-between;
+                align-items:center;
+                gap:10px;
+                flex-wrap:wrap;
+                margin-bottom:10px;
+              "
+            >
+
+              <h3 style="margin:0;color:#92400e;">
+                ⚠️ Pendências
+              </h3>
+
+              <b style="color:#92400e;">
+                ${pendingSessions.length}
+                ${
+                  pendingSessions.length === 1
+                    ? 'carga'
+                    : 'cargas'
+                }
+                • ${money(pendingTotal)}
+              </b>
+
+            </div>
+
+            <div class="tiny" style="margin-bottom:10px;color:#92400e;">
+              Todas as cargas pendentes ficam fixadas aqui, independentemente da data.
+            </div>
+
+            <div class="table-wrap">
+
+              <table>
+
+                <tr>
+                  <th>Transação</th>
+                  <th>Data</th>
+                  <th>Energia</th>
+                  <th>Valor</th>
+                  <th>Pagamento</th>
+                  <th></th>
+                </tr>
+
+                ${pendingHistoryHtml}
+
+              </table>
+
+            </div>
+
+          </div>
+        `
+        : ''
+    }
+
     <div class="box">
 
       <h3 style="margin-top:0;">
@@ -7942,6 +8174,12 @@ async function openCustomerWallet(
 
         </table>
 
+      </div>
+
+      ${paginationHtml}
+
+      <div class="tiny" style="text-align:center;margin-top:8px;">
+        Exibindo até 50 recargas no histórico normal. Pendências continuam fixadas acima.
       </div>
 
     </div>
