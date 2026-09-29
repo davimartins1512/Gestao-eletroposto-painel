@@ -2993,6 +2993,17 @@ function updatePendingSelectionSummary() {
       selectedSessions.length ===
       0;
   }
+
+
+  const payAll =
+    $('payAllPendingButton');
+
+
+  if (payAll) {
+    payAll.disabled =
+      currentPendingSessions.length ===
+      0;
+  }
 }
 
 
@@ -3173,21 +3184,17 @@ async function refreshCustomerPendingPayments(
         : [];
 
 
+    renderCustomerPendingScreen();
+
+
     if (
-      currentPendingSessions.length
+      !currentPendingSessions.length &&
+      !silent
     ) {
-      renderCustomerPendingScreen();
-    } else if (!silent) {
       setMessage(
         $('pendingPaymentMessage'),
         'success',
         '✅ Pagamentos atualizados. Não há pendências.'
-      );
-
-      setTimeout(
-        () =>
-          continueCustomerFlow(),
-        700
       );
     }
 
