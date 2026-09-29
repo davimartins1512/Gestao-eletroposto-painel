@@ -814,6 +814,95 @@ input:focus{
 
 
 <!-- ===================================================== -->
+<!-- PENDÊNCIAS DO CLIENTE -->
+<!-- ===================================================== -->
+
+<section
+  class="card hidden"
+  id="screenAccount"
+>
+
+  <div class="hero">
+
+    <div class="hero-icon">
+      💳
+    </div>
+
+    <h1>
+      Pagamentos pendentes
+    </h1>
+
+    <p>
+      Escolha quais recargas deseja pagar
+      ou quite todas de uma vez.
+    </p>
+
+  </div>
+
+
+  <div
+    id="pendingPaymentSummary"
+    style="
+      margin-bottom:12px;
+      padding:12px 14px;
+      border-radius:14px;
+      border:1px solid rgba(251,191,36,.28);
+      background:rgba(120,53,15,.18);
+      color:#fde68a;
+      font-weight:800;
+    "
+  ></div>
+
+
+  <div
+    id="pendingPaymentList"
+  ></div>
+
+
+  <div
+    id="pendingPaymentMessage"
+    class="hidden"
+  ></div>
+
+
+  <button
+    class="btn"
+    id="paySelectedPendingButton"
+    type="button"
+  >
+    💳 Pagar selecionadas
+  </button>
+
+
+  <button
+    class="btn secondary"
+    id="payAllPendingButton"
+    type="button"
+  >
+    Quitar todas as pendências
+  </button>
+
+
+  <button
+    class="btn secondary"
+    id="refreshPendingButton"
+    type="button"
+  >
+    ↻ Atualizar pendências
+  </button>
+
+
+  <button
+    class="btn secondary"
+    id="continueWithPendingButton"
+    type="button"
+  >
+    Continuar para recarga
+  </button>
+
+</section>
+
+<!-- ===================================================== -->
 <!-- VEÍCULOS -->
 <!-- ===================================================== -->
 
@@ -1876,6 +1965,7 @@ let currentPlate = '';
 let customerToken = '';
 let currentCustomer = null;
 let currentVehicles = [];
+let currentPendingSessions = [];
 let authorizationId = null;
 let pollTimer = null;
 let lastSessionData = null;
@@ -2733,6 +2823,595 @@ function startWalletPolling() {
 
 
 // ============================================================
+// PAGAMENTOS PENDENTES DO CLIENTE
+// ============================================================
+
+function pendingPaymentOpenAmount(
+  session
+) {
+
+  const explicit =
+    Number(
+      session
+        ?.outstanding_amount
+    );
+
+
+  if (
+    Number.isFinite(explicit)
+  ) {
+    return Math.max(
+      0,
+      explicit
+    );
+  }
+
+
+  return Math.max(
+    0,
+    Number(
+      session?.total_amount ||
+      0
+    ) -
+    Number(
+      session?.amount_paid ||
+      0
+    )
+  );
+}
+
+
+function escapeHtml(
+  value
+) {
+  return String(
+    value ??
+    ''
+  )
+    .replace(/&/g,'&amp;')
+    .replace(/</g,'&lt;')
+    .replace(/>/g,'&gt;')
+    .replace(/"/g,'&quot;')
+    .replace(/'/g,'&#039;');
+}
+
+
+function activeCustomerVehicles() {
+  return currentVehicles.filter(
+    vehicle =>
+      vehicle?.active !==
+        false &&
+      normalizePlate(
+        vehicle?.plate
+      ).length === 7
+  );
+}
+
+
+async function continueCustomerFlow() {
+
+  const activeVehicles =
+    activeCustomerVehicles();
+
+
+  if (
+    activeVehicles.length ===
+    1
+  ) {
+    await selectVehicle(
+      activeVehicles[0]
+        .plate
+    );
+
+    return;
+  }
+
+
+  renderVehicleSelection();
+}
+
+
+function selectedPendingSessionIds() {
+
+  return [
+    ...document
+      .querySelectorAll(
+        '[data-pending-session-id]:checked'
+      )
+  ].map(
+    input =>
+      String(
+        input.dataset
+          .pendingSessionId ||
+        ''
+      )
+  ).filter(Boolean);
+}
+
+
+function updatePendingSelectionSummary() {
+
+  const selectedIds =
+    new Set(
+      selectedPendingSessionIds()
+    );
+
+
+  const selectedSessions =
+    currentPendingSessions.filter(
+      session =>
+        selectedIds.has(
+          String(session.id)
+        )
+    );
+
+
+  const selectedTotal =
+    selectedSessions.reduce(
+      (sum, session) =>
+        sum +
+        pendingPaymentOpenAmount(
+          session
+        ),
+      0
+    );
+
+
+  const summary =
+    $('pendingPaymentSummary');
+
+
+  if (summary) {
+    summary.textContent =
+      selectedSessions.length
+        ? (
+            selectedSessions.length +
+            (
+              selectedSessions.length === 1
+                ? ' carga selecionada • '
+                : ' cargas selecionadas • '
+            ) +
+            money(selectedTotal)
+          )
+        : (
+            currentPendingSessions.length +
+            (
+              currentPendingSessions.length === 1
+                ? ' pendência disponível'
+                : ' pendências disponíveis'
+            )
+          );
+  }
+
+
+  const paySelected =
+    $('paySelectedPendingButton');
+
+
+  if (paySelected) {
+    paySelected.disabled =
+      selectedSessions.length ===
+      0;
+  }
+
+
+  const payAll =
+    $('payAllPendingButton');
+
+
+  if (payAll) {
+    payAll.disabled =
+      currentPendingSessions.length ===
+      0;
+  }
+}
+
+
+function renderCustomerPendingScreen() {
+
+  const list =
+    $('pendingPaymentList');
+
+
+  if (!list) {
+    return;
+  }
+
+
+  clearMessage(
+    $('pendingPaymentMessage')
+  );
+
+
+  if (
+    !currentPendingSessions.length
+  ) {
+    list.innerHTML =
+      '<div class="msg success">✅ Você não possui pagamentos pendentes.</div>';
+
+    updatePendingSelectionSummary();
+    showScreen(
+      'account'
+    );
+    return;
+  }
+
+
+  list.innerHTML =
+    currentPendingSessions
+      .map(
+        (session, index) => {
+
+          const date =
+            session.started_at
+              ? new Date(
+                  session.started_at
+                ).toLocaleDateString(
+                  'pt-BR'
+                )
+              : '-';
+
+
+          const transaction =
+            session.transaction_id
+              ? '#' +
+                escapeHtml(
+                  session.transaction_id
+                )
+              : 'Recarga';
+
+
+          const charger =
+            escapeHtml(
+              session
+                .charge_point_name ||
+              ''
+            );
+
+
+          const energy =
+            Number(
+              session.energy_kwh ||
+              0
+            );
+
+
+          const amount =
+            pendingPaymentOpenAmount(
+              session
+            );
+
+
+          return (
+            '<label style="display:block;margin-bottom:10px;padding:13px;border:1px solid rgba(251,191,36,.24);border-radius:14px;background:rgba(120,53,15,.12);cursor:pointer;">' +
+              '<div style="display:flex;gap:11px;align-items:flex-start;">' +
+                '<input type="checkbox" data-pending-session-id="' +
+                  escapeHtml(session.id) +
+                  '" ' +
+                  (index === 0 ? 'checked' : '') +
+                  ' style="width:20px;height:20px;margin-top:2px;accent-color:#22c55e;">' +
+                '<div style="flex:1;min-width:0;">' +
+                  '<div style="display:flex;justify-content:space-between;gap:10px;align-items:center;">' +
+                    '<strong style="color:#fff;">' +
+                      transaction +
+                    '</strong>' +
+                    '<strong style="color:#fde68a;font-size:17px;">' +
+                      money(amount) +
+                    '</strong>' +
+                  '</div>' +
+                  '<div style="margin-top:5px;color:#cbd5e1;font-size:12px;line-height:1.55;">' +
+                    date +
+                    ' • ' +
+                    energy.toFixed(2) +
+                    ' kWh' +
+                    (charger ? ' • ' + charger : '') +
+                  '</div>' +
+                '</div>' +
+              '</div>' +
+            '</label>'
+          );
+        }
+      )
+      .join('');
+
+
+  list
+    .querySelectorAll(
+      '[data-pending-session-id]'
+    )
+    .forEach(
+      input =>
+        input.addEventListener(
+          'change',
+          updatePendingSelectionSummary
+        )
+    );
+
+
+  updatePendingSelectionSummary();
+
+  showScreen(
+    'account'
+  );
+}
+
+
+async function refreshCustomerPendingPayments(
+  silent = false
+) {
+
+  if (!customerToken) {
+    return null;
+  }
+
+
+  try {
+
+    const {
+      response,
+      body
+    } =
+      await api(
+        '/api/public/customers/pending-payments',
+        {
+          method:
+            'GET',
+
+          headers: {
+            authorization:
+              `Bearer ${customerToken}`
+          }
+        }
+      );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.message ||
+        'Não foi possível atualizar as pendências.'
+      );
+    }
+
+
+    currentPendingSessions =
+      Array.isArray(
+        body.pending_sessions
+      )
+        ? body.pending_sessions
+        : [];
+
+
+    renderCustomerPendingScreen();
+
+
+    if (
+      !currentPendingSessions.length &&
+      !silent
+    ) {
+      setMessage(
+        $('pendingPaymentMessage'),
+        'success',
+        '✅ Pagamentos atualizados. Não há pendências.'
+      );
+    }
+
+
+    return body;
+
+  } catch (err) {
+
+    console.error(
+      'PENDING PAYMENTS LOAD ERROR:',
+      err
+    );
+
+
+    if (!silent) {
+      setMessage(
+        $('pendingPaymentMessage'),
+        'error',
+        err.message ||
+        'Erro ao atualizar pendências.'
+      );
+    }
+
+
+    return null;
+  }
+}
+
+
+async function createPendingCheckout(
+  sessionIds
+) {
+
+  const ids =
+    [
+      ...new Set(
+        (sessionIds || [])
+          .map(
+            id =>
+              String(id || '').trim()
+          )
+          .filter(Boolean)
+      )
+    ];
+
+
+  if (!ids.length) {
+    return setMessage(
+      $('pendingPaymentMessage'),
+      'warning',
+      'Selecione pelo menos uma pendência.'
+    );
+  }
+
+
+  const checkoutWindow =
+    window.open(
+      '',
+      '_blank'
+    );
+
+
+  try {
+
+    const {
+      response,
+      body
+    } =
+      await api(
+        '/api/public/customers/payments/checkout',
+        {
+          method:
+            'POST',
+
+          headers: {
+            authorization:
+              `Bearer ${customerToken}`
+          },
+
+          body:
+            JSON.stringify({
+              session_ids:
+                ids
+            })
+        }
+      );
+
+
+    if (
+      !response.ok ||
+      !body.success
+    ) {
+      throw new Error(
+        body.message ||
+        'Não foi possível gerar o pagamento.'
+      );
+    }
+
+
+    const checkoutUrl =
+      String(
+        body.checkout
+          ?.checkout_url ||
+        ''
+      );
+
+
+    if (!checkoutUrl) {
+      throw new Error(
+        'O servidor não retornou o link de pagamento.'
+      );
+    }
+
+
+    setMessage(
+      $('pendingPaymentMessage'),
+      'success',
+      ids.length === 1
+        ? 'Pagamento criado. Conclua o pagamento na InfinitePay.'
+        : `Pagamento único criado para ${ids.length} pendências. Conclua o pagamento na InfinitePay.`
+    );
+
+
+    if (
+      checkoutWindow &&
+      !checkoutWindow.closed
+    ) {
+      checkoutWindow.location.href =
+        checkoutUrl;
+    } else {
+      window.location.href =
+        checkoutUrl;
+    }
+
+  } catch (err) {
+
+    if (
+      checkoutWindow &&
+      !checkoutWindow.closed
+    ) {
+      checkoutWindow.close();
+    }
+
+
+    console.error(
+      'PENDING CHECKOUT ERROR:',
+      err
+    );
+
+
+    setMessage(
+      $('pendingPaymentMessage'),
+      'error',
+      err.message ||
+      'Erro ao gerar pagamento.'
+    );
+  }
+}
+
+
+$('paySelectedPendingButton')
+  ?.addEventListener(
+    'click',
+    () =>
+      createPendingCheckout(
+        selectedPendingSessionIds()
+      )
+  );
+
+
+$('payAllPendingButton')
+  ?.addEventListener(
+    'click',
+    () =>
+      createPendingCheckout(
+        currentPendingSessions.map(
+          session =>
+            session.id
+        )
+      )
+  );
+
+
+$('refreshPendingButton')
+  ?.addEventListener(
+    'click',
+    () =>
+      refreshCustomerPendingPayments()
+  );
+
+
+$('continueWithPendingButton')
+  ?.addEventListener(
+    'click',
+    () =>
+      continueCustomerFlow()
+  );
+
+
+window.addEventListener(
+  'focus',
+  () => {
+    if (
+      customerToken &&
+      screens?.account &&
+      !screens.account
+        .classList
+        .contains('hidden')
+    ) {
+      refreshCustomerPendingPayments(
+        true
+      );
+    }
+  }
+);
+
+// ============================================================
 // TELAS
 // ============================================================
 
@@ -2742,6 +3421,9 @@ const screens = {
 
   identify:
     $('screenIdentify'),
+
+  account:
+    $('screenAccount'),
 
   vehicles:
     $('screenVehicles'),
@@ -3766,31 +4448,23 @@ if (
         }
 
 
-        const activeVehicles =
-          currentVehicles.filter(
-            vehicle =>
-              vehicle?.active !==
-              false &&
-              normalizePlate(
-                vehicle?.plate
-              ).length === 7
-          );
+        currentPendingSessions =
+          Array.isArray(
+            body.pending_sessions
+          )
+            ? body.pending_sessions
+            : [];
 
 
         if (
-          activeVehicles.length ===
-          1
+          currentPendingSessions.length
         ) {
-          await selectVehicle(
-            activeVehicles[0]
-              .plate
-          );
-
+          renderCustomerPendingScreen();
           return;
         }
 
 
-        renderVehicleSelection();
+        await continueCustomerFlow();
 
       } catch (err) {
 
