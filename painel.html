@@ -7196,7 +7196,7 @@ async function openCustomerWallet(
   }
 }
   
- function openOcppCustomer(customerId){
+ async function openOcppCustomer(customerId, page = 1){
 
   const customer =
     (db.ocppCustomers || [])
@@ -7208,6 +7208,23 @@ async function openCustomerWallet(
     return alert(
       'Cliente não encontrado.'
     );
+  }
+
+  let chargeHistory;
+  try {
+    const token = await getAdminAccessToken();
+    if (!token) throw new Error('Sua sessão administrativa expirou.');
+    const response = await fetch(
+      BACKEND_URL + '/api/admin/customers/' +
+      encodeURIComponent(customerId) + '/charge-history?page=' + page,
+      { headers: { authorization: `Bearer ${token}` } }
+    );
+    chargeHistory = await response.json();
+    if (!response.ok || !chargeHistory.success) {
+      throw new Error(chargeHistory.message || 'Não foi possível consultar o histórico.');
+    }
+  } catch (err) {
+    return alert(err.message);
   }
 
 
@@ -7268,35 +7285,7 @@ async function openCustomerWallet(
       );
 
 
-  const totalOpen =
-    finished
-      .filter(
-        s =>
-          s.payment_status !== 'paid'
-      )
-      .reduce(
-        (sum,s) => {
-
-          const total =
-            Number(
-              s.total_amount || 0
-            );
-
-          const paid =
-            Number(
-              s.amount_paid || 0
-            );
-
-          return (
-            sum +
-            Math.max(
-              0,
-              total - paid
-            )
-          );
-        },
-        0
-      );
+  const totalOpen = Number(chargeHistory.pending_amount || 0);
 
 
   const status =
@@ -7501,10 +7490,9 @@ async function openCustomerWallet(
 `;
 
 
-  const historyHtml =
-    sessions.length
-      ? sessions
-          .slice(0,10)
+  const renderCustomerChargeRows = rows =>
+    rows.length
+      ? rows
           .map(
             s => {
 
@@ -7534,8 +7522,8 @@ async function openCustomerWallet(
 
 
               const paid =
-                s.payment_status ===
-                'paid';
+                s.payment_status === 'paid' ||
+                s.payment_status === 'not_required';
 
 
               return `
@@ -7566,7 +7554,9 @@ async function openCustomerWallet(
                     ${
                       paid
                         ? '🟢 Pago'
-                        : '🟡 Pendente'
+                        : s.active_payment_batch_id
+                          ? '🟡 Em cobrança'
+                          : '🟡 Pendente'
                     }
                   </td>
 
@@ -7574,7 +7564,8 @@ async function openCustomerWallet(
                    ${
 
   !paid &&
-  amount > 0
+  amount > 0 &&
+  !s.active_payment_batch_id
 
     ? `
 
@@ -7631,6 +7622,8 @@ async function openCustomerWallet(
             </td>
           </tr>
         `;
+  const pendingHtml = renderCustomerChargeRows(chargeHistory.pending);
+  const historyHtml = renderCustomerChargeRows(chargeHistory.recent);
 
 
   showModal(
@@ -7921,9 +7914,20 @@ async function openCustomerWallet(
 
     <div class="box">
 
+      ${chargeHistory.review_batches?.length
+        ? `<div class="msg warning">⚠️ ${chargeHistory.review_batches.length} cobrança(s) agrupada(s) exigem conferência na InfinitePay: ${chargeHistory.review_batches.map(batch => esc(batch.order_nsu)).join(', ')}.</div>`
+        : ''}
+
       <h3 style="margin-top:0;">
-        ⚡ Histórico de recargas
+        ⚠️ Pendências: ${chargeHistory.pending.length} | ${money(totalOpen)}
       </h3>
+
+      <div class="table-wrap"><table>
+        <tr><th>Transação</th><th>Data</th><th>Energia</th><th>Valor</th><th>Pagamento</th><th></th></tr>
+        ${pendingHtml}
+      </table></div>
+
+      <h3>⚡ Histórico de recargas</h3>
 
       <div class="table-wrap">
 
@@ -7942,6 +7946,13 @@ async function openCustomerWallet(
 
         </table>
 
+      </div>
+
+      <div style="display:flex;gap:6px;flex-wrap:wrap;margin-top:12px;align-items:center">
+        ${Array.from({length:chargeHistory.pages}, (_, index) =>
+          `<button class="btn secondary small" ${index + 1 === chargeHistory.page ? 'disabled' : ''}
+          onclick="openOcppCustomer('${customer.id}',${index + 1})">${index + 1}</button>`).join('')}
+        <button class="btn secondary small" onclick="openOcppCustomer('${customer.id}',${chargeHistory.page})">↻ Atualizar</button>
       </div>
 
     </div>

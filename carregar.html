@@ -1083,6 +1083,21 @@ input:focus{
   </section>
 
 
+  <section class="card hidden" id="screenPending">
+    <div class="hero">
+      <div class="hero-icon">⚡</div>
+      <h1>Pagamentos pendentes</h1>
+      <p>Selecione as recargas que deseja pagar ou quite todas em uma cobrança.</p>
+    </div>
+    <div id="pendingChargesList"></div>
+    <div id="pendingSelectionTotal" style="margin:16px 0;font-weight:800"></div>
+    <div id="pendingChargesMessage" class="hidden"></div>
+    <button class="btn payment" type="button" onclick="payPendingCharges(false)">Pagar selecionadas</button>
+    <button class="btn secondary" type="button" onclick="payPendingCharges(true)">Pagar todas as pendências</button>
+    <button class="btn secondary" type="button" onclick="loadPendingCharges()">↻ Atualizar pagamentos</button>
+    <button class="btn secondary" type="button" onclick="continueAfterPending()">Continuar para recarga</button>
+  </section>
+
   <!-- ===================================================== -->
   <!-- PRONTO PARA INICIAR -->
   <!-- ===================================================== -->
@@ -1876,6 +1891,8 @@ let currentPlate = '';
 let customerToken = '';
 let currentCustomer = null;
 let currentVehicles = [];
+let pendingCharges = [];
+let pendingBatches = [];
 let authorizationId = null;
 let pollTimer = null;
 let lastSessionData = null;
@@ -2742,6 +2759,8 @@ const screens = {
 
   identify:
     $('screenIdentify'),
+  pending:
+    $('screenPending'),
 
   vehicles:
     $('screenVehicles'),
@@ -2787,6 +2806,114 @@ function showScreen(name) {
     top:0,
     behavior:'smooth'
   });
+}
+
+async function continueAfterPending() {
+  const activeVehicles = currentVehicles.filter(
+    vehicle => vehicle?.active !== false &&
+      normalizePlate(vehicle?.plate).length === 7
+  );
+  if (activeVehicles.length === 1) {
+    await selectVehicle(activeVehicles[0].plate);
+  } else {
+    renderVehicleSelection();
+  }
+}
+
+function updatePendingSelection() {
+  const ids = [...document.querySelectorAll('#pendingChargesList input:checked')]
+    .map(input => input.value);
+  const amount = pendingCharges
+    .filter(charge => ids.includes(charge.id))
+    .reduce((sum, charge) =>
+      sum + Math.max(0, Number(charge.total_amount) - Number(charge.amount_paid || 0)), 0);
+  $('pendingSelectionTotal').textContent =
+    `Selecionadas: ${ids.length} carga(s) • Total: ${money(amount)}`;
+}
+
+async function loadPendingCharges() {
+  if (!customerToken) return;
+  try {
+    const { response, body } = await api('/api/public/customers/pending-charges', {
+      headers: { authorization: `Bearer ${customerToken}` }
+    });
+    if (!response.ok || !body.success) throw new Error(body.message || 'Não foi possível consultar as pendências.');
+    pendingCharges = body.charges || [];
+    pendingBatches = body.batches || [];
+    const list = $('pendingChargesList');
+    list.replaceChildren();
+    for (const charge of pendingCharges) {
+      const row = document.createElement('label');
+      row.style.cssText = 'display:flex;align-items:center;gap:12px;padding:14px 4px;border-bottom:1px solid rgba(255,255,255,.12)';
+      const checkbox = document.createElement('input');
+      checkbox.type = 'checkbox';
+      checkbox.value = charge.id;
+      checkbox.disabled = !!charge.active_payment_batch_id;
+      checkbox.addEventListener('change', updatePendingSelection);
+      const detail = document.createElement('span');
+      const outstanding = Math.max(0, Number(charge.total_amount) - Number(charge.amount_paid || 0));
+      detail.textContent = `#${charge.transaction_id || '-'} • ${charge.started_at
+        ? new Date(charge.started_at).toLocaleDateString('pt-BR') : '-'} • ${Number(charge.energy_kwh || 0).toFixed(2)} kWh • ${money(outstanding)}`;
+      if (charge.active_payment_batch_id) {
+        detail.textContent += ' • Em cobrança';
+      }
+      row.append(checkbox, detail);
+      list.append(row);
+    }
+    for (const batch of pendingBatches) {
+      if (batch.status === 'needs_review') {
+        setMessage($('pendingChargesMessage'), 'warning',
+          'Um pagamento precisa de conferência. Procure o atendimento antes de pagar novamente.');
+        continue;
+      }
+      if (!batch.checkout_url || batch.status !== 'pending') continue;
+      const link = document.createElement('a');
+      link.href = batch.checkout_url;
+      link.target = '_blank';
+      link.rel = 'noopener noreferrer';
+      link.className = 'btn payment';
+      link.style.display = 'block';
+      link.textContent = `Abrir cobrança já criada • ${money(Number(batch.amount_cents)/100)}`;
+      list.append(link);
+    }
+    updatePendingSelection();
+    if (pendingCharges.length) {
+      showScreen('pending');
+    } else if (screens.pending && !screens.pending.classList.contains('hidden')) {
+      await continueAfterPending();
+    }
+    return true;
+  } catch (err) {
+    setMessage($('pendingChargesMessage'), 'error', err.message || 'Erro ao atualizar pendências.');
+    showScreen('pending');
+    return false;
+  }
+}
+
+async function payPendingCharges(all) {
+  const ids = all ? pendingCharges.filter(charge => !charge.active_payment_batch_id).map(charge => charge.id)
+    : [...document.querySelectorAll('#pendingChargesList input:checked')].map(input => input.value);
+  if (!ids.length) {
+    return setMessage($('pendingChargesMessage'), 'warning', 'Selecione pelo menos uma recarga.');
+  }
+  const checkoutWindow = window.open('', '_blank');
+  try {
+    const { response, body } = await api('/api/public/customers/pay-pending-charges', {
+      method: 'POST',
+      headers: { authorization: `Bearer ${customerToken}` },
+      body: JSON.stringify({ session_ids: ids })
+    });
+    if (!response.ok || !body.success || !body.checkout_url) {
+      throw new Error(body.message || 'Não foi possível gerar o pagamento.');
+    }
+    if (checkoutWindow) checkoutWindow.location.href = body.checkout_url;
+    else window.location.href = body.checkout_url;
+    setMessage($('pendingChargesMessage'), 'success',
+      `Cobrança única de ${money(body.amount)} criada. Após pagar, toque em Atualizar pagamentos.`);
+  } catch (err) {
+    checkoutWindow?.close();
+    setMessage($('pendingChargesMessage'), 'error', err.message);
+  }
 }
 
 
@@ -3766,31 +3893,9 @@ if (
         }
 
 
-        const activeVehicles =
-          currentVehicles.filter(
-            vehicle =>
-              vehicle?.active !==
-              false &&
-              normalizePlate(
-                vehicle?.plate
-              ).length === 7
-          );
-
-
-        if (
-          activeVehicles.length ===
-          1
-        ) {
-          await selectVehicle(
-            activeVehicles[0]
-              .plate
-          );
-
-          return;
-        }
-
-
-        renderVehicleSelection();
+        if (!(await loadPendingCharges())) return;
+        if (pendingCharges.length) return;
+        await continueAfterPending();
 
       } catch (err) {
 
