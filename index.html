@@ -785,6 +785,15 @@
       }
 
 
+      if (
+        String(state.status || '')
+          .toLowerCase() === 'preparing' &&
+        !state.active_session
+      ) {
+        return '● Preparando • aguardando liberação';
+      }
+
+
       if (state.busy) {
 
         const parts =
@@ -844,14 +853,6 @@
       }
 
 
-      if (
-        String(state.status || '')
-          .toLowerCase() === 'preparing'
-      ) {
-        return '● Preparando • aguardando liberação';
-      }
-
-
       return '● Livre agora';
     }
 
@@ -878,6 +879,15 @@
       if (!state.online) {
 
         return 'offline';
+      }
+
+
+      if (
+        String(state.status || '')
+          .toLowerCase() === 'preparing' &&
+        !state.active_session
+      ) {
+        return 'free';
       }
 
 
@@ -1004,7 +1014,12 @@
         state &&
         !state.error &&
         !state.loading &&
-        state.busy
+        state.busy &&
+        !(
+          String(state.status || '')
+            .toLowerCase() === 'preparing' &&
+          !state.active_session
+        )
       ) {
 
         continueButton.textContent =
