@@ -1895,6 +1895,8 @@ let pendingCharges = [];
 let pendingBatches = [];
 let authorizationId = null;
 let pollTimer = null;
+let sessionRefreshRunning = false;
+let sessionPollGeneration = 0;
 let lastSessionData = null;
 
 
@@ -4699,6 +4701,8 @@ function startPolling() {
 
 function stopPolling() {
 
+  sessionPollGeneration += 1;
+
   if (pollTimer) {
 
     clearInterval(
@@ -4714,11 +4718,15 @@ function stopPolling() {
 async function refreshSession() {
 
   if (
-    !authorizationId
+    !authorizationId || sessionRefreshRunning
   ) {
     return;
   }
 
+
+  sessionRefreshRunning = true;
+  const requestedAuthorization = authorizationId;
+  const generation = sessionPollGeneration;
 
   try {
 
@@ -4730,13 +4738,15 @@ async function refreshSession() {
         '/api/public/charging/session' +
         '?authorization_id=' +
         encodeURIComponent(
-          authorizationId
+          requestedAuthorization
         ),
         {
           method:'GET'
         }
       );
 
+
+    if (requestedAuthorization !== authorizationId || generation !== sessionPollGeneration) return;
 
     if (
       !response.ok ||
@@ -4838,6 +4848,8 @@ async function refreshSession() {
       'POLL ERROR:',
       err
     );
+  } finally {
+    sessionRefreshRunning = false;
   }
 }
 
@@ -5407,3 +5419,4 @@ bootstrap();
 
 </body>
 </html>
+

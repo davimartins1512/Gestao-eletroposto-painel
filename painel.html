@@ -232,63 +232,58 @@ function whats(phone,text='Olá!'){let p=phoneDigits(phone);if(!p)return;if(p.le
 function closeModal(){modalBack.style.display='none';modal.innerHTML=''}modalBack.addEventListener('click',e=>{if(e.target===modalBack)closeModal()});
 function showModal(title,body){modal.innerHTML=`<div class="modal-head"><h3>${title}</h3><button class="btn secondary small" onclick="closeModal()">Fechar</button></div><div style="height:8px"></div>${body}`;modalBack.style.display='grid'}
 function setSync(ok,text){syncDot.className='sync-dot '+(ok?'ok':'bad');syncText.textContent=text}
-async function loadAll(){
+const TABLE_PAGE_SIZE = 500;
+let loadAllTask = null;
+let loadAllAgain = false;
 
-  setSync(false,'sincronizando');
-
-
-  const tables = [
-    ['drivers','drivers'],
-    ['rental_payments','rentalPayments'],
-    ['clients','clients'],
-    ['charges','charges'],
-    ['charge_payments','chargePayments'],
-    ['expenses','expenses'],
-    ['charge_points','chargePoints'],
-    ['connectors','connectors'],
-    ['ocpp_sessions','ocppSessions'],
-    ['payments','payments']
-  ];
-
-
-  for(const [table,key] of tables){
-
-    const {
-      data,
-      error
-    } =
-      await supa
-        .from(table)
-        .select('*');
-
-
-    if(error){
-
-      console.error(error);
-
-      setSync(false,'erro');
-
-      return alert(
-        'Erro ao carregar ' +
-        table +
-        ': ' +
-        error.message
-      );
-    }
-
-
-    db[key] =
-      data || [];
+async function readAllRows(table) {
+  const rows = [];
+  for (let offset = 0; ; offset += TABLE_PAGE_SIZE) {
+    const { data, error } = await supa.from(table).select('*')
+      .order('id', { ascending: true }).range(offset, offset + TABLE_PAGE_SIZE - 1);
+    if (error) throw new Error('Erro ao carregar ' + table + ': ' + error.message);
+    rows.push(...(data || []));
+    if (!data || data.length < TABLE_PAGE_SIZE) return rows;
   }
+}
 
-
-await loadOcppCustomers();
-
-setSync(true,'online');
-
-render();
-
-await updatePricePerKwhDisplay();
+function loadAll() {
+  // Uma chamada feita após salvar uma alteração pede uma nova leitura ao
+  // terminar a atual; assim não reutiliza um resultado anterior à alteração.
+  loadAllAgain = true;
+  if (!loadAllTask) {
+    loadAllTask = (async () => {
+      try {
+        while (loadAllAgain) {
+          loadAllAgain = false;
+          setSync(false, 'sincronizando');
+          const tables = [
+            ['drivers', 'drivers'], ['rental_payments', 'rentalPayments'],
+            ['clients', 'clients'], ['charges', 'charges'],
+            ['charge_payments', 'chargePayments'], ['expenses', 'expenses'],
+            ['charge_points', 'chargePoints'], ['connectors', 'connectors'],
+            ['ocpp_sessions', 'ocppSessions'], ['payments', 'payments']
+          ];
+          const [entries, customers] = await Promise.all([
+            Promise.all(tables.map(async ([table, key]) => [key, await readAllRows(table)])),
+            loadOcppCustomers(true)
+          ]);
+          Object.assign(db, Object.fromEntries(entries), { ocppCustomers: customers });
+          setSync(true, 'online');
+          render();
+          await updatePricePerKwhDisplay();
+        }
+      } catch (error) {
+        loadAllAgain = false;
+        console.error(error);
+        setSync(false, 'erro');
+        alert(error.message || 'Erro ao carregar os dados.');
+      } finally {
+        loadAllTask = null;
+      }
+    })();
+  }
+  return loadAllTask;
 }
 async function ins(table,row){const {error}=await supa.from(table).insert(row);if(error)throw error}
 async function upd(table,id,row){const {error}=await supa.from(table).update(row).eq('id',id);if(error)throw error}
@@ -1834,7 +1829,7 @@ const response =
 }
 let manualStartCustomerOptions = [];
 
-async function loadOcppCustomers(){
+async function loadOcppCustomers(returnOnly = false){
 
   const {
     data:{
@@ -1847,7 +1842,7 @@ async function loadOcppCustomers(){
   if (
     !session?.access_token
   ) {
-    return;
+    return db.ocppCustomers || [];
   }
 
 
@@ -1883,12 +1878,13 @@ async function loadOcppCustomers(){
       body.error
     );
 
-    return;
+    return db.ocppCustomers || [];
   }
 
 
-  db.ocppCustomers =
-    body.customers || [];
+  const customers = body.customers || [];
+  if (!returnOnly) db.ocppCustomers = customers;
+  return customers;
 }
 
   async function openManualStartCharge(cpId){
@@ -11136,3 +11132,4 @@ bootstrap();
 </script>
 </body>
 </html>
+
