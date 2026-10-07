@@ -61,6 +61,7 @@ h3{font-size:17px;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,t
     <button class="nav-btn" data-tab="drivers">🚗 Motoristas</button>
     <button class="nav-btn" data-tab="daily">📅 Diárias</button>
     <button class="nav-btn" data-tab="charges">⚡ Cargas</button>
+    <button class="nav-btn" data-tab="messages">💬 Mensagens WhatsApp</button>
     <button class="nav-btn" data-tab="ocpp">🔌 Carregadores OCPP</button>
     <button class="nav-btn" data-tab="receivable">💰 A receber</button>
     <button class="nav-btn" data-tab="clients">👤 Clientes</button>
@@ -77,7 +78,8 @@ h3{font-size:17px;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,t
     </header>
 
     <main class="page">
-      <section class="tab active" id="dashboard"><div class="grid" id="dashCards"></div><div class="box"><div class="toolbar" style="justify-content:space-between"><h3 style="margin:0">Pendências prioritárias</h3><button class="btn secondary small" onclick="goTab('receivable')">Ver tudo</button></div><div id="priorityList"></div></div></section>
+      <section class="tab active" id="dashboard"><div class="box hidden" id="whatsappAlert"></div><div class="grid" id="dashCards"></div><div class="box"><div class="toolbar" style="justify-content:space-between"><h3 style="margin:0">Pendências prioritárias</h3><button class="btn secondary small" onclick="goTab('receivable')">Ver tudo</button></div><div id="priorityList"></div></div></section>
+      <section class="tab" id="messages"><div class="toolbar"><button class="btn secondary" onclick="loadWhatsappStatus(true)">Atualizar mensagens</button></div><div id="whatsappSummary" class="box">Consulte os envios automáticos e os retornos de entrega.</div><div class="box table-wrap" id="whatsappHistory"></div></section>
       <section class="tab" id="drivers"><div class="toolbar"><button class="btn" onclick="openDriverModal()">+ Novo motorista</button></div><div class="box"><div class="filters"><input class="wide" id="driverSearch" placeholder="Buscar motorista, carro ou placa"><select id="driverStatus"><option value="">Todos</option><option value="active">Ativos</option><option value="open">Com pendência</option><option value="paid">Em dia</option><option value="inactive">Encerrados</option></select></div><div class="table-wrap" id="driversList"></div></div></section>
       <section class="tab" id="daily"><div class="box"><div class="filters"><input id="dailyDate" type="date"><select id="dailyDriver"></select><button class="btn secondary" onclick="renderDaily()">Atualizar</button></div><div class="table-wrap" id="dailyList"></div></div></section>
       <section class="tab" id="ocpp"><div class="toolbar" style="justify-content:space-between">
@@ -209,13 +211,14 @@ h3{font-size:17px;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,t
 <div class="modal-back" id="modalBack"><div class="modal" id="modal"></div></div>
 
 <script src="config.js"></script>
+<script src="project-ui.js"></script>
 <script>
 'use strict';
-const $=id=>document.getElementById(id),isoToday=()=>new Date().toISOString().slice(0,10),nowIso=()=>new Date().toISOString(),num=v=>Math.round((Number(v)||0)*100)/100;
+const $=id=>document.getElementById(id),isoToday=()=>AndreaoUI.operationalDay(),nowIso=()=>new Date().toISOString(),num=v=>Math.round((Number(v)||0)*100)/100;
 const money=n=>Number(n||0).toLocaleString('pt-BR',{style:'currency',currency:'BRL'});
 const dateBR=s=>{if(!s)return'-';const p=String(s).slice(0,10).split('-');return p.length===3?`${p[2]}/${p[1]}/${p[0]}`:s};
 const esc=s=>String(s??'').replace(/[&<>"']/g,m=>({'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#039;'}[m]));
-const normalizePlate=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''),phoneDigits=s=>String(s||'').replace(/\D/g,''),monthOf=s=>String(s||'').slice(0,7);
+const normalizePlate=s=>String(s||'').toUpperCase().replace(/[^A-Z0-9]/g,''),phoneDigits=s=>String(s||'').replace(/\D/g,''),monthOf=s=>/^\d{4}-\d{2}$/.test(String(s||''))?String(s):AndreaoUI.operationalDay(s).slice(0,7);
 const OCPP_PRICE_PER_KWH=1.69;
 let supa=null,currentUser=null,db={drivers:[],rentalPayments:[],clients:[],charges:[],chargePayments:[],expenses:[],chargePoints:[],connectors:[],ocppSessions:[],payments:[]};
 const configured=window.APP_CONFIG&&APP_CONFIG.supabaseUrl&&APP_CONFIG.supabaseKey&&!APP_CONFIG.supabaseUrl.includes('COLE_')&&!APP_CONFIG.supabaseKey.includes('COLE_');
@@ -272,6 +275,7 @@ function loadAll() {
           setSync(true, 'online');
           render();
           await updatePricePerKwhDisplay();
+          void loadWhatsappStatus();
         }
       } catch (error) {
         loadAllAgain = false;
@@ -288,7 +292,7 @@ function loadAll() {
 async function ins(table,row){const {error}=await supa.from(table).insert(row);if(error)throw error}
 async function upd(table,id,row){const {error}=await supa.from(table).update(row).eq('id',id);if(error)throw error}
 async function del(table,id){const {error}=await supa.from(table).delete().eq('id',id);if(error)throw error}
-function goTab(id){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('.nav-btn[data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));const b=document.querySelector(`.nav-btn[data-tab="${id}"]`);pageTitle.textContent=b?b.textContent.replace(/^[^A-Za-zÀ-ÿ]+/,'').trim():'Gestão';sidebar.classList.remove('open');render()}
+function goTab(id){document.querySelectorAll('.tab').forEach(x=>x.classList.toggle('active',x.id===id));document.querySelectorAll('.nav-btn[data-tab]').forEach(x=>x.classList.toggle('active',x.dataset.tab===id));const b=document.querySelector(`.nav-btn[data-tab="${id}"]`);pageTitle.textContent=b?b.textContent.replace(/^[^A-Za-zÀ-ÿ]+/,'').trim():'Gestão';sidebar.classList.remove('open');render();if(id==='messages')void loadWhatsappStatus(true)}
 document.querySelectorAll('.nav-btn[data-tab]').forEach(b=>b.addEventListener('click',()=>goTab(b.dataset.tab)));menuBtn.addEventListener('click',()=>sidebar.classList.toggle('open'));
 loginForm.addEventListener('submit',async e=>{e.preventDefault();loginError.textContent='';const {data,error}=await supa.auth.signInWithPassword({email:loginEmail.value.trim(),password:loginPass.value});if(error)return loginError.textContent=error.message;currentUser=data.user;login.classList.add('hidden');shell.style.display='block';await loadAll()});
 logoutBtn.addEventListener('click',async()=>{await supa.auth.signOut();location.reload()});
@@ -3532,7 +3536,7 @@ async function confirmManualPayment(
   function renderOcpp(){
   const cps=db.chargePoints||[], conns=db.connectors||[], sessions=(db.ocppSessions||[]).slice().sort((a,b)=>String(b.started_at||'').localeCompare(String(a.started_at||'')));
   const online=cps.filter(c=>c.online).length, charging=sessions.filter(s=>s.session_status==='charging').length, today=isoToday();
-  const todaySessions=sessions.filter(s=>String(s.started_at||'').slice(0,10)===today), todayKwh=num(todaySessions.reduce((a,s)=>a+Number(s.energy_kwh||0),0)), todayValue=num(todaySessions.reduce((a,s)=>a+Number(s.total_amount||0),0)), pending=num(sessions.filter(s=>s.payment_status!=='paid').reduce((a,s)=>a+Math.max(0,Number(s.total_amount||0)-Number(s.paid_amount||0)),0));
+  const todaySessions=sessions.filter(s=>AndreaoUI.operationalDay(s.started_at)===today), todayKwh=num(todaySessions.reduce((a,s)=>a+Number(s.energy_kwh||0),0)), todayValue=num(todaySessions.reduce((a,s)=>a+Number(s.total_amount||0),0)), pending=num(sessions.filter(s=>s.payment_status!=='paid').reduce((a,s)=>a+Math.max(0,Number(s.total_amount||0)-AndreaoUI.sessionPaidAmount(s)),0));
   const reconciliationSessions =
   sessions.filter(
     s =>
@@ -11110,7 +11114,7 @@ const countVariation =
 }
 function renderSystemInfo(){systemInfo.innerHTML=`<table><tr><td>Versão</td><td><b>V6</b></td></tr><tr><td>Tarifa OCPP</td><td><b>${money(OCPP_PRICE_PER_KWH)}/kWh</b></td></tr><tr><td>Usuário</td><td>${esc(currentUser?.email||'-')}</td></tr><tr><td>Banco</td><td>Supabase PostgreSQL</td></tr><tr><td>Sincronização</td><td>Online entre dispositivos</td></tr></table>`}
 function refreshSelects(){const old=dailyDriver.value;dailyDriver.innerHTML='<option value="">Todos os motoristas</option>'+db.drivers.map(d=>`<option value="${d.id}">${esc(d.name)} — ${esc(d.plate)}</option>`).join('');dailyDriver.value=old}
-function render(){refreshSelects();renderDashboard();renderDrivers();renderDaily();renderCharges();renderOcpp();renderReceivable();renderClients();renderExpenses();renderReports();renderSystemInfo()}
+function render(){refreshSelects();const id=document.querySelector('.tab.active')?.id||'dashboard';const views={dashboard:renderDashboard,drivers:renderDrivers,daily:renderDaily,charges:renderCharges,ocpp:renderOcpp,receivable:renderReceivable,clients:renderClients,expenses:renderExpenses,reports:renderReports,data:renderSystemInfo};views[id]?.()}
 function downloadBackup(){const payload={app:'Gestão Operacional V6',exportedAt:nowIso(),data:db},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`backup-v6-${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 restoreFile.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async()=>{try{const parsed=JSON.parse(r.result),d=parsed.data||parsed;if(!d.drivers)throw new Error('Formato inválido');if(!confirm('Importar dados do backup para sua conta V6?'))return;for(const x of d.drivers||[])await ins('drivers',{user_id:currentUser.id,name:x.name||'',phone:x.phone||'',car:x.car||'',plate:x.plate||'',daily_value:x.daily??x.daily_value??0,start_date:x.start||x.start_date||isoToday(),end_date:x.end||x.end_date||null,active:x.active!==false,notes:x.notes||''});for(const x of d.clients||[])await ins('clients',{user_id:currentUser.id,name:x.name||'',phone:x.phone||'',plate:x.plate||'',notes:x.notes||''});alert('Importação básica concluída. Motoristas e clientes foram importados.');await loadAll()}catch(err){alert(err.message)}};r.readAsText(f);e.target.value=''});
 ocppSearch.addEventListener('input',renderOcpp);ocppPaymentStatus.addEventListener('change',renderOcpp);driverSearch.addEventListener('input',renderDrivers);driverStatus.addEventListener('change',renderDrivers);dailyDate.addEventListener('change',renderDaily);dailyDriver.addEventListener('change',renderDaily);chargeSearch.addEventListener('input',renderCharges);chargeStatus.addEventListener('change',renderCharges);chargeMonth.addEventListener('change',renderCharges);document
@@ -11129,6 +11133,53 @@ document
 dailyDate.value=isoToday();chargeMonth.value=monthOf(isoToday());expenseMonth.value=monthOf(isoToday());reportMonth.value=monthOf(isoToday());todayText.textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});setInterval(()=>clock.textContent=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),1000);
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;installBtn.style.display='inline-block'});installBtn.addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;installBtn.style.display='none'});if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.error));
 bootstrap();
+let whatsappLoading = null, whatsappLastLoaded = 0;
+async function loadWhatsappStatus(force = false) {
+  if (!currentUser || (!force && Date.now()-whatsappLastLoaded<60000)) return;
+  if (whatsappLoading) return whatsappLoading;
+  const userId = currentUser.id;
+  whatsappLoading = (async () => {
+    try {
+      const token = await getAdminAccessToken();
+      if (!token) throw new Error('Entre novamente para consultar as mensagens.');
+      const response = await fetch(BACKEND_URL+'/api/admin/whatsapp/status',{headers:{authorization:'Bearer '+token},cache:'no-store'});
+      const body = await response.json();
+      if (!response.ok || !body.success) throw new Error(body.message || 'Não foi possível consultar as mensagens.');
+      if (currentUser?.id !== userId) return;
+      whatsappLastLoaded = Date.now();
+      const totals = body.totals || {}, billing = Number(totals.billing_failed || 0);
+      const problem = !body.configured ? 'Integração WhatsApp não configurada.' : !body.automatic_enabled ? 'Envio automático desativado.' : billing ? 'A Meta registrou '+billing+' falhas de cobrança na conta WhatsApp Business nos últimos 7 dias.' : '';
+      const action = billing ? '<p>Confira o faturamento da conta WhatsApp Business na Meta. Depois de regularizar, use Reenviar nas cobranças ainda pendentes.</p><a href="https://business.facebook.com/billing_hub/" target="_blank" rel="noopener noreferrer">Abrir faturamento da Meta</a>' : '';
+      const alertBox = $('whatsappAlert');
+      alertBox.classList.toggle('hidden',!problem);
+      alertBox.innerHTML = problem ? '<b>'+esc(problem)+'</b> <button class="btn secondary small" onclick="goTab(\'messages\')">Ver mensagens</button>' : '';
+      $('whatsappSummary').innerHTML = '<h3>WhatsApp · últimos 7 dias</h3><p>'+Number(totals.total||0)+' solicitações · '+Number(totals.delivered||0)+' entregues ou lidas · '+Number(totals.failed||0)+' falhas · '+Number(totals.awaiting||0)+' aguardando confirmação</p>'+(problem?'<p class="err">'+esc(problem)+'</p>':'')+action+'<p class="tiny">Aceita pela API significa que o pedido foi recebido. A entrega só é confirmada no retorno da Meta.</p>';
+      const labels = {sending:'Solicitando',created:'Aceita pela API',sent:'Enviada',delivered:'Entregue',read:'Lida',failed:'Falhou',delivery_unknown:'Entrega não confirmada'};
+      $('whatsappHistory').innerHTML = body.messages?.length ? '<table><tr><th>Data</th><th>Cliente</th><th>Valor</th><th>Entrega</th><th>Motivo / ação</th></tr>'+body.messages.map(m=>{
+        const failed = ['failed','delivery_unknown'].includes(m.status);
+        const date = new Date(m.created_at).toLocaleString('pt-BR',{timeZone:'America/Sao_Paulo'});
+        const retry = m.retry_allowed && /^[a-f0-9-]{36}$/i.test(String(m.session_id||'')) ? '<button class="btn secondary small" onclick="retryWhatsapp(\''+m.session_id+'\',this)">Reenviar</button>' : '';
+        return '<tr><td>'+esc(date)+'</td><td>'+esc(m.customer_name||'Cliente')+'<br><span class="tiny">'+esc(m.plate||'')+'</span></td><td>'+money(m.amount)+'</td><td>'+badge(failed?'pending':['read','delivered'].includes(m.status)?'paid':'partial',labels[m.status]||m.status)+'</td><td>'+esc(m.explanation||'')+(m.error_code?'<br><span class="tiny">Código '+esc(m.error_code)+'</span>':'')+'<br>'+retry+'</td></tr>';
+      }).join('')+'</table>' : '<div class="empty">Nenhum envio registrado.</div>';
+    } catch(error) {
+      if(currentUser?.id===userId)$('whatsappSummary').textContent=error.message;
+    } finally { whatsappLoading=null; }
+  })();
+  return whatsappLoading;
+}
+async function retryWhatsapp(sessionId, button) {
+  button.disabled=true;
+  try {
+    const token=await getAdminAccessToken();
+    if(!token)throw new Error('Entre novamente para reenviar.');
+    const response=await fetch(BACKEND_URL+'/api/admin/whatsapp/'+encodeURIComponent(sessionId)+'/retry',{method:'POST',headers:{authorization:'Bearer '+token}});
+    const body=await response.json();
+    if(!response.ok || !body.success)throw new Error(body.error || body.message || 'O reenvio não foi aceito.');
+    await loadWhatsappStatus(true);
+  } catch(error) { alert(error.message); }
+  finally {button.disabled=false;}
+}
+
 </script>
 </body>
 </html>

@@ -16,7 +16,7 @@ function loader(from) {
   const db = { drivers: [{ id: 'original' }], charges: [{ id: 'original' }] };
   const ctx = vm.createContext({
     console: quiet, supa: { from }, db, setSync() {}, render() { renders++; },
-    loadOcppCustomers: async () => [], updatePricePerKwhDisplay: async () => {}, alert: message => alerts.push(message)
+    loadOcppCustomers: async () => [], updatePricePerKwhDisplay: async () => {}, loadWhatsappStatus: async () => {}, alert: message => alerts.push(message)
   });
   vm.runInContext(panel.slice(start, end) + '\nthis.load = loadAll;', ctx);
   return { ctx, db, alerts, renders: () => renders };

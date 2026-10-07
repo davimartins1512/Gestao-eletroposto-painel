@@ -1844,6 +1844,7 @@ input:focus{
 </div>
 
 
+<script src="project-ui.js"></script>
 <script>
 'use strict';
 
@@ -3314,6 +3315,9 @@ $('cpBadge').textContent =
         .className =
           'pill offline';
 
+    } else if (AndreaoUI.connectorUnavailable(body)) {
+      $('onlineBadge').textContent = '● Bico indisponível • procure o atendimento';
+      $('onlineBadge').className = 'pill offline';
     } else if (
       String(body.status || '')
         .toLowerCase() === 'preparing' &&
