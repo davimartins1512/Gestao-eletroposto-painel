@@ -24,8 +24,8 @@ test('pending balance uses amount_paid without counting stale paid_amount twice'
 });
 test('both HTML pages load operational helpers before the scripts that use them',()=>{
   for(const file of ['painel.html','carregar.html']){
-    const html=read(file);assert.ok(html.indexOf('src="project-ui.js"')>=0,file);
-    assert.ok(html.indexOf('src="project-ui.js"')<html.indexOf('AndreaoUI.'),file);
+    const html=read(file);const script=html.search(/src="project-ui\.js(?:\?[^"]*)?"/);
+    assert.ok(script>=0,file);assert.ok(script<html.indexOf('AndreaoUI.'),file);
   }
 });
 

@@ -211,7 +211,7 @@ h3{font-size:17px;margin:0 0 10px}table{width:100%;border-collapse:collapse}th,t
 <div class="modal-back" id="modalBack"><div class="modal" id="modal"></div></div>
 
 <script src="config.js"></script>
-<script src="project-ui.js"></script>
+<script src="project-ui.js?v=20261007-wallet"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id),isoToday=()=>AndreaoUI.operationalDay(),nowIso=()=>new Date().toISOString(),num=v=>Math.round((Number(v)||0)*100)/100;
@@ -2102,6 +2102,18 @@ async function loadOcppCustomers(returnOnly = false){
 
           </div>
 
+          <div class="full">
+            <label for="manualStartLimit">Limite da recarga (R$, opcional)</label>
+            <input id="manualStartLimit" type="number" min="1" max="100000" step="0.01" placeholder="Ex.: 50,00">
+            <div class="muted" style="margin-top:6px">Em branco, a carga segue sem limite de valor. Com limite, o sistema solicita a parada com uma margem para a reação do carregador.</div>
+          </div>
+          <div class="full">
+            <label style="display:flex;align-items:center;gap:8px">
+              <input id="manualStartCash" type="checkbox" style="width:auto"> Já recebi esse valor em dinheiro
+            </label>
+            <div class="muted">Marque após receber o pagamento. O consumo será registrado como pago em dinheiro, sem debitar a carteira. Confira o troco ao encerrar.</div>
+          </div>
+
         </div>
 
 
@@ -2236,6 +2248,9 @@ async function manualStartCharge(
 
   try {
 
+    const budget=AndreaoUI.manualChargeBudget(document.getElementById('manualStartLimit')?.value,
+      document.getElementById('manualStartCash')?.checked);
+
     const connector =
       Number(
         document
@@ -2325,6 +2340,7 @@ async function manualStartCharge(
 
           body:
             JSON.stringify({
+              ...budget,
               cp:
                 cpIdentity,
 
@@ -2372,13 +2388,15 @@ async function manualStartCharge(
     alert(
       customerId
         ? (
-            'Comando aceito pelo carregador e vinculado ao cadastro. Aguarde a confirmação do início da recarga.'
+            'Comando aceito pelo carregador e vinculado ao cadastro. Aguarde a confirmação do início da recarga.'+(budget.charge_limit_amount?` Limite: ${money(budget.charge_limit_amount)}.`:'')
           )
         : (
             'Comando aceito pelo carregador. Aguarde a confirmação do início da recarga avulsa.'
           )
     );
 
+
+    if(body.authorization_id)void watchManualStartAuthorization(body.authorization_id);
 
     setTimeout(
       loadAll,
@@ -2392,6 +2410,24 @@ async function manualStartCharge(
       'Erro ao iniciar carga.'
     );
   }
+}
+
+async function watchManualStartAuthorization(authorizationId){
+  const deadline=Date.now()+330000;
+  while(Date.now()<deadline){
+    await new Promise(resolve=>setTimeout(resolve,5000));
+    try{
+      const response=await fetch(BACKEND_URL+'/api/public/charging/session?authorization_id='+encodeURIComponent(authorizationId),
+        {cache:'no-store',signal:AbortSignal.timeout(10000)});
+      const state=await response.json();
+      if(!response.ok || !state.success)continue;
+      if(['charging','finished'].includes(state.phase)){await loadAll();return;}
+      if(['expired','rejected'].includes(state.phase)){
+        await loadAll();alert('A recarga não iniciou: '+(state.rejection_reason||'O carregador não confirmou o início.'));return;
+      }
+    }catch{}
+  }
+  alert('Não foi possível confirmar o início da recarga. Confira o estado do carregador no painel antes de tentar novamente.');
 }
 
   function openEditWalletBalance(
@@ -5100,6 +5136,10 @@ function openOcppSessionDetails(
           </tr>
 
 
+          ${Number(s.charge_limit_amount||0)>0?`<tr><td><b>Limite configurado</b></td><td>${money(s.charge_limit_amount)}</td></tr>`:''}
+          ${Number(s.cash_received_amount||0)>0?`<tr><td><b>Dinheiro recebido</b></td><td>${money(s.cash_received_amount)}</td></tr>`:''}
+          ${Number(s.cash_received_amount||0)>0&&s.session_status==='finished'&&s.payment_status==='paid'?`<tr><td><b>Troco a devolver</b></td><td>${money(Math.max(0,Number(s.cash_received_amount)-Number(s.total_amount||0)))}</td></tr>`:''}
+
           <tr>
             <td>
               <b>Status da sessão</b>
@@ -5716,6 +5756,10 @@ function openOcppSessionDetails(
             </td>
           </tr>
 
+
+          ${Number(s.charge_limit_amount||0)>0?`<tr><td><b>Limite configurado</b></td><td>${money(s.charge_limit_amount)}</td></tr>`:''}
+          ${Number(s.cash_received_amount||0)>0?`<tr><td><b>Dinheiro recebido</b></td><td>${money(s.cash_received_amount)}</td></tr>`:''}
+          ${Number(s.cash_received_amount||0)>0&&s.session_status==='finished'&&s.payment_status==='paid'?`<tr><td><b>Troco a devolver</b></td><td>${money(Math.max(0,Number(s.cash_received_amount)-Number(s.total_amount||0)))}</td></tr>`:''}
 
           <tr>
             <td>
