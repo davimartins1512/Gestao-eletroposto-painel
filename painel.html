@@ -3331,245 +3331,73 @@ async function confirmReconciliation(
   }
 }
  
- function openManualPayment(
-  sessionId
-){
-
-  const session =
-    (db.ocppSessions || [])
-      .find(
-        s =>
-          s.id === sessionId
-      );
-
-  if (!session) {
-    alert(
-      'Sessão não encontrada.'
-    );
-    return;
-  }
-
-  showModal(
-    'Confirmar pagamento manual',
-    `
-      <div class="form-grid">
-
-        <div class="full">
-          <label>
-            Transação
-          </label>
-
-          <input
-            value="${esc(
-              session.transaction_id ||
-              '-'
-            )}"
-            disabled
-          >
-        </div>
-
-        <div>
-          <label>
-            Valor da cobrança
-          </label>
-
-          <input
-            value="R$ ${Number(
-              session.total_amount || 0
-            )
-              .toFixed(2)
-              .replace('.', ',')}"
-            disabled
-          >
-        </div>
-
-        <div>
-          <label>
-            Valor recebido
-          </label>
-
-          <input
-            id="manualPaymentAmount"
-            type="number"
-            min="0"
-            step="0.01"
-            value="${Number(
-              session.total_amount || 0
-            ).toFixed(2)}"
-          >
-        </div>
-
-        <div class="full">
-          <label>
-            Forma de pagamento
-          </label>
-
-          <select
-            id="manualPaymentMethod"
-          >
-            <option value="pix_manual">
-              Pix manual
-            </option>
-
-            <option value="cash">
-              Dinheiro
-            </option>
-
-            <option value="card_manual">
-              Cartão manual
-            </option>
-
-            <option value="other">
-              Outro
-            </option>
-          </select>
-        </div>
-
-        <div class="full">
-          <label>
-            Observação
-          </label>
-
-          <input
-            id="manualPaymentNote"
-            placeholder="Ex.: recebido no caixa"
-          >
-        </div>
-
-      </div>
-
-      <div style="height:14px"></div>
-
-      <button
-        class="btn"
-        onclick="confirmManualPayment('${esc(session.id)}')"
-      >
-        Confirmar pagamento
-      </button>
-    `
-  );
-}
-
-
-async function confirmManualPayment(
-  sessionId
-){
-
+ let manualPaymentContext = null;
+ async function openManualPayment(sessionId){
   try {
-
-    const method =
-      document
-        .getElementById(
-          'manualPaymentMethod'
-        )
-        ?.value;
-
-    const amount =
-      Number(
-        document
-          .getElementById(
-            'manualPaymentAmount'
-          )
-          ?.value
-      );
-
-    const note =
-      document
-        .getElementById(
-          'manualPaymentNote'
-        )
-        ?.value
-        ?.trim() ||
-      '';
-
-    if (
-      !Number.isFinite(amount) ||
-      amount < 0
-    ) {
-      alert(
-        'Informe um valor recebido válido.'
-      );
-      return;
+    const token = await getAdminAccessToken();
+    if (!token) throw new Error('Sua sessão administrativa expirou.');
+    const response = await fetch(BACKEND_URL + '/api/admin/payments/' + encodeURIComponent(sessionId) + '/preview',
+      {headers:{authorization:`Bearer ${token}`},cache:'no-store'});
+    const body = await response.json();
+    if (!response.ok || !body.success) throw new Error(body.error || 'Não foi possível consultar a cobrança.');
+    const session = body.session, batch = body.batch;
+    if (session.session_status !== 'finished') throw new Error('Encerre a recarga antes de confirmar o pagamento.');
+    if (['paid','not_required'].includes(session.payment_status)) throw new Error('Esta recarga já foi quitada. Atualize a ficha.');
+    const due = Math.round(Math.max(0,Number(session.total_amount||0)-Number(session.amount_paid||0))*100)/100;
+    manualPaymentContext = {sessionId:session.id,batchId:batch?.id||null,sessionDue:due,batchDue:batch?.outstanding_amount||due};
+    showModal('Confirmar pagamento recebido', `
+      ${batch ? `<div class="msg warning">Esta recarga está em um grupo de ${Number(batch.session_count)} recargas. Ao quitar só esta, o grupo atual será encerrado e as demais continuarão pendentes. Oriente o cliente a não usar o link antigo.</div>` : ''}
+      ${batch?.needs_review ? '<div class="msg warning">A cobrança anterior exige conferência na InfinitePay. Confirme aqui apenas um pagamento que você recebeu e conferiu.</div>' : ''}
+      <div class="form-grid">
+        <div class="full"><label>Transação</label><input value="${esc(session.transaction_id||'-')}" disabled></div>
+        ${batch && batch.session_count>1 ? `<div class="full"><label>O que foi pago</label><select id="manualPaymentScope" onchange="updateManualPaymentScope()"><option value="session">Somente esta recarga</option><option value="batch">Grupo completo (${Number(batch.session_count)} recargas)</option></select></div>` : ''}
+        <div><label>Saldo a quitar</label><input id="manualPaymentDue" value="${money(due)}" disabled></div>
+        <div><label>Valor recebido</label><input id="manualPaymentAmount" type="number" min="${due.toFixed(2)}" step="0.01" value="${due.toFixed(2)}"></div>
+        <div class="full"><label>Forma de pagamento</label><select id="manualPaymentMethod"><option value="pix_manual">Pix manual</option><option value="cash">Dinheiro</option><option value="card_manual">Cartão manual</option><option value="other">Outro</option></select></div>
+        <div class="full"><label>Observação</label><input id="manualPaymentNote" placeholder="Ex.: recebido no caixa"></div>
+        <div class="full tiny">A confirmação quita o saldo integral escolhido. Se o valor recebido for maior, confira o troco; a diferença não será adicionada à carteira.</div>
+      </div>
+      <div style="height:14px"></div>
+      <button id="manualPaymentConfirm" class="btn" onclick="confirmManualPayment('${esc(session.id)}')">Confirmar pagamento recebido</button>`);
+  } catch (err) { alert(err.message || 'Não foi possível consultar o pagamento.'); }
+ }
+ function updateManualPaymentScope(){
+  if (!manualPaymentContext) return;
+  const payBatch = document.getElementById('manualPaymentScope')?.value === 'batch';
+  const due = payBatch ? manualPaymentContext.batchDue : manualPaymentContext.sessionDue;
+  document.getElementById('manualPaymentDue').value = money(due);
+  const input = document.getElementById('manualPaymentAmount');
+  input.value = Number(due).toFixed(2); input.min = Number(due).toFixed(2);
+ }
+ async function confirmManualPayment(sessionId){
+  const context = manualPaymentContext;
+  if (!context || context.sessionId !== sessionId) return alert('Atualize a ficha antes de confirmar.');
+  const button = document.getElementById('manualPaymentConfirm');
+  if (button?.disabled) return;
+  try {
+    const payBatch = document.getElementById('manualPaymentScope')?.value === 'batch';
+    const amount = Number(document.getElementById('manualPaymentAmount')?.value);
+    const due = payBatch ? context.batchDue : context.sessionDue;
+    if (!Number.isFinite(amount) || amount<=0 || amount>1000000 || Math.abs(amount*100-Math.round(amount*100))>0.000001 || Math.round(amount*100)<Math.round(due*100)) {
+      throw new Error('Informe o valor recebido integral, igual ou maior que o saldo a quitar.');
     }
-
-    const {
-      data: {
-        session
-      }
-    } =
-      await supa.auth.getSession();
-
-    if (!session?.access_token) {
-      alert(
-        'Sua sessão administrativa expirou. Faça login novamente.'
-      );
-      return;
-    }
-
-    const response =
-      await fetch(
-        BACKEND_URL +
-        '/api/admin/payments/' +
-        encodeURIComponent(
-          sessionId
-        ) +
-        '/approve',
-        {
-          method:
-            'POST',
-
-          headers:{
-            'content-type':
-              'application/json',
-
-            'authorization':
-              `Bearer ${session.access_token}`
-          },
-
-          body:
-            JSON.stringify({
-              method,
-              amount,
-              note
-            })
-        }
-      );
-
-    const body =
-      await response
-        .json()
-        .catch(
-          () => ({})
-        );
-
-    if (
-      !response.ok ||
-      !body.success
-    ) {
-      throw new Error(
-        body.error ||
-        body.message ||
-        'Falha ao confirmar pagamento.'
-      );
-    }
-
-    closeModal();
-
-    alert(
-      'Pagamento confirmado com sucesso.'
-    );
-
+    if (button) button.disabled=true;
+    const token = await getAdminAccessToken();
+    if (!token) throw new Error('Sua sessão administrativa expirou. Faça login novamente.');
+    const response = await fetch(BACKEND_URL+'/api/admin/payments/'+encodeURIComponent(sessionId)+'/approve',{
+      method:'POST',headers:{'content-type':'application/json',authorization:`Bearer ${token}`},
+      body:JSON.stringify({payment_method:document.getElementById('manualPaymentMethod')?.value,received_amount:amount,
+        note:document.getElementById('manualPaymentNote')?.value?.trim()||'',pay_batch:payBatch,expected_batch_id:context.batchId})});
+    const body = await response.json().catch(()=>({}));
+    if (!response.ok || !body.success) throw new Error(body.error||body.message||'Falha ao confirmar pagamento.');
+    closeModal(); manualPaymentContext=null;
+    alert(body.already_paid?'Esta recarga já estava quitada.':`${Number(body.sessions_paid||1)} recarga(s) quitada(s).`+(Number(body.change_due||0)>0?` Confira o troco de ${money(body.change_due)}.`:''));
     await loadAll();
+  } catch (err) { alert(err.message||'Erro ao confirmar pagamento.'); }
+  finally { if (button) button.disabled=false; }
+ }
 
-  } catch (err) {
-
-    alert(
-      err.message ||
-      'Erro ao confirmar pagamento.'
-    );
-  }
-}
-  function renderOcpp(){
+function renderOcpp(){
   const cps=db.chargePoints||[], conns=db.connectors||[], sessions=(db.ocppSessions||[]).slice().sort((a,b)=>String(b.started_at||'').localeCompare(String(a.started_at||'')));
   const online=cps.filter(c=>c.online).length, charging=sessions.filter(s=>s.session_status==='charging').length, today=isoToday();
   const todaySessions=sessions.filter(s=>AndreaoUI.operationalDay(s.started_at)===today), todayKwh=num(todaySessions.reduce((a,s)=>a+Number(s.energy_kwh||0),0)), todayValue=num(todaySessions.reduce((a,s)=>a+Number(s.total_amount||0),0)), pending=num(sessions.filter(s=>s.payment_status!=='paid').reduce((a,s)=>a+Math.max(0,Number(s.total_amount||0)-AndreaoUI.sessionPaidAmount(s)),0));
@@ -7608,14 +7436,13 @@ async function openCustomerWallet(
                    ${
 
   !paid &&
-  amount > 0 &&
-  !s.active_payment_batch_id
+  amount > 0
 
     ? `
 
       ${
         customer.customer_type ===
-        'prepaid'
+        'prepaid' && !s.active_payment_batch_id
 
           ? `
             <button
