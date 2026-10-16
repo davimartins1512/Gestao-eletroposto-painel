@@ -1,34 +1,26 @@
-GESTÃO OPERACIONAL V5 — ONLINE COM SUPABASE
+ANDREÃO ELETROPOSTO — PAINEL ADMINISTRATIVO
 
-O que mudou:
-- Banco online PostgreSQL via Supabase
-- Login real com e-mail e senha
-- Dados sincronizados entre celular e computador
-- Row Level Security por usuário
-- Motoristas, diárias, cargas, clientes, despesas e relatórios
-- PWA instalável
-- Importação básica de backup V4
-- Netlify-ready
+O painel usa autenticação e banco de dados Supabase, o backend Railway para operações OCPP e pagamentos, e publicação automática pelo GitHub Pages.
 
-PASSO 1 — CRIAR SUPABASE
-1. Crie um projeto no Supabase.
-2. Abra SQL Editor.
-3. Cole e execute todo o conteúdo de supabase/schema.sql.
-4. Em Authentication > Users, crie seu usuário com e-mail e senha.
+Interface administrativa
+- painel.html preserva os fluxos e os cálculos da operação.
+- admin.css organiza a identidade visual e as adaptações para celular.
+- admin-ui.js acrescenta ícones, títulos e uma visão das estações ativas; não envia comandos nem altera valores financeiros.
+- admin-icon.svg contém o ícone da interface.
+- fonts/InterVariable.woff2 usa a fonte Inter do projeto rsms/inter, com os caracteres latinos e sinais usados pela interface. A licença SIL OFL está em fonts/LICENSE.txt.
+- sw.js mantém o cache apenas dos arquivos públicos do site, excluindo APIs autenticadas e respostas privadas.
 
-PASSO 2 — CONFIGURAR O SITE
-1. Abra config.js.
-2. Preencha:
-   supabaseUrl
-   supabaseKey
-3. Use a Publishable Key do projeto. Não coloque Secret Key no navegador.
+Configuração
+Preencha config.js com o endereço e a chave pública do projeto Supabase. Nunca use uma chave secreta no navegador. As credenciais privadas e as integrações de pagamento ficam no backend Railway.
 
-PASSO 3 — NETLIFY
-1. Extraia este ZIP.
-2. Arraste a pasta extraída no Netlify.
-3. Abra o site.
-4. Entre com o e-mail/senha criado no Supabase.
+Publicação
+As alterações revisadas e mescladas na branch main são publicadas pelo GitHub Pages. O domínio de produção é andreaoeletroposto.com.br.
 
-OBSERVAÇÃO SOBRE V4
-A importação automática completa das relações da V4 para V5 exigiria remapear IDs entre tabelas.
-Nesta versão o botão de importação traz motoristas e clientes. Diárias/cargas antigas podem ser migradas depois com um importador dedicado.
+Carregadores sem uso
+maintenance/archive-unused-chargers.sql registra a desativação dos cadastros iniciais CP002, CP003, CP004 e CP005. A consulta protege estações que já tiveram sessões, comunicação ou autorizações. As listas operacionais mostram somente cadastros ativos; o histórico permanece no banco.
+
+Validação
+Execute node --test tests/*.test.mjs e confira a interface no computador e no celular antes de publicar.
+
+Backup
+A exportação mantém a estrutura data do backup anterior. A importação disponível no painel importa motoristas e clientes; outras relações exigem um importador específico.
