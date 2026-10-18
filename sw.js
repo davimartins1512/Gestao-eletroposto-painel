@@ -1,5 +1,5 @@
-const CACHE='gestao-v5-cache-20261016-admin';
-const ASSETS=['./','./index.html','./painel.html','./carregar.html','./config.js','./project-ui.js','./admin.css','./admin-ui.js','./admin-icon.svg','./fonts/InterVariable.woff2','./manifest.webmanifest'];
+const CACHE='gestao-v5-cache-20261018-serra';
+const ASSETS=['./','./index.html','./painel.html','./carregar.html','./config.js','./project-ui.js','./admin.css','./admin-ui.js','./admin-live.js','./admin-icon.svg','./fonts/InterVariable.woff2','./manifest.webmanifest'];
 const assetPaths=new Set(ASSETS.map(path=>new URL(path,self.registration.scope).pathname));
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
 self.addEventListener('activate',event=>event.waitUntil(caches.keys().then(keys=>Promise.all(keys.filter(key=>key.startsWith('gestao-v5-cache-')&&key!==CACHE).map(key=>caches.delete(key)))).then(()=>self.clients.claim())));

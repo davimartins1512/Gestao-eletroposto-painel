@@ -214,6 +214,7 @@
 <script src="config.js"></script>
 <script src="project-ui.js?v=20261007-wallet"></script>
 <script src="admin-ui.js"></script>
+<script src="admin-live.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id),isoToday=()=>AndreaoUI.operationalDay(),nowIso=()=>new Date().toISOString(),num=v=>Math.round((Number(v)||0)*100)/100;
@@ -238,6 +239,7 @@ function closeModal(){modalBack.style.display='none';modal.innerHTML=''}modalBac
 function showModal(title,body){modal.innerHTML=`<div class="modal-head"><h3 id="modalTitle">${title}</h3><button class="btn secondary small" onclick="closeModal()">Fechar</button></div><div style="height:8px"></div>${body}`;modalBack.style.display='grid';window.AndreaoAdmin?.enhance(modal)}
 function setSync(ok,text){syncDot.className='sync-dot '+(ok?'ok':'bad');syncText.textContent=text}
 const TABLE_PAGE_SIZE = 500;
+let operationalLive = null;
 let loadAllTask = null;
 let loadAllAgain = false;
 
@@ -274,6 +276,7 @@ function loadAll() {
             loadOcppCustomers(true)
           ]);
           Object.assign(db, Object.fromEntries(entries), { ocppCustomers: customers });
+          operationalLive?.seed(db.ocppSessions);
           setSync(true, 'online');
           render();
           await updatePricePerKwhDisplay();
@@ -10978,6 +10981,21 @@ document
 dailyDate.value=isoToday();chargeMonth.value=monthOf(isoToday());expenseMonth.value=monthOf(isoToday());reportMonth.value=monthOf(isoToday());todayText.textContent=new Date().toLocaleDateString('pt-BR',{weekday:'long',day:'2-digit',month:'long',year:'numeric'});setInterval(()=>clock.textContent=new Date().toLocaleTimeString('pt-BR',{hour:'2-digit',minute:'2-digit'}),1000);
 let deferredPrompt=null;window.addEventListener('beforeinstallprompt',e=>{e.preventDefault();deferredPrompt=e;installBtn.style.display='inline-block'});installBtn.addEventListener('click',async()=>{if(!deferredPrompt)return;deferredPrompt.prompt();await deferredPrompt.userChoice;deferredPrompt=null;installBtn.style.display='none'});if('serviceWorker'in navigator)window.addEventListener('load',()=>navigator.serviceWorker.register('./sw.js').catch(console.error));
 bootstrap();
+operationalLive = AndreaoLive.create({
+  getClient:()=>supa,
+  getState:()=>({userId:currentUser?.id,eligible:!document.hidden&&['dashboard','ocpp'].includes(document.querySelector('.tab.active')?.id)}),
+  isBusy:()=>!!loadAllTask,
+  apply:({chargePoints,connectors,sessions})=>{
+    db.chargePoints=chargePoints;db.connectors=connectors;
+    const merged=new Map((db.ocppSessions||[]).map(s=>[s.id,s]));
+    sessions.forEach(s=>merged.set(s.id,s));db.ocppSessions=Array.from(merged.values());
+    if(modalBack.style.display!=='grid'&&['dashboard','ocpp'].includes(document.querySelector('.tab.active')?.id))render();
+    setSync(true,'online');
+  },
+  onError:()=>setSync(false,'atualização pendente')
+});
+document.addEventListener('visibilitychange',()=>{if(!document.hidden)void operationalLive.refresh();});
+window.addEventListener('focus',()=>{void operationalLive.refresh();});
 let whatsappLoading = null, whatsappLastLoaded = 0;
 async function loadWhatsappStatus(force = false) {
   if (!currentUser || (!force && Date.now()-whatsappLastLoaded<60000)) return;
