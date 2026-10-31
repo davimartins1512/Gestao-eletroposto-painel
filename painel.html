@@ -99,6 +99,8 @@
 
   <div style="display:flex;gap:8px;flex-wrap:wrap">
 
+    <button class="btn secondary" type="button" onclick="openChargerRevenue()">Histórico e faturamento</button>
+
     <button
       class="btn secondary"
       onclick="openPricePerKwhModal()"
@@ -115,7 +117,29 @@
 
   </div>
 
-</div><div class="grid" id="ocppCards"></div><div class="box"><h3 style="margin-top:0">Estações e conectores</h3><div class="table-wrap" id="chargePointsList"></div></div><div class="box"><div class="filters"><input class="wide" id="ocppSearch" placeholder="Buscar carregador, placa ou transação"><select id="ocppPaymentStatus"><option value="">Todos os pagamentos</option><option value="paid">Pagos</option><option value="pending">Pendentes</option><option value="checkout_error">Erro no checkout</option></select></div><div class="table-wrap" id="ocppSessionsList"></div></div></section>
+</div><div class="grid" id="ocppCards"></div><div class="box"><h3 style="margin-top:0">Estações e conectores</h3><div class="table-wrap" id="chargePointsList"></div></div><div class="box" id="ocppHistoryReport">
+  <h3>Histórico e faturamento por carregador</h3>
+  <p class="muted">Escolha a estação, o bico e o período para conferir as recargas e o faturamento.</p>
+  <div class="filters history-filters">
+    <label>Carregador<select id="ocppPointFilter"><option value="">Todos os carregadores</option></select></label>
+    <label>Bico<select id="ocppConnectorFilter"><option value="">Todos os bicos</option></select></label>
+    <label>Período<select id="ocppHistoryPeriod"><option value="">Todo o histórico / personalizado</option><option value="today">Hoje</option><option value="month">Este mês</option></select></label>
+    <label>De<input id="ocppDateFrom" type="date"></label>
+    <label>Até<input id="ocppDateTo" type="date"></label>
+    <label>Pagamento<select id="ocppPaymentStatus"><option value="">Todos os pagamentos</option><option value="paid">Pagos</option><option value="pending">Com saldo pendente</option><option value="review">Em conferência</option><option value="checkout_error">Erro no checkout</option></select></label>
+    <label class="wide">Busca<input id="ocppSearch" placeholder="Buscar carregador, placa ou transação"></label>
+    <button class="btn secondary" id="ocppHistoryClear" type="button">Limpar filtros</button>
+  </div>
+  <p id="ocppHistoryError" class="history-error" role="alert"></p>
+  <div class="grid history-summary" id="ocppHistorySummary" aria-live="polite"></div>
+  <p class="tiny" id="ocppHistoryExceptions"></p>
+  <p class="tiny">Período pela data de início da recarga, no horário de Brasília. O valor quitado acompanha a situação atual dessas cargas, incluindo pagamentos feitos em outras datas; não representa o caixa recebido no período.</p>
+  <h4>Detalhamento por carregador e bico</h4>
+  <div class="table-wrap" id="ocppRevenueByConnector"></div>
+  <h4>Recargas da seleção</h4>
+  <div class="history-pagination"><span id="ocppHistoryPage" aria-live="polite"></span><div><button class="btn secondary small" id="ocppHistoryPrev" type="button">Anterior</button> <button class="btn secondary small" id="ocppHistoryNext" type="button">Próxima</button></div></div>
+  <div class="table-wrap" id="ocppSessionsList"></div>
+</div></section>
       <section class="tab" id="charges"><div class="toolbar"><button class="btn" onclick="openChargeModal()">+ Nova carga</button></div><div class="box"><div class="filters"><input class="wide" id="chargeSearch" placeholder="Buscar cliente ou placa"><select id="chargeStatus"><option value="">Todas</option><option value="open">Em aberto</option><option value="paid">Pagas</option></select><input id="chargeMonth" type="month"></div><div class="table-wrap" id="chargesList"></div></div></section>
      <section class="tab" id="receivable">
   <div class="grid" id="receivableCards"></div>
@@ -203,7 +227,7 @@
 
 </section>
       <section class="tab" id="expenses"><div class="toolbar"><button class="btn" onclick="openExpenseModal()">+ Nova despesa</button></div><div class="box"><div class="filters"><input id="expenseMonth" type="month"><select id="expenseCategory"><option value="">Todas</option><option>Energia</option><option>Manutenção</option><option>Seguro</option><option>Limpeza</option><option>Impostos</option><option>Outros</option></select></div><div class="table-wrap" id="expensesList"></div></div></section>
-      <section class="tab" id="reports"><div class="box"><div class="filters"><input id="reportMonth" type="month"><button class="btn secondary" onclick="renderReports()">Atualizar</button></div><div id="reportBody"></div></div></section>
+      <section class="tab" id="reports"><div class="toolbar"><button class="btn" type="button" onclick="openChargerRevenue()">Faturamento por carregador e bico</button></div><div class="box"><div class="filters"><input id="reportMonth" type="month"><button class="btn secondary" onclick="renderReports()">Atualizar</button></div><div id="reportBody"></div></div></section>
       <section class="tab" id="data"><div class="box"><h3>Backup / migração</h3><p class="muted">Exporte seus dados ou importe um arquivo de backup compatível com o painel.</p><div class="toolbar"><button class="btn" onclick="downloadBackup()">Baixar backup</button><button class="btn secondary" onclick="document.getElementById('restoreFile').click()">Importar backup</button><input id="restoreFile" type="file" accept=".json" style="display:none"></div></div><div class="box"><h3>Conta</h3><div id="systemInfo"></div></div></section>
     </main>
   </div>
@@ -215,6 +239,7 @@
 <script src="project-ui.js?v=20261007-wallet"></script>
 <script src="admin-ui.js"></script>
 <script src="admin-live.js"></script>
+<script src="admin-history.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id),isoToday=()=>AndreaoUI.operationalDay(),nowIso=()=>new Date().toISOString(),num=v=>Math.round((Number(v)||0)*100)/100;
@@ -4189,8 +4214,7 @@ if (
   `;
 }
     chargePointsList.innerHTML=cps.length?`<table><tr><th>Carregador</th><th>Identidade</th><th>Status</th><th>Último contato</th><th>Conectores</th><th>Ações</th></tr>${cps.map(cp=>{const cc=conns.filter(c=>c.charge_point_id===cp.id&&Number(c.connector_id)>0);const hasCharging=sessions.some(s=>s.charge_point_id===cp.id&&s.session_status==='charging');return `<tr><td><b>${esc(cp.name)}</b></td><td>${esc(cp.ocpp_identity)}</td><td>${cp.online?badge('paid','ONLINE'):badge('pending','OFFLINE')}</td><td>${cp.last_seen_at?new Date(cp.last_seen_at).toLocaleString('pt-BR'):'-'}</td><td>${cc.length?cc.map(c=>`#${c.connector_id} ${badge(c.status==='Available'?'paid':c.status==='Charging'?'partial':'pending',c.status||'Unknown')}`).join(' '):'-'}</td><td class="nowrap"><button class="btn small" onclick="openManualStartCharge('${cp.id}')">Iniciar</button> <button class="btn danger small" onclick="openManualStopCharge('${cp.id}')" ${hasCharging?'':'disabled'}>Encerrar</button> <button class="btn secondary small" onclick="openResetChargePoint('${esc(cp.ocpp_identity)}')">Reiniciar</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum carregador cadastrado.</div>';
-  const q=(ocppSearch?.value||'').toLowerCase(), pf=ocppPaymentStatus?.value||'';
-  const filtered=sessions.filter(s=>{const cp=cps.find(c=>c.id===s.charge_point_id);const text=`${cp?.name||''} ${cp?.ocpp_identity||''} ${s.plate||''} ${s.transaction_id||''}`.toLowerCase();return (!q||text.includes(q))&&(!pf||s.payment_status===pf)});
+  const filtered=AndreaoHistory.render({sessions,points:db.chargePoints||[],connectors:conns,money,esc});
       ocppSessionsList.innerHTML =
     filtered.length
       ? `
@@ -4214,11 +4238,10 @@ if (
 
           ${
             filtered
-              .slice(0,200)
               .map(s => {
 
                 const cp =
-                  cps.find(
+                  (db.chargePoints||[]).find(
                     c =>
                       String(c.id) ===
                       String(s.charge_point_id)
@@ -4427,6 +4450,11 @@ if (
         </div>
       `;
   window.AndreaoAdmin?.enhance(document.getElementById('ocpp'));
+}
+function openChargerRevenue(){
+  goTab('ocpp');
+  document.getElementById('ocppHistoryReport').scrollIntoView({behavior:'smooth',block:'start'});
+  document.getElementById('ocppPointFilter').focus({preventScroll:true});
 }
 function formatOcppDuration(
   start,
@@ -10965,7 +10993,7 @@ function refreshSelects(){const old=dailyDriver.value;dailyDriver.innerHTML='<op
 function render(){refreshSelects();const id=document.querySelector('.tab.active')?.id||'dashboard';const views={dashboard:renderDashboard,drivers:renderDrivers,daily:renderDaily,charges:renderCharges,ocpp:renderOcpp,receivable:renderReceivable,clients:renderClients,expenses:renderExpenses,reports:renderReports,data:renderSystemInfo};views[id]?.();window.AndreaoAdmin?.refresh(id,db)}
 function downloadBackup(){const payload={app:'Andreão Eletroposto',exportedAt:nowIso(),data:db},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`backup-andreao-${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 restoreFile.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async()=>{try{const parsed=JSON.parse(r.result),d=parsed.data||parsed;if(!d.drivers)throw new Error('Formato inválido');if(!confirm('Importar dados do backup para sua conta?'))return;for(const x of d.drivers||[])await ins('drivers',{user_id:currentUser.id,name:x.name||'',phone:x.phone||'',car:x.car||'',plate:x.plate||'',daily_value:x.daily??x.daily_value??0,start_date:x.start||x.start_date||isoToday(),end_date:x.end||x.end_date||null,active:x.active!==false,notes:x.notes||''});for(const x of d.clients||[])await ins('clients',{user_id:currentUser.id,name:x.name||'',phone:x.phone||'',plate:x.plate||'',notes:x.notes||''});alert('Importação básica concluída. Motoristas e clientes foram importados.');await loadAll()}catch(err){alert(err.message)}};r.readAsText(f);e.target.value=''});
-ocppSearch.addEventListener('input',renderOcpp);ocppPaymentStatus.addEventListener('change',renderOcpp);driverSearch.addEventListener('input',renderDrivers);driverStatus.addEventListener('change',renderDrivers);dailyDate.addEventListener('change',renderDaily);dailyDriver.addEventListener('change',renderDaily);chargeSearch.addEventListener('input',renderCharges);chargeStatus.addEventListener('change',renderCharges);chargeMonth.addEventListener('change',renderCharges);document
+AndreaoHistory.bind(renderOcpp);driverSearch.addEventListener('input',renderDrivers);driverStatus.addEventListener('change',renderDrivers);dailyDate.addEventListener('change',renderDaily);dailyDriver.addEventListener('change',renderDaily);chargeSearch.addEventListener('input',renderCharges);chargeStatus.addEventListener('change',renderCharges);chargeMonth.addEventListener('change',renderCharges);document
   .getElementById('receiveSearch')
   ?.addEventListener(
     'input',
