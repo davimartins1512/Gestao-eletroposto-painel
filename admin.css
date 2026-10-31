@@ -130,3 +130,8 @@ td b,td strong{font-weight:600;color:#38513b}tr:last-child td{border-bottom:0}tr
 @media(prefers-reduced-motion:reduce){*,*:before,*:after{scroll-behavior:auto!important;transition:none!important}}
 
 @media(max-width:780px){.box [style*="minmax(220px"],.box [style*="minmax(240px"],.box [style*="minmax(300px"]{grid-template-columns:minmax(0,1fr)!important}}
+
+/* Charge history and revenue filters */
+.history-filters{align-items:flex-end}.history-filters>label{display:flex;flex:1 1 155px;flex-direction:column;gap:7px;max-width:270px;margin:0;font-size:11px}.history-filters>label.wide{flex:2 1 240px;max-width:370px}.history-filters input,.history-filters select{width:100%;min-width:0}.history-summary{margin-top:18px}.history-summary .num{font-size:clamp(18px,2vw,27px)}.history-error{color:var(--danger,#b42318);font-size:12px}.history-error:empty{display:none}.history-pagination{display:flex;align-items:center;justify-content:space-between;flex-wrap:wrap;gap:12px;font-size:12px}.history-pagination>div{display:flex;gap:8px}#ocppHistoryReport h4{margin:24px 0 10px}#ocppHistoryReport p{line-height:1.65}@media(max-width:780px){.history-filters>label,.history-filters>label.wide{max-width:none;flex:1 1 140px}.history-filters>.btn{min-height:40px}.history-summary .card{min-height:110px}}
+
+#ocppHistoryReport{scroll-margin-top:82px}
