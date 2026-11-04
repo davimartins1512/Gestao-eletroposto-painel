@@ -82,7 +82,7 @@
       </section>
       <section class="tab" id="messages"><div class="toolbar"><button class="btn secondary" onclick="loadWhatsappStatus(true)">Atualizar mensagens</button></div><div id="whatsappSummary" class="box">Consulte os envios automáticos e os retornos de entrega.</div><div class="box table-wrap" id="whatsappHistory"></div></section>
       <section class="tab" id="drivers"><div class="toolbar"><button class="btn" onclick="openDriverModal()">+ Novo motorista</button></div><div class="box"><div class="filters"><input class="wide" id="driverSearch" placeholder="Buscar motorista, carro ou placa"><select id="driverStatus"><option value="">Todos</option><option value="active">Ativos</option><option value="open">Com pendência</option><option value="paid">Em dia</option><option value="inactive">Encerrados</option></select></div><div class="table-wrap" id="driversList"></div></div></section>
-      <section class="tab" id="daily"><div class="box"><div class="filters"><input id="dailyDate" type="date"><select id="dailyDriver"></select><button class="btn secondary" onclick="renderDaily()">Atualizar</button></div><div class="table-wrap" id="dailyList"></div></div></section>
+      <section class="tab" id="daily"><div class="toolbar"><button class="btn" type="button" onclick="AndreaoRentals.open()">Cobranças diárias automáticas</button></div><div class="box"><div class="filters"><input id="dailyDate" type="date"><select id="dailyDriver"></select><button class="btn secondary" onclick="renderDaily()">Atualizar</button></div><div class="table-wrap" id="dailyList"></div></div></section>
       <section class="tab" id="ocpp"><div class="toolbar" style="justify-content:space-between">
 
   <div>
@@ -240,6 +240,8 @@
 <script src="admin-ui.js"></script>
 <script src="admin-live.js"></script>
 <script src="admin-history.js"></script>
+<script src="admin-bulk-payments.js"></script>
+<script src="admin-rentals.js"></script>
 <script>
 'use strict';
 const $=id=>document.getElementById(id),isoToday=()=>AndreaoUI.operationalDay(),nowIso=()=>new Date().toISOString(),num=v=>Math.round((Number(v)||0)*100)/100;
@@ -1591,7 +1593,7 @@ dashCards.innerHTML += `
           </div>
         `;
 }
-function renderDrivers(){const q=(driverSearch.value||'').toLowerCase(),f=driverStatus.value;let a=db.drivers.filter(d=>!q||(d.name+' '+d.car+' '+d.plate).toLowerCase().includes(q));if(f==='active')a=a.filter(d=>d.active&&!d.end_date);if(f==='inactive')a=a.filter(d=>!d.active||d.end_date);if(f==='open')a=a.filter(d=>openRental(d)>0);if(f==='paid')a=a.filter(d=>openRental(d)<=0);driversList.innerHTML=a.length?`<table><tr><th>Motorista</th><th>Carro</th><th>Diária</th><th>Previsto</th><th>Recebido</th><th>Aberto</th><th>Ações</th></tr>${a.map(d=>{const due=dueUntil(d),paid=rentalPaidUntil(d),open=Math.max(0,due-paid);return `<tr><td><b>${esc(d.name)}</b><br><span class="tiny">${esc(d.phone)}</span></td><td>${esc(d.car)}<br><b>${esc(d.plate)}</b></td><td>${money(d.daily_value)}</td><td>${money(due)}</td><td>${money(paid)}</td><td><b>${money(open)}</b></td><td class="nowrap"><button class="btn small" onclick="receiveRental('${d.id}')">+ Pix</button> <button class="btn secondary small" onclick="openDriverModal('${d.id}')">Editar</button> <button class="btn danger small" onclick="removeDriver('${d.id}')">×</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum motorista.</div>'}
+function renderDrivers(){const q=(driverSearch.value||'').toLowerCase(),f=driverStatus.value;let a=db.drivers.filter(d=>!q||(d.name+' '+d.car+' '+d.plate).toLowerCase().includes(q));if(f==='active')a=a.filter(d=>d.active&&!d.end_date);if(f==='inactive')a=a.filter(d=>!d.active||d.end_date);if(f==='open')a=a.filter(d=>openRental(d)>0);if(f==='paid')a=a.filter(d=>openRental(d)<=0);driversList.innerHTML=a.length?`<table><tr><th>Motorista</th><th>Carro</th><th>Diária</th><th>Previsto</th><th>Recebido</th><th>Aberto</th><th>Ações</th></tr>${a.map(d=>{const due=dueUntil(d),paid=rentalPaidUntil(d),open=Math.max(0,due-paid);return `<tr><td><b>${esc(d.name)}</b><br><span class="tiny">${esc(d.phone)}</span></td><td>${esc(d.car)}<br><b>${esc(d.plate)}</b></td><td>${money(d.daily_value)}</td><td>${money(due)}</td><td>${money(paid)}</td><td><b>${money(open)}</b></td><td class="nowrap"><button class="btn small" onclick="receiveRental('${d.id}')">+ Pix</button> <button class="btn secondary small" onclick="AndreaoRentals.configure('${d.id}')">${d.auto_billing_enabled?'Diária automática ativa':'Ativar cobrança diária'}</button> <button class="btn secondary small" onclick="openDriverModal('${d.id}')">Editar</button> <button class="btn danger small" onclick="removeDriver('${d.id}')">×</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum motorista.</div>'}
 function renderDaily(){const date=dailyDate.value||isoToday(),selected=dailyDriver.value,drivers=db.drivers.filter(d=>driverActiveOn(d,date)&&(!selected||d.id===selected));dailyList.innerHTML=drivers.length?`<table><tr><th>Motorista</th><th>Placa</th><th>Devido</th><th>Recebido</th><th>Status</th><th></th></tr>${drivers.map(d=>{const due=num(d.daily_value),paid=rentalPaidOn(d,date);let st=paid===0?badge('pending','NÃO PAGO'):paid<due?badge('partial','FALTANDO'):paid>due?badge('extra','A MAIS'):badge('paid','PAGO');return `<tr><td><b>${esc(d.name)}</b></td><td>${esc(d.plate)}</td><td>${money(due)}</td><td>${money(paid)}</td><td>${st}</td><td><button class="btn small" onclick="receiveRental('${d.id}','${date}')">Registrar Pix</button></td></tr>`}).join('')}</table>`:'<div class="empty">Nenhum motorista ativo nessa data.</div>'}
 function renderCharges(){const q=(chargeSearch.value||'').toLowerCase(),f=chargeStatus.value,m=chargeMonth.value;let a=db.charges.filter(c=>(!q||(c.customer_name+' '+c.plate).toLowerCase().includes(q))&&(!m||monthOf(c.charge_date)===m));if(f==='open')a=a.filter(c=>openCharge(c)>0);if(f==='paid')a=a.filter(c=>openCharge(c)<=0);a.sort((x,y)=>(y.charge_date+(y.charge_time||'')).localeCompare(x.charge_date+(x.charge_time||'')));chargesList.innerHTML=a.length?`<table><tr><th>Data</th><th>Cliente</th><th>Valor</th><th>Recebido</th><th>Aberto</th><th>Ações</th></tr>${a.map(c=>`<tr><td>${dateBR(c.charge_date)}<br><span class="tiny">${esc(c.charge_time||'')}</span></td><td><b>${esc(c.customer_name)}</b><br>${esc(c.plate)}</td><td>${money(c.amount)}</td><td>${money(chargePaid(c))}</td><td><b>${money(openCharge(c))}</b></td><td class="nowrap"><button class="btn small" onclick="receiveCharge('${c.id}')">+ Pix</button> <button class="btn secondary small" onclick="openChargeModal('${c.id}')">Editar</button> <button class="btn danger small" onclick="removeCharge('${c.id}')">×</button></td></tr>`).join('')}</table>`:'<div class="empty">Nenhuma carga.</div>'}
 const BACKEND_URL =
@@ -7366,7 +7368,7 @@ async function openCustomerWallet(
 `;
 
 
-  const renderCustomerChargeRows = rows =>
+  const renderCustomerChargeRows = (rows,selectable=false) =>
     rows.length
       ? rows
           .map(
@@ -7404,6 +7406,7 @@ async function openCustomerWallet(
 
               return `
                 <tr>
+                  ${selectable?`<td><input type="checkbox" data-bulk-charge="${esc(s.id)}" aria-label="Selecionar recarga ${esc(s.transaction_id)}" ${AndreaoBulk.eligible(s)?'':'disabled'} onchange="AndreaoBulk.toggle('${esc(s.id)}',this.checked)"></td>`:''}
 
                   <td>
                     #${esc(
@@ -7497,7 +7500,8 @@ async function openCustomerWallet(
             </td>
           </tr>
         `;
-  const pendingHtml = renderCustomerChargeRows(chargeHistory.pending);
+  AndreaoBulk.context(customer.id,chargeHistory.pending);
+  const pendingHtml = renderCustomerChargeRows(chargeHistory.pending,true);
   const historyHtml = renderCustomerChargeRows(chargeHistory.recent);
 
 
@@ -7797,8 +7801,12 @@ async function openCustomerWallet(
         Pendências: ${chargeHistory.pending.length} | ${money(totalOpen)}
       </h3>
 
+      <div class="toolbar bulk-toolbar"><span id="bulkChargeSummary">0 selecionadas</span>
+        <button class="btn" id="bulkChargePay" disabled type="button" onclick="AndreaoBulk.open()">Quitar selecionadas</button>
+        <button class="btn secondary" type="button" onclick="AndreaoBulk.open(true)">Quitar todas</button>
+      </div><p class="tiny">Selecione as recargas que já recebeu. Valores em conferência precisam ser regularizados antes da quitação em lote.</p>
       <div class="table-wrap"><table>
-        <tr><th>Transação</th><th>Data</th><th>Energia</th><th>Valor</th><th>Pagamento</th><th></th></tr>
+        <tr><th><input type="checkbox" id="bulkChargeAll" aria-label="Selecionar todas as recargas elegíveis" onchange="AndreaoBulk.toggleAll(this.checked)"></th><th>Transação</th><th>Data</th><th>Energia</th><th>Valor</th><th>Pagamento</th><th></th></tr>
         ${pendingHtml}
       </table></div>
 
@@ -7834,6 +7842,7 @@ async function openCustomerWallet(
 
   `
 );
+  AndreaoBulk.sync();
 }
 
   function openCustomerPinModal(
@@ -10993,6 +11002,8 @@ function refreshSelects(){const old=dailyDriver.value;dailyDriver.innerHTML='<op
 function render(){refreshSelects();const id=document.querySelector('.tab.active')?.id||'dashboard';const views={dashboard:renderDashboard,drivers:renderDrivers,daily:renderDaily,charges:renderCharges,ocpp:renderOcpp,receivable:renderReceivable,clients:renderClients,expenses:renderExpenses,reports:renderReports,data:renderSystemInfo};views[id]?.();window.AndreaoAdmin?.refresh(id,db)}
 function downloadBackup(){const payload={app:'Andreão Eletroposto',exportedAt:nowIso(),data:db},blob=new Blob([JSON.stringify(payload,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`backup-andreao-${isoToday()}.json`;a.click();setTimeout(()=>URL.revokeObjectURL(a.href),1000)}
 restoreFile.addEventListener('change',async e=>{const f=e.target.files[0];if(!f)return;const r=new FileReader();r.onload=async()=>{try{const parsed=JSON.parse(r.result),d=parsed.data||parsed;if(!d.drivers)throw new Error('Formato inválido');if(!confirm('Importar dados do backup para sua conta?'))return;for(const x of d.drivers||[])await ins('drivers',{user_id:currentUser.id,name:x.name||'',phone:x.phone||'',car:x.car||'',plate:x.plate||'',daily_value:x.daily??x.daily_value??0,start_date:x.start||x.start_date||isoToday(),end_date:x.end||x.end_date||null,active:x.active!==false,notes:x.notes||''});for(const x of d.clients||[])await ins('clients',{user_id:currentUser.id,name:x.name||'',phone:x.phone||'',plate:x.plate||'',notes:x.notes||''});alert('Importação básica concluída. Motoristas e clientes foram importados.');await loadAll()}catch(err){alert(err.message)}};r.readAsText(f);e.target.value=''});
+AndreaoBulk.init({backend:BACKEND_URL,token:getAdminAccessToken,modal:showModal,close:closeModal,money,esc,refresh:async id=>{await loadAll();await openOcppCustomer(id);}});
+AndreaoRentals.init({backend:BACKEND_URL,token:getAdminAccessToken,modal:showModal,money,esc,today:isoToday,drivers:()=>db.drivers,refresh:loadAll});
 AndreaoHistory.bind(renderOcpp);driverSearch.addEventListener('input',renderDrivers);driverStatus.addEventListener('change',renderDrivers);dailyDate.addEventListener('change',renderDaily);dailyDriver.addEventListener('change',renderDaily);chargeSearch.addEventListener('input',renderCharges);chargeStatus.addEventListener('change',renderCharges);chargeMonth.addEventListener('change',renderCharges);document
   .getElementById('receiveSearch')
   ?.addEventListener(
@@ -11074,4 +11085,5 @@ async function retryWhatsapp(sessionId, button) {
 </script>
 </body>
 </html>
+
 
