@@ -49,7 +49,7 @@ import java.util.Locale;
  * não tem acesso a CAN, BMS, controles do BYD ou APIs privadas.
  */
 public final class LaunchActivity extends Activity {
-  private static final int REQUEST_CAMERA=110, REQUEST_LOCATION=111, SAVE_REPORT=112, REQUEST_ALL=113, REQUEST_TRACK=116;
+  private static final int REQUEST_CAMERA=110, REQUEST_LOCATION=111, SAVE_REPORT=112, REQUEST_ALL=113, REQUEST_TRACK=116, OEM_FRAMES=117;
   private static final String PREF="andreao_fleet_diagnostic";
   private static final String CRASH="last_java_crash";
   private TextView output;
@@ -64,7 +64,7 @@ public final class LaunchActivity extends Activity {
     box.setPadding(25,25,25,25);
     box.setBackgroundColor(0xfff6faf7);
     TextView title=new TextView(this);
-    title.setText("ANDREAO FLEET · CÂMERAS + ÁUDIO v1.1");
+    title.setText("ANDREAO FLEET · CÂMERAS + ÁUDIO v1.2");
     title.setTextColor(0xff137642);
     title.setTextSize(22);
     box.addView(title);
@@ -87,6 +87,8 @@ public final class LaunchActivity extends Activity {
     box.addView(label("FOCO CÂMERAS E ÁUDIO v0.9 · consulta local das interfaces BYD originais. Não abre câmeras nem interfere no Electro."));
     button(box,"18 · DIAGNOSTICAR CÂMERAS + bmmcamera.jar",this::probeOemCameraCompatibility);
     button(box,"19 · IDENTIFICAR CÂMERAS BYD (IDs OEM)",this::probeCameraIds);
+    box.addView(label("NOVO v1.2: teste EXPERIMENTAL de recebimento de quadros reais (3,5s), isolado e somente com confirmação de P/freio. Pode haver conflito com o Electro ou com a câmera 360°. Não usar durante manobras."));
+    button(box,"20 · ENSAIO MANUAL DE FRAMES DA CÂMERA OEM 0",this::openOemFrameProbe);
 
     box.addView(label("NOVOS TESTES v0.6 · toque para começar e interromper. Não há rastreamento automático ou envio à internet."));
     button(box,"10 · INICIAR GPS + MOVIMENTO (até 3 minutos)",this::confirmStartTracking);
@@ -152,7 +154,7 @@ public final class LaunchActivity extends Activity {
   private void performAllChecks(){
     report.setLength(0);
     if(output!=null)output.setText("");
-    append("INÍCIO DO DIAGNÓSTICO","ANDREAO Fleet v1.1 · executado em "
+    append("INÍCIO DO DIAGNÓSTICO","ANDREAO Fleet v1.2 · executado em "
       +new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.US).format(new java.util.Date())
       +"\nSomente APIs públicas do Android; sem controle do veículo nem leitura CAN/OBD.");
     safeRun("Sistema",this::systemTest);
@@ -302,6 +304,9 @@ public final class LaunchActivity extends Activity {
       +"\nPressão dos pneus: NÃO VERIFICADA\nCâmeras 360° via sistema BYD: NÃO VERIFICADAS"
       +"\nEste aplicativo não usa root, CAN, comandos de bloqueio, ADB ou API privada."
       +"\nSerá necessário um adaptador compatível e autorizado, validado no veículo.");
+  }
+  private void openOemFrameProbe(){
+    startActivityForResult(new Intent(this,OemFrameProbeActivity.class),OEM_FRAMES);
   }
   private void probeCameraIds(){
     append("CAMERAS OEM · IDs","Consultando IDs por nome, sem abrir nenhuma câmera.");
@@ -507,6 +512,13 @@ public final class LaunchActivity extends Activity {
   }
   @Override protected void onActivityResult(int req,int result,Intent data){
     super.onActivityResult(req,result,data);
+    if(req==OEM_FRAMES){
+      if(result==RESULT_OK&&data!=null){
+        String test=data.getStringExtra(OemFrameProbeActivity.EXTRA_REPORT);
+        append("ENSAIO OEM REAL · FRAMES",test==null?"Sem resultado retornado":test);
+      }else append("ENSAIO OEM REAL · FRAMES","Teste cancelado ou processo OEM encerrado por segurança (nenhum resultado de vídeo recuperado).");
+      return;
+    }
     if(req!=SAVE_REPORT||result!=RESULT_OK||data==null||data.getData()==null)return;
     Uri destination=data.getData();
     try(OutputStream outputStream=getContentResolver().openOutputStream(destination)){

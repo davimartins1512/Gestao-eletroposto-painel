@@ -1,6 +1,6 @@
-# ANDREAO Fleet — Diagnóstico de integração v1.1 (Dolphin Mini)
+# ANDREAO Fleet — Diagnóstico de integração v1.2 (Dolphin Mini)
 
-Aplicativo experimental **somente leitura, offline**, para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
+Aplicativo experimental **offline**, com uma sondagem manual opcional de câmera OEM (v1.2), para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
 ## Testes incluídos
 
@@ -133,3 +133,34 @@ O passo posterior, ainda NÃO habilitado, será um ensaio de captura de frames
 com confirmação de carro estacionado, preservação da câmera de ré, isolamento
 de concorrência e encerramento confiável. A classe encontrada não garante
 que esse ensaio seja possível.
+
+## v1.2 — primeira tentativa de recebimento de quadros reais BYD
+
+O diagnóstico v1.1 executado no Dolphin Mini encontrou `pano_h = 0` e
+o callback `AVMCamera.IPreviewCallback.onPreview(AVMCamera, byte[], int, int,
+int, int, int, long)` na central Android 10. Portanto, botão **20 ·
+ENSAIO MANUAL DE FRAMES DA CÂMERA OEM 0** realiza uma única tentativa
+na fonte panorâmica ID 0, **somente após confirmação explícita** de
+carro em P e freio acionado, por até 3,5 segundos.
+
+Proteções: execução em processo Android separado `:oem_camera_probe`,
+watchdog de 15 segundos (termina somente o processo de teste se a chamada
+OEM travar), opção de interromper, `stopPreview` e `close` em `finally`,
+sem varrer outros IDs nem invocar comandos de controle do BYD. A consulta
+`getCameraId("pano_h")` precisa retornar 0 antes de abrir a câmera.
+O callback conta bytes e frames, mas não guarda, exibe ou transmite
+imagem ou áudio. O resultado textual retorna à tela principal e pode
+ser exportado por TXT.
+
+**ALERTA:** isso é teste invasivo de abertura de câmera. Mesmo sendo
+curto, **pode disputar as câmeras do Electro ou a imagem OEM de ré/360°**.
+Fazer exclusivamente em carro imóvel, sem engatar marchas nem manobrar.
+Se qualquer sistema visual original ficar instável, interromper
+imediatamente e não usar o aplicativo para manobrar. Testes automatizados
+validam somente o código; o efeito no HAL BYD só pode ser validado
+fisicamente pelo responsável.
+
+Receber frames não equivale a gravação contínua, áudio sincronizado,
+operação com motor ligado, gravação 24 horas ou live. Nenhuma dessas
+funções foi habilitada. Não é autorizada captação clandestina de áudio
+de ocupantes. Nenhuma chamada externa ou Internet.

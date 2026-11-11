@@ -18,6 +18,8 @@
     <activity android:name=".MainActivity" android:exported="false" />
     <activity android:name=".AudioTestActivity" android:exported="false" />
     <activity android:name=".StoragePreferencesActivity" android:exported="false" />
+    <!-- Processo separado para que travamento do HAL nao mate o painel. -->
+    <activity android:name=".OemFrameProbeActivity" android:exported="false" android:process=":oem_camera_probe" />
     <service android:name=".TrackerService" android:exported="false" android:foregroundServiceType="location" />
     <activity android:name=".LaunchActivity" android:exported="true">
       <intent-filter>

@@ -116,3 +116,30 @@ test('v1.1 actively resolves only BYD camera IDs and callback signatures without
  assert.doesNotMatch(s,/(?:newInstance|openCamera|startPreview|stopPreview)\s*\(/);
  assert.doesNotMatch(s,/\.getRuntime\(\)|\.exec\(|\.loadLibrary\(/);
 });
+
+test('v1.2 OEM frame test runs only after explicit user confirmation, in isolated process with stop/close',()=>{
+ const source=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
+ const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
+ const launcher=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
+ assert.match(manifest,/android:name="\.OemFrameProbeActivity" android:exported="false" android:process=":oem_camera_probe"/);
+ assert.match(launcher,/20 · ENSAIO MANUAL DE FRAMES DA CÂMERA OEM 0/);
+ assert.match(launcher,/OEM_FRAMES/);
+ assert.match(launcher,/ENSAIO OEM REAL · FRAMES/);
+ assert.match(source,/new AlertDialog\.Builder\(this\)/);
+ assert.match(source,/MAX_PREVIEW_MS=3500/);
+ assert.match(source,/WATCHDOG_MS=15000/);
+ assert.match(source,/getDeclaredMethod\("getCameraId",String\.class\)/);
+ assert.match(source,/byTag\.invoke\(null,"pano_h"\)/);
+ assert.match(source,/getDeclaredConstructor\(int\.class\)/);
+ assert.match(source,/new Class<\?>\[\]\{callback\}/);
+ assert.match(source,/getDeclaredMethod\("setPreviewCallback",callback\)/);
+ assert.match(source,/getDeclaredMethod\("startPreview"\)/);
+ assert.match(source,/getDeclaredMethod\("enablePreviewCallback",int\.class\)/);
+ assert.match(source,/getDeclaredMethod\("stopPreview"\)/);
+ assert.match(source,/getDeclaredMethod\("close"\)/);
+ assert.match(source,/finally\{/);
+ assert.match(source,/stopPreview\.invoke\(camera\)/);
+ assert.match(source,/close\.invoke\(camera\)/);
+ assert.match(source,/android\.os\.Process\.killProcess/);
+ assert.doesNotMatch(source,/MediaRecorder|AudioRecord|MediaCodec|openOutputStream|FileOutputStream|HTTP|Socket/);
+});
