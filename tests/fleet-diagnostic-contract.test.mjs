@@ -201,3 +201,22 @@ test('incident clips can be marked protected and excluded from circular cleanup'
  assert.match(ui,/PROTEGER CLIPE DE OCORRÊNCIA/);
  assert.match(ui,/session\.protectClip\(which\)/);
 });
+
+test('local library survives UI restarts and constrains playback/export to own files',()=>{
+ const library=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemRecordingLibrary.java');
+ const screen=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemRecordingLibraryActivity.java');
+ const launcher=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
+ const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
+ assert.match(library,/StoragePolicy\.inventory\(context,false\)/);
+ assert.match(library,/validName/);
+ assert.match(library,/getCanonicalPath/);
+ assert.match(library,/public static File resolve\(/);
+ assert.match(screen,/setVideoPath/);
+ assert.match(screen,/OemVideoExporter\.copyToMovies/);
+ assert.match(screen,/OemMediaRetention\.protect/);
+ assert.match(screen,/REPRODUZIR/);
+ assert.match(screen,/EXPORTAR ESTE MP4/);
+ assert.match(screen,/PROTEGER COMO OCORRÊNCIA/);
+ assert.match(launcher,/21 · GALERIA LOCAL/);
+ assert.match(manifest,/OemRecordingLibraryActivity" android:exported="false"/);
+});

@@ -89,6 +89,7 @@ public final class LaunchActivity extends Activity {
     button(box,"19 · IDENTIFICAR CÂMERAS BYD (IDs OEM)",this::probeCameraIds);
     box.addView(label("NOVO v1.4: teste curto de foto/MP4 ou teste manual de clipes sequenciais, com duração configurável (padrão 90s) e sem reabrir a câmera entre arquivos. Áudio só com aviso explícito; nada inicia sozinho."));
     button(box,"20 · TESTE INTEGRADO DE FOTO + MP4 (ÁUDIO OPCIONAL)",this::openOemFrameProbe);
+    button(box,"21 · GALERIA LOCAL · VER, EXPORTAR E PROTEGER CLIPES",this::openRecordingLibrary);
 
     box.addView(label("NOVOS TESTES v0.6 · toque para começar e interromper. Não há rastreamento automático ou envio à internet."));
     button(box,"10 · INICIAR GPS + MOVIMENTO (até 3 minutos)",this::confirmStartTracking);
@@ -304,6 +305,9 @@ public final class LaunchActivity extends Activity {
       +"\nPressão dos pneus: NÃO VERIFICADA\nCâmeras 360° via sistema BYD: NÃO VERIFICADAS"
       +"\nEste aplicativo não usa root, CAN, comandos de bloqueio, ADB ou API privada."
       +"\nSerá necessário um adaptador compatível e autorizado, validado no veículo.");
+  }
+  private void openRecordingLibrary(){
+    startActivity(new Intent(this,OemRecordingLibraryActivity.class));
   }
   private void openOemFrameProbe(){
     startActivityForResult(new Intent(this,OemFrameProbeActivity.class),OEM_FRAMES);

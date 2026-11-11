@@ -212,3 +212,14 @@ e o Electro devem continuar prioritários.
 
 ### Preservação de clipe de ocorrência
 Após finalizar um teste de clipes, o botão **PROTEGER CLIPE DE OCORRÊNCIA** permite escolher um MP4, renomeando-o para `.protected.mp4`. O algoritmo de retenção normal exclui este arquivo da limpeza automática. O responsável deve revisar a necessidade de retenção, restringir o acesso e apagar quando a finalidade cessar. Ainda é uma operação de teste local, sem garantia de conservação diante de falha física da mídia.
+
+## Galeria local de vídeos — acesso depois de fechar o teste
+
+O botão 21 agora oferece lista persistente de MP4 finalizados (mesmo depois de reiniciar
+o aplicativo), reprodução pelo VideoView nativo do Android, exportação INDIVIDUAL
+para Movies/ANDREAO_Fleet e proteção de cada clipe como ocorrência. Busca
+somente arquivos gerados pelo ANDREAO Fleet nas pastas próprias do app e
+verifica o caminho canônico antes de abrir/exportar. Não lê vídeos do Electro,
+não usa INTERNET e não publica automaticamente o material na galeria.
+A reprodução dentro da multimídia depende dos codecs presentes no Android BYD.
+O recurso é de inspeção manual, somente com o carro estacionado.
