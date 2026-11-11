@@ -17,6 +17,7 @@
     android:theme="@android:style/Theme.Material.Light.NoActionBar">
     <activity android:name=".MainActivity" android:exported="false" />
     <activity android:name=".AudioTestActivity" android:exported="false" />
+    <activity android:name=".StoragePreferencesActivity" android:exported="false" />
     <service android:name=".TrackerService" android:exported="false" android:foregroundServiceType="location" />
     <activity android:name=".LaunchActivity" android:exported="true">
       <intent-filter>

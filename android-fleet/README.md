@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Diagnóstico de integração v0.7 (Dolphin Mini)
+# ANDREAO Fleet — Diagnóstico de integração v0.8 (Dolphin Mini)
 
 Aplicativo experimental **somente leitura, offline**, para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -63,3 +63,15 @@ O botão **EXECUTAR TODOS OS TESTES E SALVAR LOG** pede as permissões Android d
 - NÃO consulta CAN, nem configurações de veículo, e não usa shell, root ou bypass de permissões OEM. Compatibilidade dependente de software/características de cada BYD.
 - A câmera BYD original continua **não acessível pela API Camera2 no veículo testado**. Pesquisas externas sugerem serviço de sistema restrito; acesso a gravação contínua exige interface autorizada ou DVR dedicado. Nenhum modo de áudio oculto foi adicionado; áudio de teste exige aviso e autorização dos ocupantes.
 - **Relatório completo 1–8 não executa automaticamente o botão 15**, pois é uma consulta opcional ao provedor OEM. Se testar, use a exportação manual após o resultado aparecer.
+
+## v0.8 — teste de armazenamento e perfis ajustáveis
+
+O botão 17 CONFIGURAR ARMAZENAMENTO / USB / LIMITES permite modificar na multimídia:
+- mídia interna, removível ou automática; troca de mídia e retorno automático à interna como preferências;
+- limite de uso do disco (vazio = sem teto lógico), espaço mínimo livre, retenção circular e duração de segmentos;
+- resolução desejada, FPS, bitrate, qualidade de live, orçamento de uso de internet e alerta;
+- tensão mínima desejada para sentinela quando um sensor real de 12V existir.
+
+O botão VERIFICAR descobre pastas próprias do aplicativo em getFilesDir() e getExternalFilesDirs(), identifica removível via Environment.isExternalStorageRemovable, cria teste de escrita temporário pequeno e remove o teste. NÃO acessa conteúdo do Electro ou qualquer outro aplicativo. Um USB visível no gerenciador original pode NÃO aparecer gravável pelo Android; então verifique. Não há gravação de vídeos, microfone escondido ou transmissão nesta versão. Preferências locais não são prova de funcionamento. O futuro gravador deverá reavaliar os volumes antes de cada segmento, nunca preencher o disco e preservar incidentes de sobrescrita.
+
+O Android 10 pode permitir apenas pastas específicas por aplicativo; um seletor do Storage Access Framework (SAF) pode ser necessário para escolher outra pasta e depende do provedor da BYD. Não usar permissões de acesso irrestrito.

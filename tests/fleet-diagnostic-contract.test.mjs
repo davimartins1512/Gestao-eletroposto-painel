@@ -56,3 +56,22 @@ test('v0.7 mobile data counters are not a carrier quota claim',()=>{
   assert.match(launch,/16 · Uso de dados móveis/);
   assert.match(launch,/new Thread\(/);
 });
+
+test('v0.8 has editable media and removable storage options, and never invokes camera automatically',()=>{
+  const p=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/StoragePreferencesActivity.java');
+  const s=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/StoragePolicy.java');
+  const launch=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
+  const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
+  assert.match(launch,/17 · CONFIGURAR ARMAZENAMENTO/);
+  assert.match(manifest,/StoragePreferencesActivity/);
+  for(const k of ['storage_target','removable_autoswitch','fallback_internal','max_storage_gb',
+    'reserve_free_gb','retention_hours','segment_seconds','video_quality','fps',
+    'bitrate_mbps','live_quality','max_mobile_data_gb','mobile_data_alert_pct','parked_min_voltage_12v']){
+    assert.match(p,new RegExp(k));
+  }
+  assert.match(s,/getExternalFilesDirs/);
+  assert.match(s,/isExternalStorageRemovable/);
+  assert.match(s,/File\.createTempFile/);
+  assert.match(s,/getUsableSpace/);
+  assert.doesNotMatch(s,/android\.permission\.MANAGE_EXTERNAL_STORAGE|Runtime\.getRuntime|su -c|\.exec\(/);
+});
