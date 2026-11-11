@@ -42,6 +42,22 @@ public final class OemFrameProbeActivity extends Activity {
   private static final int MAX_PILOT_MS=15000;
   private static final int WATCHDOG_MS=45000;
   private final Handler main=new Handler(Looper.getMainLooper());
+  private volatile long startedElapsedMs=0;
+  private final Runnable sessionTicker=new Runnable(){
+    @Override public void run(){
+      if(!active.get()||completed.get())return;
+      long seconds=Math.max(0,(android.os.SystemClock.elapsedRealtime()-startedElapsedMs)/1000L);
+      int savedClips=clipSession==null?0:clipSession.completedFiles().size();
+      String indicator=(mode==2||mode==4||mode==6)
+        ?"🔴 GRAVANDO ÁUDIO E VÍDEO (OCUPANTES INFORMADOS)"
+        :"🔴 CAPTURA MANUAL DE VÍDEO";
+      show(indicator+"\nTempo decorrido: "+seconds+" s; quadros recebidos: "+
+        frames.get()+"; clipes finalizados: "+savedClips+
+        "\nCarro estacionado em P; não dirigir nem manobrar durante o ensaio."+
+        "\nUse INTERROMPER TESTE para encerrar.");
+      main.postDelayed(this,2000);
+    }
+  };
   private final AtomicBoolean active=new AtomicBoolean(false);
   private final AtomicBoolean abort=new AtomicBoolean(false);
   private final AtomicBoolean completed=new AtomicBoolean(false);
@@ -143,6 +159,7 @@ public final class OemFrameProbeActivity extends Activity {
   private void startProbe(){
     if(!active.compareAndSet(false,true))return;
     abort.set(false);completed.set(false);frames.set(0);validBytes.set(0);
+    startedElapsedMs=android.os.SystemClock.elapsedRealtime();
     firstFrameBytes=0;lastFrameBytes=0;sampleWidth=0;sampleHeight=0;sampleSize=0;
     sampleImage=null;mediaRecorder=null;clipSession=null;mediaSetupError="";
     startButton.setEnabled(false);videoButton.setEnabled(false);audioVideoButton.setEnabled(false);
@@ -160,6 +177,7 @@ public final class OemFrameProbeActivity extends Activity {
         android.os.Process.killProcess(android.os.Process.myPid());
       }
     },watchdog);
+    main.postDelayed(sessionTicker,2000);
     worker=new Thread(this::runProbe,"fleet-oem-single-camera-probe");
     worker.start();
   }
@@ -343,6 +361,7 @@ public final class OemFrameProbeActivity extends Activity {
       final String result=log.toString();
       completed.set(true);
       active.set(false);
+      main.removeCallbacks(sessionTicker);
       runOnUiThread(()->{
         currentReport=result;
         show(result);
@@ -359,6 +378,7 @@ public final class OemFrameProbeActivity extends Activity {
   }
   private void stop(){
     abort.set(true);
+    main.removeCallbacks(sessionTicker);
     if(mediaRecorder!=null)mediaRecorder.stop();
     if(clipSession!=null)clipSession.stop();
     Thread t=worker;
