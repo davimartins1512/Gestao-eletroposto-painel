@@ -64,7 +64,7 @@ public final class LaunchActivity extends Activity {
     box.setPadding(25,25,25,25);
     box.setBackgroundColor(0xfff6faf7);
     TextView title=new TextView(this);
-    title.setText("ANDREAO FLEET · CÂMERAS + ÁUDIO v0.9");
+    title.setText("ANDREAO FLEET · CÂMERAS + ÁUDIO v1.0");
     title.setTextColor(0xff137642);
     title.setTextSize(22);
     box.addView(title);
@@ -85,7 +85,7 @@ public final class LaunchActivity extends Activity {
     button(box,"16 · Uso de dados móveis (contadores Android)",this::readNetworkUsage);
     button(box,"17 · CONFIGURAR ARMAZENAMENTO / USB / LIMITES",this::openStoragePreferences);
     box.addView(label("FOCO CÂMERAS E ÁUDIO v0.9 · consulta local das interfaces BYD originais. Não abre câmeras nem interfere no Electro."));
-    button(box,"18 · VERIFICAR INTERFACE DAS CÂMERAS ORIGINAIS BYD",this::probeOemCameraCompatibility);
+    button(box,"18 · DIAGNOSTICAR CÂMERAS + bmmcamera.jar",this::probeOemCameraCompatibility);
 
     box.addView(label("NOVOS TESTES v0.6 · toque para começar e interromper. Não há rastreamento automático ou envio à internet."));
     button(box,"10 · INICIAR GPS + MOVIMENTO (até 3 minutos)",this::confirmStartTracking);
@@ -151,7 +151,7 @@ public final class LaunchActivity extends Activity {
   private void performAllChecks(){
     report.setLength(0);
     if(output!=null)output.setText("");
-    append("INÍCIO DO DIAGNÓSTICO","ANDREAO Fleet v0.9 · executado em "
+    append("INÍCIO DO DIAGNÓSTICO","ANDREAO Fleet v1.0 · executado em "
       +new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.US).format(new java.util.Date())
       +"\nSomente APIs públicas do Android; sem controle do veículo nem leitura CAN/OBD.");
     safeRun("Sistema",this::systemTest);

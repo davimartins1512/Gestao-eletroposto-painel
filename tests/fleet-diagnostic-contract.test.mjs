@@ -79,7 +79,7 @@ test('v0.8 has editable media and removable storage options, and never invokes c
 test('v0.9 checks only OEM camera compatibility; never opens a camera',()=>{
   const probe=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/BydCameraCompatibility.java');
   const launcher=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
-  assert.match(launcher,/18 · VERIFICAR INTERFACE DAS CÂMERAS ORIGINAIS BYD/);
+  assert.match(launcher,/18 · DIAGNOSTICAR CÂMERAS + bmmcamera.jar/);
   for(const marker of ['android.hardware.AVMCamera','android.hardware.BmmCameraInfo',
     'android.hardware.IBYDCameraService','bmmcamera.jar','getCameraId',
     'android.hardware.camera2.CameraManager']){
@@ -92,4 +92,13 @@ test('v0.9 checks only OEM camera compatibility; never opens a camera',()=>{
   assert.doesNotMatch(probe,/getRuntime\(\)|\.exec\(|System\.loadLibrary|dlopen/);
   assert.match(probe,/Nenhum vídeo ou áudio capturado/);
   assert.match(probe,/câmera de ré/);
+});
+
+test('v1.0 probes bmmcamera.jar using PathClassLoader in metadata-only mode',()=>{
+ const s=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/BydCameraCompatibility.java');
+ assert.match(s,/new dalvik\.system\.PathClassLoader\(/);
+ assert.match(s,/\/system\/framework\/bmmcamera\.jar/);
+ assert.match(s,/Class\.forName\(name,false,loader\)/);
+ assert.match(s,/appendJarDiscovery\(out,context\)/);
+ assert.doesNotMatch(s,/\.invoke\(|\.newInstance\(|\.exec\(|getRuntime\(\)|System\.loadLibrary/);
 });

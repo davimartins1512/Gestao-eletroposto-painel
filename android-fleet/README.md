@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Diagnóstico de integração v0.9 (Dolphin Mini)
+# ANDREAO Fleet — Diagnóstico de integração v1.0 (Dolphin Mini)
 
 Aplicativo experimental **somente leitura, offline**, para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -100,3 +100,19 @@ retorno após reboot, retenção circular e acesso ao vivo só poderão ser
 declarados operacionais depois de obtermos frames reais por fonte
 autorizada, sem interferir na câmera de ré e com ocupantes informados.
 Não existe modo de escuta oculta nem serviço remoto nesse APK.
+
+## v1.0 — investigação do bmmcamera.jar encontrado no Dolphin Mini
+
+Relatório real do Dolphin Mini confirmou:
+- `/system/framework/bmmcamera.jar` presente;
+- `android.hardware.IBYDCameraService` e `android.hardware.IBYDCameraUser` encontradas;
+- `android.hardware.AVMCamera` e `android.hardware.BmmCameraInfo` ausentes no classloader padrão;
+- API Camera2 = 0 câmeras.
+
+O botão 18 agora testa um `dalvik.system.PathClassLoader` separado
+para tentar descobrir as CLASSES e NOMES de métodos disponíveis no
+`bmmcamera.jar`, sem executar nenhum método OEM nem abrir câmera.
+Se o aparelho bloquear, o resultado será reportado como indisponível.
+Isso não é captura de vídeo, não altera o Electro e não equivale a acesso
+a streams de vídeo. Em caso de erro Java anterior, toque em
+"Ver erro de fechamento anterior" e preserve o relatório.
