@@ -116,7 +116,7 @@
           cell.innerHTML='<ul class="rental-message-log">'+(initial?'':messageHtml(invoice,esc,'Cobrança principal'))+
             a.map(x=>messageHtml(x,esc,x.kind==='reminder'?'Lembrete das 22h':'Cobrança principal')).join('')+'</ul>';
         }
-        note.textContent='Aceito pela Meta significa que a solicitação foi recebida. Entregue e Lido dependem do retorno do WhatsApp.';
+        note.textContent=(logs.history_complete===false?'Por enquanto, o histórico mostra o último envio de cada diária. ':'')+'Aceito pela Meta significa que a solicitação foi recebida. Entregue e Lido dependem do retorno do WhatsApp.';
       }catch{if(get('rentalDetailBody')===target)note.textContent='O histórico detalhado do WhatsApp ainda não está disponível. Veja o último estado da cobrança quando houver.';}
     }catch(e){if(get('rentalDetailBody')===target)target.textContent=e.message;}
   }
@@ -144,8 +144,8 @@
           <p>Uma mensagem extra no próprio dia, quando a cobrança principal foi aceita e a diária segue em aberto. Reutiliza o mesmo link. Diárias anteriores aparecem no alerta do painel.</p>
           <textarea readonly rows="4" aria-label="Texto do modelo de lembrete">${esc(data.reminder_template_body)}</textarea>
           <label for="rentalReminderTemplate">Nome do modelo de lembrete</label><input id="rentalReminderTemplate" value="${esc(data.settings.reminder_template_name||data.reminder_template_name)}">
-          <label class="bulk-confirm"><input type="checkbox" id="rentalReminderEnabled" ${data.settings.reminder_enabled?'checked':''}> Modelo aprovado na Meta; ativar lembrete das 22h.</label>
-          <button class="btn secondary" type="button" onclick="AndreaoRentals.saveReminder()">Salvar lembrete</button>`:''}
+          ${data.reminder_config_available===false?'<p class="msg warning">O lembrete ainda precisa ser liberado no banco de dados.</p>':`<label class="bulk-confirm"><input type="checkbox" id="rentalReminderEnabled" ${data.settings.reminder_enabled?'checked':''}> Programar lembrete das 22h. O envio começa quando a Meta liberar o modelo.</label>
+          <button class="btn secondary" type="button" onclick="AndreaoRentals.saveReminder()">Salvar lembrete</button>`}`:''}
         <h3>Motoristas e horários</h3><p>Cadastre os carros em <b>Motoristas</b> e ative a cobrança de cada locação. Pausar o motorista interrompe os próximos envios.</p>
         <div class="table-wrap"><table><tr><th>Motorista</th><th>Placa</th><th>Diária</th><th>Automação</th><th></th></tr>${o.drivers().map(d=>`<tr><td>${esc(d.name)}</td><td>${esc(d.plate)}</td><td>${o.money(d.daily_value)}</td><td>${d.auto_billing_enabled?'Ativa · '+String(d.billing_hour).padStart(2,'0')+':00':'Desativada'}</td><td><button class="btn secondary small" onclick="AndreaoRentals.configure('${esc(d.id)}')">Configurar</button></td></tr>`).join('')||'<tr><td colspan="5">Cadastre seu primeiro motorista para começar.</td></tr>'}</table></div>
         <h3>Cobranças geradas</h3><p class="tiny">Últimas 1.000 cobranças. “Aceito pela Meta” não confirma a entrega. Respostas incertas exigem conferência para evitar duplicação.</p>
