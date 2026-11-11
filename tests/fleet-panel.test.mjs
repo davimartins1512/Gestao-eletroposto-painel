@@ -25,3 +25,18 @@ test('telemetry is separated from manual fleet events',()=>{
   assert.match(script,/fleet_entries/);
   assert.doesNotMatch(script,/from\('fleet_telemetry'\)\.insert/);
 });
+test('fleet feature toggles are per vehicle, do not actuate devices or fake live features',()=>{
+  const script=read('fleet.js');
+  const html=read('fleet.html');
+  assert.match(script,/fleet_feature_settings/);
+  assert.match(script,/fleet_feature_status/);
+  assert.match(script,/fleet_recording_state/);
+  assert.match(script,/fleet_charge_locations/);
+  assert.match(script,/desired_enabled:enabled/);
+  assert.match(script,/Não faz o veículo gravar/);
+  assert.match(script,/code==='cabin_microphone'/);
+  assert.match(script,/location_source:'manual', verification_status:'unverified'/);
+  assert.match(script,/data-action="add-charge"/);
+  assert.doesNotMatch(script,/from\('fleet_feature_status'\)\.upsert/);
+  assert.doesNotMatch(script,/from\('fleet_recording_state'\)\.upsert/);
+});
