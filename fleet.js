@@ -258,7 +258,7 @@
   const mediaDefaults=Object.freeze({
     storage_target:'auto',removable_autoswitch:true,fallback_internal:true,
     max_storage_gb:null,reserve_free_gb:2,retention_hours:24,
-    segment_seconds:60,video_quality:'auto',fps:20,bitrate_mbps:4,
+    segment_seconds:90,video_quality:'auto',fps:20,bitrate_mbps:4,
     live_quality:'auto',max_mobile_data_gb:null,mobile_data_alert_pct:80,
     parked_min_voltage_12v:12.2
   });
@@ -286,7 +286,7 @@
       mediaNumber('max_storage_gb','Limite de espaço para vídeos (GB)',p.max_storage_gb,0.5,8192,0.5,'Deixar vazio = sem teto lógico; a capacidade física continua limitada')+
       mediaNumber('reserve_free_gb','Espaço mínimo livre (GB)',p.reserve_free_gb,0.25,1024,0.25,'Protege a multimídia de ficar com o disco cheio')+
       mediaNumber('retention_hours','Tempo de gravação circular (horas)',p.retention_hours,1,720,1,'Padrão 24h, ajustável por veículo')+
-      mediaNumber('segment_seconds','Duração dos segmentos (segundos)',p.segment_seconds,10,600,10)+
+      mediaNumber('segment_seconds','Duração dos clipes MP4 (segundos; 90 = 1min30)',p.segment_seconds,10,600,10)+
       '<label class="media-field"><span>Qualidade local</span><select name="video_quality">'+
       mediaOption('auto','Automática',p.video_quality)+mediaOption('720p','720p',p.video_quality)+
       mediaOption('1080p','1080p',p.video_quality)+mediaOption('oem','Qualidade original da fonte',p.video_quality)+'</select></label>'+
