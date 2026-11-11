@@ -102,3 +102,17 @@ test('v1.0 probes bmmcamera.jar using PathClassLoader in metadata-only mode',()=
  assert.match(s,/appendJarDiscovery\(out,context\)/);
  assert.doesNotMatch(s,/\.invoke\(|\.newInstance\(|\.exec\(|getRuntime\(\)|System\.loadLibrary/);
 });
+
+test('v1.1 actively resolves only BYD camera IDs and callback signatures without opening the camera',()=>{
+ const s=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/BydCameraIdProbe.java');
+ const ui=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
+ assert.match(s,/PathClassLoader/);
+ assert.match(s,/getDeclaredMethod\("getCameraId",String\.class\)/);
+ assert.match(s,/lookup\.invoke\(null,tag\)/);
+ assert.match(s,/Modifier\.isStatic/);
+ assert.match(s,/"pano_h","pano_l","apa","byd_apa"/);
+ assert.match(s,/IPreviewCallback/);
+ assert.match(ui,/19 · IDENTIFICAR CÂMERAS BYD/);
+ assert.doesNotMatch(s,/(?:newInstance|openCamera|startPreview|stopPreview)\s*\(/);
+ assert.doesNotMatch(s,/\.getRuntime\(\)|\.exec\(|\.loadLibrary\(/);
+});
