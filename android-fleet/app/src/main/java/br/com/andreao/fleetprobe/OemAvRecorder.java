@@ -55,7 +55,7 @@ public final class OemAvRecorder implements AutoCloseable {
   private volatile boolean muxStarted=false;
   private volatile long baseNanos;
   private int vTrack=-1,aTrack=-1;
-  private int targetW,targetH,sourceW,sourceH;
+  private int targetW,targetH,sourceW,sourceH,chosenColorFormat;
   private final int desiredFps,bitrate;
   private MediaCodec videoEncoder,audioEncoder;
   private MediaMuxer muxer;
@@ -126,8 +126,10 @@ public final class OemAvRecorder implements AutoCloseable {
     MediaCodecInfo.CodecCapabilities caps=codec.getCodecInfo().getCapabilitiesForType(V_MIME);
     for(int c:caps.colorFormats)
       if(c==MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420SemiPlanar)return c;
-    // Not safe to send NV12 bytes to unknown flexible/native planar layouts.
-    throw new IllegalStateException("Encoder não suporta entrada YUV420SemiPlanar; não gravar arquivo corrompido");
+    for(int c:caps.colorFormats)
+      if(c==MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar)return c;
+    // Flexible input needs an Image/planes writer with verified pixel stride.
+    throw new IllegalStateException("Codec sem YUV420SP/NV12 ou YUV420Planar/I420; encoder compatível necessário");
   }
 
   private void prepare(Frame first) throws Exception {
@@ -139,7 +141,8 @@ public final class OemAvRecorder implements AutoCloseable {
     if(partial.exists())throw new IllegalStateException("Nome temporário em uso");
     videoEncoder=MediaCodec.createEncoderByType(V_MIME);
     MediaFormat video=MediaFormat.createVideoFormat(V_MIME,targetW,targetH);
-    video.setInteger(MediaFormat.KEY_COLOR_FORMAT,supportedColor(videoEncoder));
+    chosenColorFormat=supportedColor(videoEncoder);
+    video.setInteger(MediaFormat.KEY_COLOR_FORMAT,chosenColorFormat);
     video.setInteger(MediaFormat.KEY_BIT_RATE,bitrate);
     video.setInteger(MediaFormat.KEY_FRAME_RATE,desiredFps);
     video.setInteger(MediaFormat.KEY_I_FRAME_INTERVAL,1);
@@ -197,6 +200,30 @@ public final class OemAvRecorder implements AutoCloseable {
     }
   }
 
+  private void scaleNv21ToI420(ByteBuffer target,byte[] source,int w,int h){
+    int ySize=sourceW*sourceH;
+    int cw=w/2,ch=h/2;
+    int expected=w*h*3/2;
+    byte[] planar=new byte[expected];
+    for(int y=0;y<h;y++){
+      int sy=Math.min(sourceH-1,y*sourceH/h);
+      int row=sy*sourceW;
+      for(int x=0;x<w;x++)
+        planar[y*w+x]=source[row+Math.min(sourceW-1,x*sourceW/w)];
+    }
+    int uBase=w*h,vBase=uBase+cw*ch;
+    for(int y=0;y<ch;y++){
+      int sy=Math.min(sourceH/2-1,y*(sourceH/2)/ch);
+      for(int x=0;x<cw;x++){
+        int sx=Math.min(sourceW/2-1,x*(sourceW/2)/cw);
+        int sourceIndex=ySize+sy*sourceW+sx*2;
+        planar[uBase+y*cw+x]=source[sourceIndex+1];
+        planar[vBase+y*cw+x]=source[sourceIndex];
+      }
+    }
+    target.put(planar);
+  }
+
   private void submitVideo(Frame frame){
     if(frame.width!=sourceW||frame.height!=sourceH){
       dropped.incrementAndGet();return;
@@ -208,7 +235,9 @@ public final class OemAvRecorder implements AutoCloseable {
     if(input==null||input.capacity()<required)
       throw new IllegalStateException("Input buffer H264 insuficiente");
     input.clear();
-    scaleNv21ToNv12(input,frame.data,targetW,targetH);
+    if(chosenColorFormat==MediaCodecInfo.CodecCapabilities.COLOR_FormatYUV420Planar)
+      scaleNv21ToI420(input,frame.data,targetW,targetH);
+    else scaleNv21ToNv12(input,frame.data,targetW,targetH);
     long p=Math.max(0,(frame.nanos-baseNanos)/1000L);
     videoEncoder.queueInputBuffer(id,0,required,p,0);
     encoded.incrementAndGet();
@@ -333,7 +362,7 @@ public final class OemAvRecorder implements AutoCloseable {
       "Quadros entregues ao codificador: "+encoded.get()+"\n"+
       "Quadros oferecidos: "+captured.get()+"; descartados: "+dropped.get()+"\n"+
       "Amostras de áudio AAC: "+audioChunks.get()+"\n"+
-      "Dimensões de saída: "+targetW+"x"+targetH+" @"+desiredFps+" FPS\n"+
+      "Dimensões de saída: "+targetW+"x"+targetH+" @"+desiredFps+" FPS, formato YUV="+chosenColorFormat+"\n"+
       "Situação: "+(error.isEmpty()?(finished?"Concluído":"Em andamento"):error)+
       "\nArquivo final só é confirmado se o muxer finalizar e o .mp4 for renomeado.";
   }
