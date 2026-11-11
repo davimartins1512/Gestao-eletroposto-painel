@@ -40,3 +40,10 @@ test('fleet feature toggles are per vehicle, do not actuate devices or fake live
   assert.doesNotMatch(script,/from\('fleet_feature_status'\)\.upsert/);
   assert.doesNotMatch(script,/from\('fleet_recording_state'\)\.upsert/);
 });
+
+test('configurable clips default to 90 seconds per vehicle',()=>{
+ const source=read('fleet.js');
+ assert.match(source,/segment_seconds:90/);
+ assert.match(source,/Duração dos clipes MP4/);
+ assert.match(source,/p\.segment_seconds/);
+});
