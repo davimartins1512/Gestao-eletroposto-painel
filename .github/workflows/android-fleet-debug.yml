@@ -50,7 +50,7 @@ jobs:
           sha256sum apk-downloads/ANDREAO_Fleet_v0.8.apk
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add apk-downloads/ANDREAO_Fleet_v0.6.apk
+          git add apk-downloads/ANDREAO_Fleet_v0.8.apk
           if git diff --cached --quiet; then echo "APK already up to date"; else
             git commit -m 'build(fleet): add v0.8 direct APK download [skip ci]'
             git push origin HEAD:refs/heads/feature/andreao-fleet-foundation-20261111
