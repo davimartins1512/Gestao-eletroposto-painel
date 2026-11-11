@@ -189,6 +189,7 @@ public final class OemFrameProbeActivity extends Activity {
     log.append(mode==0?"Somente contagem de frames, sem foto ou áudio.\n":
       "Piloto foto JPEG + MP4, armazenamento local e limites configuráveis.\n");
     log.append("Áudio solicitado: ").append(mode==2||mode==4||mode==6).append("; sem upload/rede.\n");
+    try{
     if(mode>0){
       SharedPreferences p=getSharedPreferences(StoragePolicy.PREFS,MODE_PRIVATE);
       StoragePolicy.Candidate target=StoragePolicy.select(this,p);
@@ -210,7 +211,6 @@ public final class OemFrameProbeActivity extends Activity {
         }
       }
     }
-    try{
       File jar=new File("/system/framework/bmmcamera.jar");
       if(!jar.isFile())throw new IllegalStateException("bmmcamera.jar não está visível");
       ClassLoader loader=new PathClassLoader(jar.getAbsolutePath(),getClassLoader());
