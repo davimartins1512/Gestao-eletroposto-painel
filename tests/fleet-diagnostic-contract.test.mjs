@@ -183,7 +183,7 @@ test('v1.4 manual clip coordinator preserves camera session and records rotation
   assert.match(c,/callbackGaps\.incrementAndGet\(\)/);
   assert.match(c,/Clipes contínuos/);
   assert.match(c,/Lacuna|lacuna/);
-  assert.match(a,/clipSession\.accept\(/);
+  assert.match(a,/session\.accept\(data,width,height,bufferSize,nowNs\)/);
   assert.match(a,/clipSession\.stopAndWait\(/);
   assert.match(a,/setItems\(choices/);
   assert.match(a,/TESTAR CLIPES SEQUENCIAIS/);
