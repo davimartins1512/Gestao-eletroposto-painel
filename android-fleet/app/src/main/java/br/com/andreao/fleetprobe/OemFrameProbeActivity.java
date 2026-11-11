@@ -4,6 +4,9 @@ import android.Manifest;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.SharedPreferences;
+import android.widget.CheckBox;
+import java.util.Arrays;
 import android.content.pm.PackageManager;
 import android.os.Bundle;
 import android.os.Handler;
@@ -36,7 +39,8 @@ public final class OemFrameProbeActivity extends Activity {
   public static final String EXTRA_REPORT="oem_frame_probe_report";
   private static final int CAMERA_PERMISSION=77;
   private static final int MAX_PREVIEW_MS=3500;
-  private static final int WATCHDOG_MS=15000;
+  private static final int MAX_PILOT_MS=15000;
+  private static final int WATCHDOG_MS=45000;
   private final Handler main=new Handler(Looper.getMainLooper());
   private final AtomicBoolean active=new AtomicBoolean(false);
   private final AtomicBoolean abort=new AtomicBoolean(false);
@@ -47,7 +51,12 @@ public final class OemFrameProbeActivity extends Activity {
   private volatile int lastFrameBytes=0;
   private volatile Thread worker;
   private TextView output;
-  private Button startButton,finishButton,stopButton;
+  private Button startButton,videoButton,audioVideoButton,finishButton,stopButton;
+  private volatile int mode=0; // 0=count only, 1=snapshot+MP4, 2=snapshot+MP4+opt-in microphone
+  private volatile int sampleWidth=0,sampleHeight=0,sampleSize=0;
+  private volatile byte[] sampleImage;
+  private volatile OemAvRecorder mediaRecorder;
+  private volatile String mediaSetupError="";
   private String currentReport="Nenhum teste iniciado.";
 
   @Override public void onCreate(Bundle bundle) {
@@ -61,15 +70,16 @@ public final class OemFrameProbeActivity extends Activity {
     heading.setTextSize(22);
     box.addView(heading);
     TextView notice=new TextView(this);
-    notice.setText("EXPERIMENTAL. Somente com carro ESTACIONADO em P e freio acionado, sem manobras. "
-      +"O teste acessa a câmera panorâmica de ID 0 por até 3,5 segundos; pode disputar acesso com "
-      +"a câmera 360° e o Electro. NÃO dirigir ou engatar marcha durante o teste. "
-      +"Não registra imagem nem áudio; apenas conta quadros recebidos. "
-      +"Se uma câmera original deixar de funcionar corretamente, interrompa o teste imediatamente "
-      +"e não dependa deste APK para manobrar. Resultado ainda não aprovado para uso operacional.");
+    notice.setText("TESTE CONTROLADO · Somente carro parado em P e freio acionado, sem dirigir/manobrar. "
+      +"A câmera panorâmica OEM é compartilhada com sistemas BYD e Electro; interrompa ao menor sinal de conflito. "
+      +"O modo de foto/MP4 grava até 15 segundos na memória interna ou USB permitida pelo Android. "
+      +"ÁUDIO É OPCIONAL E PRECISA SER COMUNICADO A TODOS OS OCUPANTES; QUANDO LIGADO, O APP EXIBE GRAVANDO ÁUDIO. "
+      +"Nenhum teste inicia automaticamente. Não há transmissão ou captação em segundo plano.");
     notice.setPadding(0,14,0,20);
     box.addView(notice);
-    startButton=button(box,"INICIAR ENSAIO DE FRAMES · P / FREIO CONFIRMADOS",()->confirm());
+    startButton=button(box,"TESTE 3,5s · APENAS CONTAR FRAMES",()->confirm(0));
+    videoButton=button(box,"PILOTO 15s · FOTO + VÍDEO MP4 (SEM ÁUDIO)",()->confirm(1));
+    audioVideoButton=button(box,"PILOTO 15s · FOTO + VÍDEO MP4 + ÁUDIO (AVISO AOS OCUPANTES)",()->confirm(2));
     stopButton=button(box,"INTERROMPER TESTE",()->stop());
     stopButton.setEnabled(false);
     finishButton=button(box,"VOLTAR E ADICIONAR RESULTADO AO TXT",()->finishWithResult());
@@ -89,20 +99,24 @@ public final class OemFrameProbeActivity extends Activity {
     root.addView(b);
     return b;
   }
-  private void confirm(){
+  private void confirm(int selectedMode){
     if(active.get())return;
-    new AlertDialog.Builder(this).setTitle("Confirmar teste controlado na BYD")
-      .setMessage("Você confirma que o Dolphin Mini está parado em P, com freio de estacionamento, "
-       +"que não vai dirigir nem manobrar e que pode interromper imediatamente caso note qualquer "
-       +"interferência nas câmeras originais? Este teste abre temporariamente a câmera de ID 0; "
-       +"não grava imagens nem áudio.")
+    mode=selectedMode;
+    String audio=selectedMode==2?"O AUDIO DA CABINE SERA GRAVADO NESTE MP4. Confirme que informou TODOS os ocupantes e obteve as autorizações necessárias. A captura será identificada na tela. ":"";
+    String video=selectedMode==0?"Só conta frames, sem salvar foto ou áudio. ":"Grava um JPEG e MP4 de teste local por até 15 segundos. ";
+    new AlertDialog.Builder(this).setTitle("Confirmar gravação de teste na BYD")
+      .setMessage(audio+video+"Você confirma carro completamente parado em P, freio acionado, "
+        +"sem direção/manobra durante o teste, e interrupção imediata se as câmeras originais ficarem instáveis?")
       .setNegativeButton("Cancelar",null)
-      .setPositiveButton("Confirmo: iniciar teste", (d,which)->prepare())
+      .setPositiveButton("Confirmo: iniciar", (d,which)->prepare())
       .show();
   }
   private void prepare(){
-    if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){
-      requestPermissions(new String[]{Manifest.permission.CAMERA},CAMERA_PERMISSION);
+    boolean cam=checkSelfPermission(Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED;
+    boolean mic=mode!=2 || checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED;
+    if(!cam||!mic){
+      if(mode==2)requestPermissions(new String[]{Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO},CAMERA_PERMISSION);
+      else requestPermissions(new String[]{Manifest.permission.CAMERA},CAMERA_PERMISSION);
       return;
     }
     startProbe();
@@ -110,20 +124,21 @@ public final class OemFrameProbeActivity extends Activity {
   @Override public void onRequestPermissionsResult(int request,String[] perms,int[] results){
     super.onRequestPermissionsResult(request,perms,results);
     if(request!=CAMERA_PERMISSION)return;
-    if(results.length==0||results[0]!=PackageManager.PERMISSION_GRANTED){
-      show("Permissão CAMERA negada. Nada foi aberto.");
-      return;
-    }
+    if(results.length==0){show("Permissões não retornaram. Teste cancelado.");return;}
+    for(int code:results){if(code!=PackageManager.PERMISSION_GRANTED){
+      show("Permissão de câmera ou microfone negada; teste cancelado.");return;
+    }}
     startProbe();
   }
   private void startProbe(){
     if(!active.compareAndSet(false,true))return;
     abort.set(false);completed.set(false);frames.set(0);validBytes.set(0);
-    firstFrameBytes=0;lastFrameBytes=0;
-    startButton.setEnabled(false);
-    stopButton.setEnabled(true);
-    finishButton.setEnabled(false);
-    show("Iniciando teste manual em processo separado. O watchdog encerra este processo após 15 s se houver travamento.");
+    firstFrameBytes=0;lastFrameBytes=0;sampleWidth=0;sampleHeight=0;sampleSize=0;
+    sampleImage=null;mediaRecorder=null;mediaSetupError="";
+    startButton.setEnabled(false);videoButton.setEnabled(false);audioVideoButton.setEnabled(false);
+    stopButton.setEnabled(true);finishButton.setEnabled(false);
+    show((mode==2?"🔴 GRAVANDO ÁUDIO E VÍDEO · OCUPANTES INFORMADOS\n":"")+
+      "Ensaio manual em processo separado. Watchdog interrompe a sessão após 45s se travar.");
     main.postDelayed(()->{
       if(active.get() && !completed.get()){
         abort.set(true);
@@ -147,7 +162,23 @@ public final class OemFrameProbeActivity extends Activity {
     boolean cameraOpened=false,previewStarted=false,started=false;
     StringBuilder log=new StringBuilder("TESTE OEM DE FRAMES / ID 0 (pano_h)\n");
     log.append("Solicitado manualmente, somente carro parado P e freio.\n");
-    log.append("Sem captura de som, sem exportar imagem, sem rede, sem armazenamento de vídeo.\n");
+    log.append(mode==0?"Somente contagem de frames, sem foto ou áudio.\n":
+      "Piloto foto JPEG + MP4, armazenamento local e limites configuráveis.\n");
+    log.append("Áudio solicitado: ").append(mode==2).append("; sem upload/rede.\n");
+    if(mode>0){
+      SharedPreferences p=getSharedPreferences(StoragePolicy.PREFS,MODE_PRIVATE);
+      StoragePolicy.Candidate target=StoragePolicy.select(this,p);
+      if(target==null){
+        mediaSetupError="Armazenamento não gravável ou reserva de espaço insuficiente. Ajuste opções no botão 17.";
+        log.append(mediaSetupError).append("\n");
+        abort.set(true);
+      }else{
+        log.append("Destino de gravação: ").append(target.folder.getAbsolutePath()).append("\n");
+        log.append(OemMediaRetention.clean(this,p,target.folder)).append("\n");
+        mediaRecorder=new OemAvRecorder(this,p,target.folder,mode==2);
+        mediaRecorder.start();
+      }
+    }
     try{
       File jar=new File("/system/framework/bmmcamera.jar");
       if(!jar.isFile())throw new IllegalStateException("bmmcamera.jar não está visível");
@@ -181,12 +212,26 @@ public final class OemFrameProbeActivity extends Activity {
         new Class<?>[]{callback},(object,method,args)->{
           if("onPreview".equals(method.getName())){
             int count=frames.incrementAndGet();
-            if(args!=null && args.length>=2 && args[1] instanceof byte[]){
-              int bytes=((byte[])args[1]).length;
+            if(args!=null && args.length>=6 && args[1] instanceof byte[]){
+              byte[] data=(byte[])args[1];
+              int bytes=data.length;
               if(bytes>0){
-                validBytes.incrementAndGet();
-                lastFrameBytes=bytes;
+                validBytes.incrementAndGet();lastFrameBytes=bytes;
                 if(count==1)firstFrameBytes=bytes;
+              }
+              if(mode>0 && !abort.get()){
+                int width=args[2] instanceof Integer?(Integer)args[2]:0;
+                int height=args[3] instanceof Integer?(Integer)args[3]:0;
+                int bufferSize=args[5] instanceof Integer?(Integer)args[5]:bytes;
+                int expected=OemSnapshotWriter.expectedNv21Bytes(width,height);
+                if(expected>0 && bytes>=expected && bufferSize>=expected){
+                  if(sampleImage==null){
+                    sampleImage=Arrays.copyOf(data,expected);
+                    sampleWidth=width;sampleHeight=height;sampleSize=bufferSize;
+                  }
+                  OemAvRecorder r=mediaRecorder;
+                  if(r!=null)r.accept(data,width,height,bufferSize,System.nanoTime());
+                }
               }
             }
             return null;
@@ -216,7 +261,7 @@ public final class OemFrameProbeActivity extends Activity {
       log.append("enablePreviewCallback(0): ").append(enabled).append('\n');
       if(Boolean.FALSE.equals(enabled))log.append("AVISO: porta 0 recusada. Não testar outros IDs automaticamente.\n");
 
-      long end=android.os.SystemClock.elapsedRealtime()+MAX_PREVIEW_MS;
+      long end=android.os.SystemClock.elapsedRealtime()+(mode==0?MAX_PREVIEW_MS:MAX_PILOT_MS);
       while(!abort.get() && android.os.SystemClock.elapsedRealtime()<end){
         Thread.sleep(100);
       }
@@ -235,12 +280,26 @@ public final class OemFrameProbeActivity extends Activity {
           catch(Throwable e){log.append("close: "+rootCause(e)+'\n');}
         }
       }
+      if(mediaRecorder!=null){
+        mediaRecorder.stop();
+        try{mediaRecorder.join(6500);}catch(InterruptedException ex){Thread.currentThread().interrupt();}
+        log.append("\nRESULTADO ENCODIFICADOR\n").append(mediaRecorder.report()).append("\n");
+        if(!mediaRecorder.finished())log.append("AVISO: finalização pendente; arquivo não verificado.\n");
+      }
+      if(mode>0){
+        if(sampleImage!=null){
+          OemSnapshotWriter.Result jpg=OemSnapshotWriter.save(this,sampleImage,sampleWidth,sampleHeight,sampleSize);
+          log.append("\nJPEG: ").append(jpg.message).append("\n");
+        }else log.append("\nJPEG: nenhum buffer compatível para salvar.\n");
+        if(!mediaSetupError.isEmpty())log.append("Falha de armazenamento: ").append(mediaSetupError).append("\n");
+      }
       log.append("Callbacks recebidos: ").append(frames.get()).append('\n');
       log.append("Callbacks com bytes: ").append(validBytes.get()).append('\n');
       log.append("Primeiro buffer (bytes): ").append(firstFrameBytes).append('\n');
       log.append("Último buffer (bytes): ").append(lastFrameBytes).append('\n');
       log.append("Interrupção manual: ").append(abort.get()).append('\n');
-      log.append("Nenhum quadro de imagem foi salvo ou transmitido.\n");
+      log.append(mode==0?"Nenhum quadro de imagem foi salvo ou transmitido.\n":
+        "Foto/MP4 de ensaio local: verificar arquivos e conteúdo; nenhum dado transmitido.\n");
       log.append("Receber frames não comprova gravação contínua nem coexistência segura com câmera de ré.");
       final String result=log.toString();
       completed.set(true);
@@ -248,7 +307,7 @@ public final class OemFrameProbeActivity extends Activity {
       runOnUiThread(()->{
         currentReport=result;
         show(result);
-        startButton.setEnabled(true);
+        startButton.setEnabled(true);videoButton.setEnabled(true);audioVideoButton.setEnabled(true);
         stopButton.setEnabled(false);
         finishButton.setEnabled(true);
       });
@@ -256,6 +315,7 @@ public final class OemFrameProbeActivity extends Activity {
   }
   private void stop(){
     abort.set(true);
+    if(mediaRecorder!=null)mediaRecorder.stop();
     Thread t=worker;
     if(t!=null)t.interrupt();
     show("Interrupção solicitada. Esperando fechar a câmera; watchdog ativo.");
@@ -272,6 +332,7 @@ public final class OemFrameProbeActivity extends Activity {
   }
   @Override protected void onDestroy(){
     abort.set(true);
+    if(mediaRecorder!=null)mediaRecorder.stop();
     Thread t=worker;
     if(t!=null)t.interrupt();
     super.onDestroy();
