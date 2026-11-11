@@ -23,6 +23,9 @@ public final class OemClipSession {
   private final Context context;
   private final SharedPreferences prefs;
   private final File directory;
+  private volatile File activeDirectory;
+  private final AtomicInteger storageChanges=new AtomicInteger(0);
+  private volatile String storageNote="";
   private final boolean audio;
   private final int clipSeconds;
   private final AtomicBoolean running=new AtomicBoolean(false);
@@ -42,6 +45,7 @@ public final class OemClipSession {
     this.context=context.getApplicationContext();
     this.prefs=prefs;
     this.directory=directory;
+    this.activeDirectory=directory;
     this.audio=audio;
     int selected=(int)prefs.getFloat("segment_seconds",90f);
     this.clipSeconds=Math.max(10,Math.min(600,selected));
@@ -63,7 +67,18 @@ public final class OemClipSession {
     coordinator.start();
   }
   private OemAvRecorder createRecorder(){
-    return new OemAvRecorder(context,prefs,directory,audio);
+    StoragePolicy.Candidate selected=StoragePolicy.select(context,prefs);
+    if(selected==null||!selected.writable()||!OemMediaRetention.enoughSpace(selected.folder,prefs))
+      throw new IllegalStateException("Sem armazenamento gravável com reserva livre; sessão encerrada e falha registrada");
+    File chosen=selected.folder;
+    if(!chosen.equals(activeDirectory)){
+      storageChanges.incrementAndGet();
+      storageNote="Mudança de destino entre clipes: "+activeDirectory.getAbsolutePath()+
+        " -> "+chosen.getAbsolutePath()+
+        ". Intervalo potencial na transição; verificar arquivos e mídia física.";
+      activeDirectory=chosen;
+    }
+    return new OemAvRecorder(context,prefs,chosen,audio);
   }
   public void accept(byte[] buffer,int width,int height,int size,long nanos){
     if(!running.get())return;
@@ -174,6 +189,8 @@ public final class OemClipSession {
     result.append("Rotação de arquivo, sem fechar câmera: ").append(rotations.get()).append(" vezes\n");
     result.append("Intervalos entre callbacks >500ms: ").append(callbackGaps.get()).append('\n');
     result.append("Callbacks sem gravador durante troca: ").append(lostWhileSwitch).append('\n');
+    result.append("Mudanças de armazenamento: ").append(storageChanges.get()).append('\n');
+    if(!storageNote.isEmpty())result.append(storageNote).append('\n');
     if(audio){
       result.append("Trocas com reinicialização de áudio: ").append(audioSwitches).append('\n');
       result.append("ATENÇÃO: lacuna de áudio na troca ainda não eliminada.\n");
