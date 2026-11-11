@@ -138,3 +138,8 @@ td b,td strong{font-weight:600;color:#38513b}tr:last-child td{border-bottom:0}tr
 
 
 .bulk-confirm{display:flex;align-items:center;gap:10px;margin:18px 0;line-height:1.5}.bulk-confirm input[type=checkbox],[data-bulk-charge],#bulkChargeAll{width:18px;min-width:18px;height:18px;min-height:18px;padding:0;flex:none}.bulk-toolbar{margin-top:14px}.bulk-toolbar>span{flex:1;font-size:12px}#bulkChargeError,#rentalBillingError{color:#b42318;font-size:12px;line-height:1.6}
+
+.rental-arrears{display:flex;align-items:center;justify-content:space-between;gap:.7rem;flex-wrap:wrap;border:1px solid var(--line,#334155);border-radius:10px;padding:.65rem .8rem;margin:0 0 .85rem}
+.rental-arrears-open{border-color:#d9a441;background:rgba(217,164,65,.12)}
+.rental-message-log{margin:0;padding-left:1.1rem;min-width:12rem;overflow-wrap:anywhere}
+.rental-message-log li+li{margin-top:.4rem}
