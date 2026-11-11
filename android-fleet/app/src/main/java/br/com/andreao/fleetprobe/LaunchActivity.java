@@ -5,6 +5,7 @@ import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.ClipData;
 import android.content.ClipboardManager;
+import android.content.ContentValues;
 import android.content.Context;
 import android.content.Intent;
 import android.content.IntentFilter;
@@ -27,6 +28,7 @@ import android.os.Build;
 import android.os.Bundle;
 import android.os.Environment;
 import android.os.SystemClock;
+import android.provider.MediaStore;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
@@ -58,7 +60,7 @@ public final class LaunchActivity extends Activity {
     box.setPadding(25,25,25,25);
     box.setBackgroundColor(0xfff6faf7);
     TextView title=new TextView(this);
-    title.setText("ANDREAO FLEET · DIAGNÓSTICO v0.3");
+    title.setText("ANDREAO FLEET · DIAGNÓSTICO v0.4");
     title.setTextColor(0xff137642);
     title.setTextSize(22);
     box.addView(title);
@@ -75,6 +77,7 @@ public final class LaunchActivity extends Activity {
     button(box,"9 · Testar câmera + gravação manual (opcional)",this::openCameraTool);
     button(box,"Ver erro de fechamento anterior",this::showPreviousCrash);
     button(box,"Copiar relatório",this::copyReport);
+    button(box,"Exibir resumo curto",this::showCompactSummary);
     button(box,"Salvar relatório em arquivo TXT",this::exportReport);
     output=label("Pronto para testar. Comece pelos itens 1 a 8.\nAs câmeras proprietárias do BYD podem não aparecer no Android.");
     output.setTextIsSelectable(true);
@@ -248,14 +251,77 @@ public final class LaunchActivity extends Activity {
       if(clipboard!=null)clipboard.setPrimaryClip(ClipData.newPlainText("ANDREAO Fleet diagnóstico",report.toString()));
     }catch(Throwable e){append("COPIAR","Falha: "+safeError(e));}
   }
+  private void showCompactSummary(){
+    String[] sections={"SISTEMA","BATERIA ANDROID","SENSORES","CÂMERAS","GPS","MICROFONE","REDE E ARMAZENAMENTO","VEÍCULO BYD"};
+    StringBuilder b=new StringBuilder("Resumo dos testes executados:\n\n");
+    String text=report.toString();
+    for(String section:sections){
+      String marker="━━ "+section+" ━━";
+      int at=text.lastIndexOf(marker);
+      if(at<0){b.append(section).append(": não executado\n");continue;}
+      int start=text.indexOf('\n',at+marker.length());
+      if(start<0){b.append(section).append(": executado\n");continue;}
+      int next=text.indexOf('\n',start+1);
+      if(next<0)next=text.length();
+      String line=text.substring(start+1,next).trim();
+      b.append(section).append(": ").append(line.length()>110?line.substring(0,110)+"…":line).append("\n");
+    }
+    new AlertDialog.Builder(this).setTitle("Resumo ANDREAO Fleet v0.4")
+      .setMessage(b.toString()).setPositiveButton("Fechar",null).show();
+  }
   private void exportReport(){
-    try{
-      Intent intent=new Intent(Intent.ACTION_CREATE_DOCUMENT);
-      intent.addCategory(Intent.CATEGORY_OPENABLE);
-      intent.setType("text/plain");
-      intent.putExtra(Intent.EXTRA_TITLE,"andreao_fleet_diagnostico_v03.txt");
-      startActivityForResult(intent,SAVE_REPORT);
-    }catch(Throwable e){append("EXPORTAÇÃO","Seletor de arquivos indisponível: "+safeError(e));}
+    String filename="andreao_fleet_diagnostico_v04_"
+      +new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new java.util.Date())+".txt";
+    byte[] bytes=report.toString().getBytes(StandardCharsets.UTF_8);
+    String destination="";
+    String firstError=null;
+    if(Build.VERSION.SDK_INT>=29){
+      Uri uri=null;
+      try{
+        ContentValues values=new ContentValues();
+        values.put(MediaStore.MediaColumns.DISPLAY_NAME,filename);
+        values.put(MediaStore.MediaColumns.MIME_TYPE,"text/plain");
+        values.put(MediaStore.MediaColumns.RELATIVE_PATH,Environment.DIRECTORY_DOWNLOADS);
+        values.put(MediaStore.MediaColumns.IS_PENDING,1);
+        uri=getContentResolver().insert(MediaStore.Downloads.EXTERNAL_CONTENT_URI,values);
+        if(uri==null)throw new java.io.IOException("Downloads não disponível");
+        try(OutputStream stream=getContentResolver().openOutputStream(uri)){
+          if(stream==null)throw new java.io.IOException("Saída indisponível");
+          stream.write(bytes);
+        }
+        ContentValues ready=new ContentValues();
+        ready.put(MediaStore.MediaColumns.IS_PENDING,0);
+        getContentResolver().update(uri,ready,null,null);
+        destination="Armazenamento interno / Download / "+filename;
+      }catch(Throwable e){
+        firstError=safeError(e);
+        if(uri!=null)try{getContentResolver().delete(uri,null,null);}catch(Throwable ignored){}
+      }
+    }
+    if(destination.isEmpty()){
+      try{
+        java.io.File dir=getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
+        if(dir==null)dir=new java.io.File(getFilesDir(),"reports");
+        if(!dir.exists()&&!dir.mkdirs())throw new java.io.IOException("Pasta indisponível");
+        java.io.File file=new java.io.File(dir,filename);
+        try(OutputStream stream=new java.io.FileOutputStream(file)){stream.write(bytes);}
+        destination=file.getAbsolutePath();
+      }catch(Throwable e){
+        String errors="Não foi possível salvar.\n"
+          +"Downloads: "+(firstError==null?"não compatível com o Android atual":firstError)
+          +"\nPasta alternativa: "+safeError(e)+"\nUse Copiar relatório ou o Resumo curto.";
+        append("EXPORTAÇÃO",errors);
+        new AlertDialog.Builder(this).setTitle("Falha ao salvar")
+          .setMessage(errors).setPositiveButton("OK",null).show();
+        return;
+      }
+    }
+    String result="Relatório salvo com sucesso!\n\nLocal:\n"+destination
+      +"\n\nAbra o Gerenciador de Arquivos e procure em Download/Downloads."
+      +"\nSe foi usada a pasta alternativa, procure por Android/data/br.com.andreao.fleetprobe/files/Documents.";
+    append("EXPORTAÇÃO","Arquivo salvo: "+destination);
+    new AlertDialog.Builder(this).setTitle("Relatório TXT salvo")
+      .setMessage(result).setPositiveButton("OK",null).show();
   }
   @Override protected void onActivityResult(int req,int result,Intent data){
     super.onActivityResult(req,result,data);

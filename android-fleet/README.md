@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Diagnóstico completo v0.3 (Dolphin Mini)
+# ANDREAO Fleet — Diagnóstico completo v0.4 (Dolphin Mini)
 
 Aplicativo experimental **somente leitura, offline**, para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -29,7 +29,7 @@ Aplicativo experimental **somente leitura, offline**, para testar em uma única 
 
 Java 17, Android Gradle Plugin 8.7.3, Gradle 8.9, SDK 35. Build: `gradle -p android-fleet :app:assembleDebug`.
 
-O GitHub Actions da branch publica o artefato `Andreao-Fleet-Diagnostico-v0.3`; verificar status verde antes de usar o APK. Como a assinatura debug é gerada no runner, versões com assinaturas diferentes podem exigir desinstalação do APK anterior. Isso apaga os arquivos privados do app; exporte antes qualquer teste que deseje conservar.
+O GitHub Actions da branch publica o artefato `Andreao-Fleet-Diagnostico-v0.4`; verificar status verde antes de usar o APK. Como a assinatura debug é gerada no runner, versões com assinaturas diferentes podem exigir desinstalação do APK anterior. Isso apaga os arquivos privados do app; exporte antes qualquer teste que deseje conservar.
 
 ### Uso no piloto
 
@@ -37,3 +37,7 @@ O GitHub Actions da branch publica o artefato `Andreao-Fleet-Diagnostico-v0.3`; 
 2. Tocar em 1 a 8 e exportar o relatório TXT. **Não inclui coordenadas exatas ou IMEI/ICCID.**
 3. Só depois, e opcionalmente, abrir o teste 9 (câmera). Pode exibir zero câmeras apesar do veículo ter câmeras 360° BYD.
 4. Reportar erros de inicialização e dados das APIs Android; não interpretar ausência de SOH/BMS como defeito do veículo.
+
+## Correção v0.4
+
+A exportação TXT usa MediaStore para gravar diretamente em Download/Downloads no Android 10+, sem depender do seletor de arquivos inexistente no DiLink. Em sistemas mais antigos ou quando o provedor Downloads não funcionar, tenta pasta privada Documents do aplicativo. Uma caixa informa o caminho exato ou o erro. Há também botão de resumo curto na tela. Nenhum dado é enviado à rede.

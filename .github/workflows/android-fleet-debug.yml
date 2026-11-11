@@ -34,6 +34,6 @@ jobs:
       - name: Store APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Andreao-Fleet-Diagnostico-v0.3
+          name: Andreao-Fleet-Diagnostico-v0.4
           path: android-fleet/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
