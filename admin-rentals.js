@@ -1,5 +1,5 @@
 (function(root){
-  let o,busy=false,snapshot=null,loading=null,detailVersion=0;
+  let o,busy=false,snapshot=null,loading=null,detailVersion=0,manualSelection=null,manualPreview=null,manualBusy=false;
   const get=id=>document.getElementById(id);
   async function api(path,method='GET',body){
     const token=await o.token();if(!token)throw new Error('Sua sessão expirou.');
@@ -81,6 +81,87 @@
     return `<li><b>${label}</b> · ${esc(delivery[flag]||flag)}${moment?' · '+esc(time(moment)):''}
       ${code||err?`<br><small>${esc([code,err].filter(Boolean).join(' · '))}</small>`:''}</li>`;
   }
+  function updateSettlementSelection(){
+    if(!manualSelection)return;
+    const {selected,eligible}=manualSelection,summary=get('rentalSelectionSummary');
+    if(!summary)return;
+    const count=selected.size,total=[...selected].reduce((sum,day)=>sum+(eligible.get(day)||0),0);
+    summary.textContent=count+' '+(count===1?'diária selecionada':'diárias selecionadas')+' · '+o.money(total/100);
+    get('rentalSettleSelected').disabled=!count||!manualSelection.available;
+    get('rentalSettleAll').disabled=!manualSelection.pendingCount||!manualSelection.available;
+    const cells=[...document.querySelectorAll('[data-rental-select-day]')],all=get('rentalSelectMonth');
+    for(const cell of cells)cell.checked=selected.has(cell.dataset.rentalSelectDay);
+    all.disabled=!cells.length;all.checked=!!cells.length&&cells.every(c=>c.checked);
+    all.indeterminate=!all.checked&&cells.some(c=>c.checked);
+  }
+  function selectDate(day,checked){
+    if(!manualSelection?.eligible.has(day))return;
+    if(checked)manualSelection.selected.add(day);else manualSelection.selected.delete(day);
+    updateSettlementSelection();
+  }
+  function selectMonth(checked){
+    if(!manualSelection)return;
+    for(const cell of document.querySelectorAll('[data-rental-select-day]')){
+      if(checked)manualSelection.selected.add(cell.dataset.rentalSelectDay);
+      else manualSelection.selected.delete(cell.dataset.rentalSelectDay);
+    }
+    updateSettlementSelection();
+  }
+  async function previewSettlement(mode){
+    if(manualBusy||!manualSelection?.available)return;
+    const selection=manualSelection,{id,month,filter}=selection;
+    const payload=mode==='all'?{mode}:{mode,dates:[...selection.selected].sort()};
+    if(mode==='selected'&&!payload.dates.length)return;
+    manualBusy=true;
+    const hint=get('rentalSelectionError');
+    if(hint)hint.textContent='Conferindo o saldo atual…';
+    try{
+      const data=await api('drivers/'+encodeURIComponent(id)+'/settlement-preview','POST',payload);
+      if(manualSelection!==selection||get('rentalSelectionError')!==hint)return;
+      if(!data.count)throw new Error('Não há diárias em aberto nessa seleção.');
+      if(data.blocked){
+        const dates=data.days.filter(d=>d.blocked).map(d=>br(d.day)).join(', ');
+        throw new Error('Pagamento em conferência em '+dates+'. Confira essas datas ou selecione outras.');
+      }
+      manualPreview={id,month,filter,payload,data};
+      const esc=o.esc,d=o.drivers().find(d=>d.id===id);
+      o.modal('Confirmar quitação de diárias',`<p><b>${esc(d?.name)}</b> · ${esc(d?.plate)}<br>
+        ${data.count} ${data.count===1?'diária':'diárias'} · <b>${o.money(data.total_cents/100)}</b> em aberto</p>
+        <div class="table-wrap"><table><tr><th>Data</th><th>Já recebido</th><th>Valor desta baixa</th></tr>
+        ${data.days.map(r=>`<tr><td>${br(r.day)}</td><td>${o.money(r.received_cents/100)}</td><td>${o.money(r.balance_cents/100)}</td></tr>`).join('')}</table></div>
+        ${data.days.some(r=>r.has_link)?'<p class="msg warning">Há links emitidos para essas diárias. Após registrar a baixa, oriente o motorista a não usar esses links para pagar novamente.</p>':''}
+        <div class="form-grid"><div><label for="rentalSettleMethod">Como recebeu?</label><select id="rentalSettleMethod"><option value="pix">Pix</option><option value="cash">Dinheiro</option><option value="card">Cartão</option><option value="other">Outro</option></select></div>
+        <div><label for="rentalSettleAmount">Valor recebido (R$)</label><input type="number" min="0.01" step="0.01" id="rentalSettleAmount" value="${(data.total_cents/100).toFixed(2)}"></div>
+        <div class="full"><label for="rentalSettleNote">Observação (opcional)</label><input id="rentalSettleNote" maxlength="500"></div></div>
+        <label class="bulk-confirm"><input id="rentalSettleReceived" type="checkbox"> Confirmo que recebi esse valor por fora do link.</label>
+        <p id="rentalSettleError" role="alert"></p>
+        <button class="btn secondary" onclick="AndreaoRentals.backSettlement()">Voltar</button>
+        <button class="btn" id="rentalSettleConfirm" onclick="AndreaoRentals.approveSettlement()">Registrar quitação</button>`);
+    }catch(error){if(get('rentalSelectionError')===hint&&hint)hint.textContent=error.message;}finally{manualBusy=false;}
+  }
+  function backSettlement(){
+    const p=manualPreview;
+    if(!p||manualBusy)return;
+    manualPreview=null;void details(p.id,p.month,p.filter);
+  }
+  async function approveSettlement(){
+    if(manualBusy||!manualPreview)return;
+    const p=manualPreview,error=get('rentalSettleError'),button=get('rentalSettleConfirm');
+    if(!get('rentalSettleReceived').checked){error.textContent='Confirme que já recebeu o valor.';return;}
+    const cents=toCents(get('rentalSettleAmount').value);
+    if(cents!==Number(p.data.total_cents)){error.textContent='O valor recebido precisa corresponder ao total da seleção.';return;}
+    manualBusy=true;button.disabled=true;error.textContent='';
+    try{
+      const result=await api('drivers/'+encodeURIComponent(p.id)+'/settlement-approve','POST',{...p.payload,
+        fingerprint:p.data.fingerprint,received_cents:cents,payment_method:get('rentalSettleMethod').value,
+        note:get('rentalSettleNote').value.trim(),confirm_received:true});
+      manualPreview=null;manualSelection=null;
+      await o.refresh();await details(p.id,p.month,p.filter);
+      const body=get('rentalDetailBody');
+      if(body){const notice=document.createElement('p');notice.className='msg success';notice.setAttribute('role','status');
+        notice.textContent=(result.already_recorded?'Quitação já registrada: ':'Quitação registrada: ')+result.count+' '+(result.count===1?'diária':'diárias')+' · '+o.money(result.total_cents/100);body.prepend(notice);}
+    }catch(e){error.textContent=e.message;}finally{manualBusy=false;button.disabled=false;}
+  }
   async function details(id,month=o.today().slice(0,7),filter='all'){
     const d=o.drivers().find(d=>d.id===id);if(!d||!/^\d{4}-(0[1-9]|1[0-2])$/.test(month))return;
     const version=++detailVersion,esc=o.esc,first=month+'-01';
@@ -94,19 +175,35 @@
     try{
       const invoices=await loadSnapshot();
       if(version!==detailVersion||get('rentalDetailBody')!==target)return;
-      const rows=(ledger(invoices).get(id)||[]).filter(r=>r.day>=first&&r.day<=last&&(filter!=='late'||r.late));
+      const allRows=ledger(invoices).get(id)||[];
+      const eligible=new Map(allRows.filter(r=>r.balance>0&&!r.invoice?.transaction_nsu).map(r=>[r.day,r.balance]));
+      const selected=manualSelection?.id===id?new Set([...manualSelection.selected].filter(day=>eligible.has(day))):new Set();
+      manualSelection={id,month,filter,eligible,selected,available:false,pendingCount:allRows.filter(r=>r.balance>0).length};
+      const rows=allRows.filter(r=>r.day>=first&&r.day<=last&&(filter!=='late'||r.late));
       const total=(key)=>o.money(rows.reduce((sum,r)=>sum+r[key],0)/100);
       target.innerHTML=`<p><b>${total('due')}</b> devido · <b>${total('received')}</b> recebido · <b>${total('balance')}</b> em aberto</p>
+        <div class="rental-settlement-actions">
+          <label class="bulk-confirm"><input id="rentalSelectMonth" type="checkbox" onchange="AndreaoRentals.selectMonth(this.checked)"> Selecionar as pendências desta lista</label>
+          <p id="rentalSelectionSummary" aria-live="polite"></p>
+          <button class="btn secondary small" id="rentalSettleSelected" onclick="AndreaoRentals.previewSettlement('selected')">Quitar selecionadas</button>
+          <button class="btn small" id="rentalSettleAll" onclick="AndreaoRentals.previewSettlement('all')">Quitar todas</button>
+          <p class="tiny">Quitar todas inclui também os outros meses deste motorista.</p>
+          <p id="rentalSelectionError" role="alert">Conferindo disponibilidade da quitação em lote…</p>
+        </div>
         <p id="rentalMessageNote" class="tiny">Consultando histórico de envios…</p>
-        ${rows.length?`<div class="table-wrap"><table><tr><th>Data da diária</th><th>Devido</th><th>Recebido</th><th>Falta</th><th>Situação</th><th>WhatsApp</th></tr>
-        ${rows.map(r=>`<tr><td><b>${br(r.day)}</b></td><td>${o.money(r.due/100)}</td><td>${o.money(r.received/100)}</td>
+        ${rows.length?`<div class="table-wrap"><table><tr><th scope="col">Selecionar</th><th>Data da diária</th><th>Devido</th><th>Recebido</th><th>Falta</th><th>Situação</th><th>WhatsApp</th></tr>
+        ${rows.map(r=>`<tr><td>${eligible.has(r.day)?`<input type="checkbox" data-rental-select-day="${r.day}" aria-label="Selecionar diária de ${br(r.day)}" onchange="AndreaoRentals.selectDate(this.dataset.rentalSelectDay,this.checked)">`:'—'}</td><td><b>${br(r.day)}</b></td><td>${o.money(r.due/100)}</td><td>${o.money(r.received/100)}</td>
           <td>${o.money(r.balance/100)}</td><td>${r.review?'Em conferência':!r.balance?'Quitada':r.late?(r.received?'Atrasada · parcial':'Atrasada'):(r.received?'Parcial':'Em aberto')}</td>
           <td data-rental-day="${r.day}"><span class="tiny">${r.invoice?esc(delivery[r.invoice.delivery_state]||r.invoice.delivery_state):'Sem cobrança automática'}</span></td></tr>`).join('')}</table></div>`:'<p>Nenhuma diária neste filtro.</p>'}
         <p class="tiny">Dias sem cobrança automática usam o valor atual do cadastro. Pagamentos são somados pela data da diária a que foram vinculados.</p>`;
+      updateSettlementSelection();
       const note=get('rentalMessageNote');
       try{
         const logs=await api('drivers/'+encodeURIComponent(id)+'/messages?'+new URLSearchParams({from:first,to:last}));
         if(version!==detailVersion||get('rentalDetailBody')!==target)return;
+        manualSelection.available=logs.settlement_available===true;
+        get('rentalSelectionError').textContent=manualSelection.available?'':'A quitação em lote ainda precisa ser liberada no banco de dados.';
+        updateSettlementSelection();
         const byDate=new Map(logs.invoices.map(i=>[i.billing_date,i])),byInvoice=new Map();
         for(const a of logs.attempts){if(!byInvoice.has(a.invoice_id))byInvoice.set(a.invoice_id,[]);byInvoice.get(a.invoice_id).push(a);}
         for(const cell of target.querySelectorAll('[data-rental-day]')){
@@ -117,7 +214,10 @@
             a.map(x=>messageHtml(x,esc,x.kind==='reminder'?'Lembrete das 22h':'Cobrança principal')).join('')+'</ul>';
         }
         note.textContent=(logs.history_complete===false?'Por enquanto, o histórico mostra o último envio de cada diária. ':'')+'Aceito pela Meta significa que a solicitação foi recebida. Entregue e Lido dependem do retorno do WhatsApp.';
-      }catch{if(get('rentalDetailBody')===target)note.textContent='O histórico detalhado do WhatsApp ainda não está disponível. Veja o último estado da cobrança quando houver.';}
+      }catch{if(get('rentalDetailBody')===target){
+        note.textContent='O histórico detalhado do WhatsApp ainda não está disponível. Veja o último estado da cobrança quando houver.';
+        get('rentalSelectionError').textContent='Não foi possível conferir a disponibilidade da quitação em lote.';
+      }}
     }catch(e){if(get('rentalDetailBody')===target)target.textContent=e.message;}
   }
   function changeDetail(id){void details(id,get('rentalDetailMonth').value,get('rentalDetailFilter').value);}
@@ -173,5 +273,5 @@
     catch(e){get('rentalBillingError').textContent=e.message;}finally{busy=false;}
   }
   async function retry(id){try{await api('invoices/'+encodeURIComponent(id)+'/retry','POST',{});await open();}catch(e){alert(e.message);}}
-  root.AndreaoRentals={init(options){o=options;},open,configure,saveSettings,saveDriver,retry,saveReminder,details,changeDetail,renderAlert,arrears,invalidate(){snapshot=null;},buildLedger};
+  root.AndreaoRentals={init(options){o=options;},open,configure,saveSettings,saveDriver,retry,saveReminder,details,changeDetail,renderAlert,arrears,selectDate,selectMonth,previewSettlement,backSettlement,approveSettlement,invalidate(){snapshot=null;},buildLedger};
 })(globalThis);

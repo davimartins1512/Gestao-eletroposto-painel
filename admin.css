@@ -143,3 +143,8 @@ td b,td strong{font-weight:600;color:#38513b}tr:last-child td{border-bottom:0}tr
 .rental-arrears-open{border-color:#d9a441;background:rgba(217,164,65,.12)}
 .rental-message-log{margin:0;padding-left:1.1rem;min-width:12rem;overflow-wrap:anywhere}
 .rental-message-log li+li{margin-top:.4rem}
+
+.rental-settlement-actions{border:1px solid var(--line,#334155);border-radius:10px;padding:.65rem .8rem;margin:.65rem 0}
+.rental-settlement-actions p{margin:.4rem 0}
+.rental-settlement-actions button{margin:.2rem .3rem .2rem 0}
+[data-rental-select-day]{width:1.15rem;height:1.15rem;accent-color:var(--brand,#39b980)}
