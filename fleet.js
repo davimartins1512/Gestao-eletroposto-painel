@@ -20,7 +20,7 @@
     ['record_when_on','Vídeo contínuo ao ligar','Gravação circular de 24h: exige hardware validado'],
     ['parked_recording','Gravação desligado / sentinela','Opcional: exige proteção comprovada da bateria 12V'],
     ['live_camera','Câmeras ao vivo','Visualizar sem interromper gravação local'],
-    ['cabin_microphone','Áudio junto com vídeo','Opcional, com informação aos ocupantes; sem escuta secreta'],
+    ['cabin_microphone','Áudio sincronizado automático','Opcional: grava com o vídeo enquanto o carro está ligado, após informação aos ocupantes'],
     ['alerts','Alertas de falhas e ocorrências','Avisos quando dispositivo parar ou houver incidente']
   ];
   let db;
@@ -249,7 +249,7 @@
         return '<label class="feature"><span class="feature-copy"><strong>'+escapeHtml(label)+'</strong><small>'+escapeHtml(description)+'</small><em>Condição técnica: '+escapeHtml(effectiveStatus(code,vehicle.id))+'</em></span>'+
           '<input type="checkbox" data-feature="'+escapeHtml(code)+'" '+(on?'checked':'')+' aria-label="Solicitar '+escapeHtml(label)+'"></label>';
       }).join('')+'</div>'+
-      '<div class="notice">Gravação circular prevista em 24 horas; modo desligado permanece opcional e precisa da leitura real da bateria de 12V. O microfone só pode operar com comunicação perceptível aos ocupantes, habilitação explícita e registro dos acessos.</div>';
+      '<div class="notice">Gravação circular prevista em 24 horas; modo desligado permanece opcional e precisa da leitura real da bateria de 12V. Áudio e vídeo, quando compatíveis e habilitados, devem iniciar automaticamente no READY, sem pop-ups repetitivos; ocupantes devem ser informados e a captação deve permanecer identificável. Exigir auditoria dos acessos.</div>';
   }
   function renderCharges(vehicle) {
     if(!state.controlsAvailable)return '<h3>Local das recargas</h3><div class="notice warn">A extensão de banco para recargas ainda não foi aplicada. Nenhuma localização foi confirmada automaticamente.</div>';
