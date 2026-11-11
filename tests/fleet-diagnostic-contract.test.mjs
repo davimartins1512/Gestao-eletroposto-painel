@@ -165,3 +165,10 @@ test('v1.3 pilot has manual photo, MP4 and disclosed optional audio on SAME muxe
   assert.doesNotMatch(recorder,/Socket|HttpURLConnection|MediaRecorder\.AudioSource\.VOICE_CALL/);
   assert.doesNotMatch(activity,/INTERNET|remoteStartRecording/);
 });
+
+test('default future recording segmentation is 90 seconds and remains user-editable',()=>{
+ const settings=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/StoragePreferencesActivity.java');
+ assert.match(settings,/prefs\.getFloat\("segment_seconds",90f\)/);
+ assert.match(settings,/Duração dos clipes MP4/);
+ assert.match(settings,/numeric\("segment_seconds"/);
+});
