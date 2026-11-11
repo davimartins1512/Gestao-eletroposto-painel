@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Diagnóstico completo v0.5 (Dolphin Mini)
+# ANDREAO Fleet — Diagnóstico de integração v0.7 (Dolphin Mini)
 
 Aplicativo experimental **somente leitura, offline**, para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -55,3 +55,11 @@ O botão **EXECUTAR TODOS OS TESTES E SALVAR LOG** pede as permissões Android d
 - Teste real do microfone: 5 s, permissão e consentimento dos ocupantes, não grava de forma permanente. Pico de áudio não garante inteligibilidade.
 - App continua SEM permissão INTERNET; nenhum dado sai da multimídia.
 - Não mexe no CAN, BMS, firmware ou câmera de ré. Não usar a tela durante a direção.
+
+## v0.7 — ensaio de fonte OEM somente-leitura e contadores Android
+
+- **Botão 15** consulta opcionalmente `content://com.byd.carStatusProvider/car_status` para verificar acesso do APK a campos conhecidos de manutenção e contagem de incidentes. O provedor foi relatado pela comunidade em outro firmware; **não há acesso BYD validado no Dolphin Mini**. Retorna apenas valores de campos numéricos permitidos e contagem de elementos de série elétrica sem copiar dados brutos nem identificadores. Teste isolado em thread, sem escrita.
+- **Botão 16** consulta `TrafficStats` para contadores de bytes acumulados do Android e do próprio app. Não fornece franquia/saldo do SIM e nunca deve ser rotulado como saldo da operadora.
+- NÃO consulta CAN, nem configurações de veículo, e não usa shell, root ou bypass de permissões OEM. Compatibilidade dependente de software/características de cada BYD.
+- A câmera BYD original continua **não acessível pela API Camera2 no veículo testado**. Pesquisas externas sugerem serviço de sistema restrito; acesso a gravação contínua exige interface autorizada ou DVR dedicado. Nenhum modo de áudio oculto foi adicionado; áudio de teste exige aviso e autorização dos ocupantes.
+- **Relatório completo 1–8 não executa automaticamente o botão 15**, pois é uma consulta opcional ao provedor OEM. Se testar, use a exportação manual após o resultado aparecer.

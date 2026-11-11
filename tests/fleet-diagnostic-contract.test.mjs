@@ -35,3 +35,24 @@ test('one-touch aggregate diagnostic runs all eight checks and exports',()=>{
   assert.doesNotMatch(method,/openCameraTool|startRecording/);
   assert.match(s,/if\(req==REQUEST_ALL\)\{performAllChecks\(\);return;\}/);
 });
+
+test('v0.7 OEM probe is read-only, limited to known columns, and does not claim BMS',()=>{
+  const probe=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/BydReadOnlyProbe.java');
+  assert.match(probe,/content:\/\/com\.byd\.carStatusProvider\/car_status/);
+  assert.match(probe,/car_status_maintenance_mile/);
+  assert.match(probe,/car_status_issue_num/);
+  assert.match(probe,/N(?:AO|ÃO) confirma SOC ou SOH/);
+  assert.match(probe,/getContentResolver\(\)\.query\(/);
+  assert.doesNotMatch(probe,/\.insert\(|\.update\(|\.delete\(|getContentResolver\(\)\.call\(/);
+});
+test('v0.7 mobile data counters are not a carrier quota claim',()=>{
+  const probe=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/NetworkDataProbe.java');
+  assert.match(probe,/TrafficStats\.getMobileRxBytes\(\)/);
+  assert.match(probe,/NAO sao quantidade de GB restante/);
+  const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
+  assert.doesNotMatch(manifest,/android\.permission\.INTERNET/);
+  const launch=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
+  assert.match(launch,/15 · BYD CarStatus/);
+  assert.match(launch,/16 · Uso de dados móveis/);
+  assert.match(launch,/new Thread\(/);
+});
