@@ -51,11 +51,12 @@ public final class OemFrameProbeActivity extends Activity {
   private volatile int lastFrameBytes=0;
   private volatile Thread worker;
   private TextView output;
-  private Button startButton,videoButton,audioVideoButton,finishButton,stopButton,exportButton;
+  private Button startButton,videoButton,audioVideoButton,clipVideoButton,clipAudioButton,finishButton,stopButton,exportButton;
   private volatile int mode=0; // 0=count only, 1=snapshot+MP4, 2=snapshot+MP4+opt-in microphone
   private volatile int sampleWidth=0,sampleHeight=0,sampleSize=0;
   private volatile byte[] sampleImage;
   private volatile OemAvRecorder mediaRecorder;
+  private volatile OemClipSession clipSession;
   private volatile String mediaSetupError="";
   private String currentReport="Nenhum teste iniciado.";
 
@@ -80,6 +81,8 @@ public final class OemFrameProbeActivity extends Activity {
     startButton=button(box,"TESTE 3,5s · APENAS CONTAR FRAMES",()->confirm(0));
     videoButton=button(box,"PILOTO 15s · FOTO + VÍDEO MP4 (SEM ÁUDIO)",()->confirm(1));
     audioVideoButton=button(box,"PILOTO 15s · FOTO + VÍDEO MP4 + ÁUDIO (AVISO AOS OCUPANTES)",()->confirm(2));
+    clipVideoButton=button(box,"TESTAR CLIPES SEQUENCIAIS · MP4 SEM ÁUDIO",()->confirm(3));
+    clipAudioButton=button(box,"TESTAR CLIPES SEQUENCIAIS · MP4 + ÁUDIO INFORMADO",()->confirm(4));
     stopButton=button(box,"INTERROMPER TESTE",()->stop());
     stopButton.setEnabled(false);
     finishButton=button(box,"VOLTAR E ADICIONAR RESULTADO AO TXT",()->finishWithResult());
@@ -104,8 +107,9 @@ public final class OemFrameProbeActivity extends Activity {
   private void confirm(int selectedMode){
     if(active.get())return;
     mode=selectedMode;
-    String audio=selectedMode==2?"O AUDIO DA CABINE SERA GRAVADO NESTE MP4. Confirme que informou TODOS os ocupantes e obteve as autorizações necessárias. A captura será identificada na tela. ":"";
-    String video=selectedMode==0?"Só conta frames, sem salvar foto ou áudio. ":"Grava um JPEG e MP4 de teste local por até 15 segundos. ";
+    String audio=(selectedMode==2||selectedMode==4)?"O AUDIO DA CABINE SERA GRAVADO. Confirme que informou TODOS os ocupantes e obteve as autorizações necessárias. A captura será identificada na tela. ":"";
+    String video=selectedMode==0?"Só conta frames, sem salvar foto ou áudio. ":
+      selectedMode>=3?"Grava clipes MP4 sucessivos sem fechar a câmera entre arquivos. Duração configurada no botão 17; ensaio manual limitado. Pode haver lacunas na troca, principalmente de áudio. ":"Grava um JPEG e MP4 de teste local por até 15 segundos. ";
     new AlertDialog.Builder(this).setTitle("Confirmar gravação de teste na BYD")
       .setMessage(audio+video+"Você confirma carro completamente parado em P, freio acionado, "
         +"sem direção/manobra durante o teste, e interrupção imediata se as câmeras originais ficarem instáveis?")
@@ -115,9 +119,9 @@ public final class OemFrameProbeActivity extends Activity {
   }
   private void prepare(){
     boolean cam=checkSelfPermission(Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED;
-    boolean mic=mode!=2 || checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED;
+    boolean mic=(mode!=2&&mode!=4) || checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED;
     if(!cam||!mic){
-      if(mode==2)requestPermissions(new String[]{Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO},CAMERA_PERMISSION);
+      if(mode==2||mode==4)requestPermissions(new String[]{Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO},CAMERA_PERMISSION);
       else requestPermissions(new String[]{Manifest.permission.CAMERA},CAMERA_PERMISSION);
       return;
     }
@@ -136,11 +140,13 @@ public final class OemFrameProbeActivity extends Activity {
     if(!active.compareAndSet(false,true))return;
     abort.set(false);completed.set(false);frames.set(0);validBytes.set(0);
     firstFrameBytes=0;lastFrameBytes=0;sampleWidth=0;sampleHeight=0;sampleSize=0;
-    sampleImage=null;mediaRecorder=null;mediaSetupError="";
+    sampleImage=null;mediaRecorder=null;clipSession=null;mediaSetupError="";
     startButton.setEnabled(false);videoButton.setEnabled(false);audioVideoButton.setEnabled(false);
+    clipVideoButton.setEnabled(false);clipAudioButton.setEnabled(false);
     stopButton.setEnabled(true);finishButton.setEnabled(false);exportButton.setEnabled(false);
-    show((mode==2?"🔴 GRAVANDO ÁUDIO E VÍDEO · OCUPANTES INFORMADOS\n":"")+
+    show(((mode==2||mode==4)?"🔴 GRAVANDO ÁUDIO E VÍDEO · OCUPANTES INFORMADOS\n":"")+
       "Ensaio manual em processo separado. Watchdog interrompe a sessão após 45s se travar.");
+    long watchdog=(mode>=3?pilotDurationMs()+40000L:WATCHDOG_MS);
     main.postDelayed(()->{
       if(active.get() && !completed.get()){
         abort.set(true);
@@ -148,9 +154,15 @@ public final class OemFrameProbeActivity extends Activity {
         // Isolar o ensaio permite encerrar o processo do TESTE, sem matar o painel.
         android.os.Process.killProcess(android.os.Process.myPid());
       }
-    },WATCHDOG_MS);
+    },watchdog);
     worker=new Thread(this::runProbe,"fleet-oem-single-camera-probe");
     worker.start();
+  }
+  private long pilotDurationMs(){
+    if(mode<3)return MAX_PILOT_MS;
+    int segment=(int)getSharedPreferences(StoragePolicy.PREFS,MODE_PRIVATE).getFloat("segment_seconds",90f);
+    segment=Math.max(10,Math.min(600,segment));
+    return Math.min(135000L,Math.max(45000L,(segment+20L)*1000L));
   }
   private static String rootCause(Throwable e){
     if(e instanceof InvocationTargetException && ((InvocationTargetException)e).getCause()!=null)
@@ -166,7 +178,7 @@ public final class OemFrameProbeActivity extends Activity {
     log.append("Solicitado manualmente, somente carro parado P e freio.\n");
     log.append(mode==0?"Somente contagem de frames, sem foto ou áudio.\n":
       "Piloto foto JPEG + MP4, armazenamento local e limites configuráveis.\n");
-    log.append("Áudio solicitado: ").append(mode==2).append("; sem upload/rede.\n");
+    log.append("Áudio solicitado: ").append(mode==2||mode==4).append("; sem upload/rede.\n");
     if(mode>0){
       SharedPreferences p=getSharedPreferences(StoragePolicy.PREFS,MODE_PRIVATE);
       StoragePolicy.Candidate target=StoragePolicy.select(this,p);
@@ -177,8 +189,15 @@ public final class OemFrameProbeActivity extends Activity {
       }else{
         log.append("Destino de gravação: ").append(target.folder.getAbsolutePath()).append("\n");
         log.append(OemMediaRetention.clean(this,p,target.folder)).append("\n");
-        mediaRecorder=new OemAvRecorder(this,p,target.folder,mode==2);
-        mediaRecorder.start();
+        if(mode>=3){
+          clipSession=new OemClipSession(this,p,target.folder,mode==4);
+          clipSession.start();
+          log.append("Duração do clipe: ").append(clipSession.clipSeconds()).append(" segundos; teste até ")
+            .append(pilotDurationMs()/1000L).append(" segundos.\n");
+        }else{
+          mediaRecorder=new OemAvRecorder(this,p,target.folder,mode==2);
+          mediaRecorder.start();
+        }
       }
     }
     try{
@@ -231,8 +250,11 @@ public final class OemFrameProbeActivity extends Activity {
                     sampleImage=Arrays.copyOf(data,expected);
                     sampleWidth=width;sampleHeight=height;sampleSize=bufferSize;
                   }
+                  long nowNs=System.nanoTime();
                   OemAvRecorder r=mediaRecorder;
-                  if(r!=null)r.accept(data,width,height,bufferSize,System.nanoTime());
+                  if(r!=null)r.accept(data,width,height,bufferSize,nowNs);
+                  OemClipSession session=clipSession;
+                  if(session!=null)session.accept(data,width,height,bufferSize,nowNs);
                 }
               }
             }
@@ -263,7 +285,7 @@ public final class OemFrameProbeActivity extends Activity {
       log.append("enablePreviewCallback(0): ").append(enabled).append('\n');
       if(Boolean.FALSE.equals(enabled))log.append("AVISO: porta 0 recusada. Não testar outros IDs automaticamente.\n");
 
-      long end=android.os.SystemClock.elapsedRealtime()+(mode==0?MAX_PREVIEW_MS:MAX_PILOT_MS);
+      long end=android.os.SystemClock.elapsedRealtime()+(mode==0?MAX_PREVIEW_MS:pilotDurationMs());
       while(!abort.get() && android.os.SystemClock.elapsedRealtime()<end){
         Thread.sleep(100);
       }
@@ -281,6 +303,11 @@ public final class OemFrameProbeActivity extends Activity {
           try{close.invoke(camera);log.append("close: executado\n");}
           catch(Throwable e){log.append("close: "+rootCause(e)+'\n');}
         }
+      }
+      if(clipSession!=null){
+        clipSession.stopAndWait(16000);
+        log.append("\nRESULTADO CLIPES\n").append(clipSession.report()).append("\n");
+        if(!clipSession.finished())log.append("AVISO: rotação não finalizou, clipes precisam ser verificados.\n");
       }
       if(mediaRecorder!=null){
         mediaRecorder.stop();
@@ -310,15 +337,18 @@ public final class OemFrameProbeActivity extends Activity {
         currentReport=result;
         show(result);
         startButton.setEnabled(true);videoButton.setEnabled(true);audioVideoButton.setEnabled(true);
+        clipVideoButton.setEnabled(true);clipAudioButton.setEnabled(true);
         stopButton.setEnabled(false);
         finishButton.setEnabled(true);
-        exportButton.setEnabled(mediaRecorder!=null&&mediaRecorder.finishedFile()!=null);
+        exportButton.setEnabled((mediaRecorder!=null&&mediaRecorder.finishedFile()!=null)
+          ||(clipSession!=null&&!clipSession.completedFiles().isEmpty()));
       });
     }
   }
   private void stop(){
     abort.set(true);
     if(mediaRecorder!=null)mediaRecorder.stop();
+    if(clipSession!=null)clipSession.stop();
     Thread t=worker;
     if(t!=null)t.interrupt();
     show("Interrupção solicitada. Esperando fechar a câmera; watchdog ativo.");
@@ -327,13 +357,26 @@ public final class OemFrameProbeActivity extends Activity {
     if(output!=null)output.setText(text);
   }
   private void exportVideo(){
+    if(clipSession!=null){
+      java.util.List<File> files=clipSession.completedFiles();
+      if(files.isEmpty()){show("Nenhum clipe íntegro foi finalizado.");return;}
+      String[] choices=new String[files.size()];
+      for(int i=0;i<files.size();i++)choices[i]=files.get(i).getName()+
+        " · "+(files.get(i).length()/1048576L)+" MB";
+      new AlertDialog.Builder(this).setTitle("Exportar somente o clipe escolhido")
+        .setItems(choices,(dialog,selected)->exportOne(files.get(selected)))
+        .setNegativeButton("Cancelar",null).show();
+      return;
+    }
     OemAvRecorder r=mediaRecorder;
     File saved=r==null?null:r.finishedFile();
     if(saved==null){show("Nenhum MP4 íntegro concluído para exportação.");return;}
+    exportOne(saved);
+  }
+  private void exportOne(File selected){
     exportButton.setEnabled(false);
-    final File actual=saved;
     new Thread(()->{
-      final String message=OemVideoExporter.copyToMovies(getApplicationContext(),actual);
+      final String message=OemVideoExporter.copyToMovies(getApplicationContext(),selected);
       runOnUiThread(()->{
         show(currentReport+"\n\nEXPORTAÇÃO MP4\n"+message);
         exportButton.setEnabled(true);
@@ -350,6 +393,7 @@ public final class OemFrameProbeActivity extends Activity {
   @Override protected void onDestroy(){
     abort.set(true);
     if(mediaRecorder!=null)mediaRecorder.stop();
+    if(clipSession!=null)clipSession.stop();
     Thread t=worker;
     if(t!=null)t.interrupt();
     super.onDestroy();

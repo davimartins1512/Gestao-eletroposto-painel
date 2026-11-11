@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Piloto de mídia BYD v1.3 (Dolphin Mini)
+# ANDREAO Fleet — Piloto integrado de mídia BYD v1.4 (Dolphin Mini)
 
 Aplicativo experimental **offline**, com uma sondagem manual opcional de câmera OEM (v1.2), para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -177,3 +177,35 @@ A gravação usa `AVMCamera.IPreviewCallback` com buffer NV21 observado em vers�
 Proteções: fila de frames limitada e descarte sob pressão, `:oem_camera_probe` em processo isolado, watchdog de 45s, `stopPreview` e `close` em `finally`, arquivo MP4 temporário até fechamento do muxer, espaço mínimo livre, limite opcional de GB, limpeza circular apenas dos arquivos `andreao_fleet_cam_*.mp4` da pasta do próprio app; arquivos de ocorrência `.protected.` não são tocados.
 
 **Não é produto de frota nem gravação contínua 24h:** recursos em teste, não comprovados em execução do encoder BYD. Ainda não monitora READY, não faz live remota, nem garante preservação de incidentes. Retenção aplica-se só aos vídeos piloto gravados e fechados. A coexistência com Electro/câmera 360° deve ser testada parado. Não ligar a gravação durante manobras ou deslocamento. Jamais afirmar sucesso sem abrir e assistir ao JPEG/MP4 produzido no carro real.
+
+## v1.4 — clipes MP4 independentes, duração totalmente configurável
+
+Além do teste curto de foto/MP4 da v1.3, há dois novos modos manuais no botão 20:
+- **TESTAR CLIPES SEQUENCIAIS · MP4 SEM ÁUDIO**
+- **TESTAR CLIPES SEQUENCIAIS · MP4 + ÁUDIO INFORMADO**
+
+A classe OemClipSession controla o ciclo dos gravadores sem fechar/reabrir a câmera OEM
+entre os arquivos, respeitando a duração `segment_seconds` no botão 17
+(padrão 90 segundos, ajustável entre 10 e 600).
+O ensaio estacionário dura até 135 segundos; com o padrão 90s permite
+verificar pelo menos uma troca de arquivo. Para acelerar o teste de
+múltiplas rotações, é possível configurar 10 segundos temporariamente.
+
+Cada arquivo MP4 finalizado recebe nome com data/hora e permanece na pasta
+do app até ser exportado por seleção individual para Movies/ANDREAO_Fleet.
+O seletor permite **exportar um clipe sem exportar todos**.
+O relatório registra quantidade de clipes válidos, mudanças de arquivo e
+intervalos entre callbacks acima de 500ms; limitações e erros aparecem
+explicitamente.
+
+**ALERTA CRÍTICO**: audio e video ainda podem apresentar lacunas na
+troca de encoder. Na versão piloto, a troca entre clipes com áudio
+reinicializa o microfone para evitar que dois AudioRecord concorram;
+isso pode causar intervalo sem áudio, e o relatório alerta sobre isso.
+Vídeo pode perder quadros enquanto o novo encoder inicializa.
+**Não afirmar gravação contínua sem lacunas ou proteção de incidentes**.
+A versão não inicia captura ao dar partida, não faz sentinela, não faz
+stream remoto. Exige validação de 2+ MP4 consecutivos no Dolphin Mini.
+
+Nunca executar durante a condução ou manobras; a câmera AVM original
+e o Electro devem continuar prioritários.

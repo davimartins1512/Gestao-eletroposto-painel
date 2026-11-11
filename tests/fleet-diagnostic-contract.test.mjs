@@ -172,3 +172,20 @@ test('default future recording segmentation is 90 seconds and remains user-edita
  assert.match(settings,/Duração dos clipes MP4/);
  assert.match(settings,/numeric\("segment_seconds"/);
 });
+
+test('v1.4 manual clip coordinator preserves camera session and records rotation gaps',()=>{
+  const c=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemClipSession.java');
+  const a=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
+  assert.match(c,/clipSeconds=Math\.max\(10,Math\.min\(600,selected\)\)/);
+  assert.match(c,/prefs\.getFloat\("segment_seconds",90f\)/);
+  assert.match(c,/new OemAvRecorder\(/);
+  assert.match(c,/current=next/);
+  assert.match(c,/callbackGaps\.incrementAndGet\(\)/);
+  assert.match(c,/Clipes contínuos/);
+  assert.match(c,/Lacuna|lacuna/);
+  assert.match(a,/clipSession\.accept\(/);
+  assert.match(a,/clipSession\.stopAndWait\(/);
+  assert.match(a,/setItems\(choices/);
+  assert.match(a,/TESTAR CLIPES SEQUENCIAIS/);
+  assert.doesNotMatch(c,/AVMCamera|startPreview|openCamera|setPreviewCallback/);
+});
