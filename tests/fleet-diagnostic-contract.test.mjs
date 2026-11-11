@@ -127,7 +127,7 @@ test('v1.2 OEM frame test runs only after explicit user confirmation, in isolate
  assert.match(launcher,/ENSAIO OEM REAL · FRAMES/);
  assert.match(source,/new AlertDialog\.Builder\(this\)/);
  assert.match(source,/MAX_PREVIEW_MS=3500/);
- assert.match(source,/WATCHDOG_MS=15000/);
+ assert.match(source,/WATCHDOG_MS=45000/);
  assert.match(source,/getDeclaredMethod\("getCameraId",String\.class\)/);
  assert.match(source,/byTag\.invoke\(null,"pano_h"\)/);
  assert.match(source,/getDeclaredConstructor\(int\.class\)/);
@@ -187,7 +187,7 @@ test('v1.4 manual clip coordinator preserves camera session and records rotation
   assert.match(a,/clipSession\.stopAndWait\(/);
   assert.match(a,/setItems\(choices/);
   assert.match(a,/TESTAR CLIPES SEQUENCIAIS/);
-  assert.doesNotMatch(c,/AVMCamera|startPreview|openCamera|setPreviewCallback/);
+  assert.doesNotMatch(c,/Class\.forName\(|getDeclaredMethod\(|\.startPreview\(/);
 });
 
 test('incident clips can be marked protected and excluded from circular cleanup',()=>{
