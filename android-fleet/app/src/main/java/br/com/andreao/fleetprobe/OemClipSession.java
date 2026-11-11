@@ -181,8 +181,21 @@ public final class OemClipSession {
     synchronized(closed){
       result.append("MP4 finalizados: ").append(completed.size()).append('\n');
       for(int i=0;i<closed.size();i++){
-        result.append("Clipes ").append(i+1).append(": ")
-          .append(closed.get(i).report()).append('\n');
+        OemAvRecorder clip=closed.get(i);
+        result.append("Clipe ").append(i+1).append(": ")
+          .append(clip.report()).append('\n');
+        if(i>0){
+          OemAvRecorder previous=closed.get(i-1);
+          long first=clip.firstAcceptedNs();
+          long last=previous.lastAcceptedNs();
+          if(first>0L&&last>0L){
+            long gapMs=Math.max(0L,(first-last)/1000000L);
+            result.append("Intervalo ENTRE clipes ").append(i).append(" e ")
+              .append(i+1).append(": ").append(gapMs).append(" ms");
+            if(gapMs>200L)result.append(" (possível perda de vídeo)");
+            result.append('\n');
+          }else result.append("Intervalo ENTRE clipes: NÃO MENSURÁVEL\n");
+        }
       }
     }
     if(!failure.isEmpty())result.append("FALHA: ").append(failure).append('\n');
