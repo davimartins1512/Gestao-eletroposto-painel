@@ -45,7 +45,7 @@ import java.util.Locale;
  * não tem acesso a CAN, BMS, controles do BYD ou APIs privadas.
  */
 public final class LaunchActivity extends Activity {
-  private static final int REQUEST_CAMERA=110, REQUEST_LOCATION=111, SAVE_REPORT=112;
+  private static final int REQUEST_CAMERA=110, REQUEST_LOCATION=111, SAVE_REPORT=112, REQUEST_ALL=113;
   private static final String PREF="andreao_fleet_diagnostic";
   private static final String CRASH="last_java_crash";
   private TextView output;
@@ -60,17 +60,19 @@ public final class LaunchActivity extends Activity {
     box.setPadding(25,25,25,25);
     box.setBackgroundColor(0xfff6faf7);
     TextView title=new TextView(this);
-    title.setText("ANDREAO FLEET · DIAGNÓSTICO v0.4");
+    title.setText("ANDREAO FLEET · DIAGNÓSTICO v0.5");
     title.setTextColor(0xff137642);
     title.setTextSize(22);
     box.addView(title);
     TextView note=label("TESTE COMPLETO · somente leitura · offline.\nCarro em P, com freio de estacionamento acionado. Nenhum teste inicia câmeras ou microfone automaticamente.");
     box.addView(note);
+    button(box,"▶ EXECUTAR TODOS OS TESTES E SALVAR LOG",this::runAllChecks);
+    box.addView(label("Executa 1 a 8 em sequência e salva um único TXT automaticamente na pasta Download. Permissões de câmera/GPS são solicitadas uma vez, se necessário. Gravação e microfone permanecem desativados."));
     button(box,"1 · Sistema e multimídia",this::systemTest);
     button(box,"2 · Bateria Android (não é bateria de tração)",this::batteryTest);
     button(box,"3 · Sensores / movimento (lista, não condução)",this::sensorTest);
-    button(box,"4 · Câmeras disponíveis no Android",this::cameraTest);
-    button(box,"5 · GPS (com autorização)",this::locationTest);
+    button(box,"4 · Câmeras disponíveis no Android",this::cameraWithPermission);
+    button(box,"5 · GPS (com autorização)",this::locationWithPermission);
     button(box,"6 · Microfones disponíveis (sem gravar)",this::microphoneTest);
     button(box,"7 · Wi-Fi / rede / espaço",this::connectionTest);
     button(box,"8 · SOC, SOH e sensores do veículo BYD",this::bydTest);
@@ -79,7 +81,7 @@ public final class LaunchActivity extends Activity {
     button(box,"Copiar relatório",this::copyReport);
     button(box,"Exibir resumo curto",this::showCompactSummary);
     button(box,"Salvar relatório em arquivo TXT",this::exportReport);
-    output=label("Pronto para testar. Comece pelos itens 1 a 8.\nAs câmeras proprietárias do BYD podem não aparecer no Android.");
+    output=label("Toque em EXECUTAR TODOS OS TESTES E SALVAR LOG.\nAs câmeras originais da BYD podem não aparecer no Android.");
     output.setTextIsSelectable(true);
     output.setTextSize(15);
     box.addView(output);
@@ -109,6 +111,59 @@ public final class LaunchActivity extends Activity {
     String row="\n━━ "+section+" ━━\n"+detail+"\n";
     report.append(row);
     if(output!=null)output.setText(report.toString());
+  }
+  private void runAllChecks(){
+    // Solicita permissões Android uma vez, mas continua gerando o relatório
+    // mesmo se o usuário negar câmera e/ou GPS.
+    java.util.ArrayList<String> missing=new java.util.ArrayList<>();
+    if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED)
+      missing.add(Manifest.permission.CAMERA);
+    if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED
+        &&checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)!=PackageManager.PERMISSION_GRANTED){
+      missing.add(Manifest.permission.ACCESS_COARSE_LOCATION);
+      missing.add(Manifest.permission.ACCESS_FINE_LOCATION);
+    }
+    if(!missing.isEmpty()){
+      try{
+        requestPermissions(missing.toArray(new String[0]),REQUEST_ALL);
+        return;
+      }catch(Throwable e){append("PERMISSÕES","Não foi possível solicitar: "+safeError(e));}
+    }
+    performAllChecks();
+  }
+  private void performAllChecks(){
+    report.setLength(0);
+    if(output!=null)output.setText("");
+    append("INÍCIO DO DIAGNÓSTICO","ANDREAO Fleet v0.5 · executado em "
+      +new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.US).format(new java.util.Date())
+      +"\nSomente APIs públicas do Android; sem controle do veículo nem leitura CAN/OBD.");
+    safeRun("Sistema",this::systemTest);
+    safeRun("Bateria Android",this::batteryTest);
+    safeRun("Sensores",this::sensorTest);
+    safeRun("Câmeras",this::cameraTest);
+    safeRun("Localização",this::locationTest);
+    safeRun("Microfone",this::microphoneTest);
+    safeRun("Rede",this::connectionTest);
+    safeRun("Dados proprietários BYD",this::bydTest);
+    append("RESULTADO","Diagnóstico automático concluído. O teste 9 (gravação real de vídeo/áudio) não é executado automaticamente: exige confirmação do carro parado e autorização dos ocupantes para áudio.");
+    exportReport();
+  }
+  private void safeRun(String name,Runnable test){
+    try{test.run();}catch(Throwable e){append("ERRO EM "+name,safeError(e));}
+  }
+  private void cameraWithPermission(){
+    if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED){
+      requestPermissions(new String[]{Manifest.permission.CAMERA},REQUEST_CAMERA);return;
+    }
+    cameraTest();
+  }
+  private void locationWithPermission(){
+    if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED
+        &&checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)!=PackageManager.PERMISSION_GRANTED){
+      requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION},REQUEST_LOCATION);
+      return;
+    }
+    locationTest();
   }
   private void systemTest() {
     append("SISTEMA","Android "+Build.VERSION.RELEASE+" (API "+Build.VERSION.SDK_INT+")\n"
@@ -147,7 +202,7 @@ public final class LaunchActivity extends Activity {
   }
   private void cameraTest() {
     if(checkSelfPermission(Manifest.permission.CAMERA)!=PackageManager.PERMISSION_GRANTED) {
-      requestPermissions(new String[]{Manifest.permission.CAMERA},REQUEST_CAMERA);return;
+      append("CÂMERAS","Não foi possível obter permissão Android para consultar Camera2.");return;
     }
     try {
       CameraManager m=(CameraManager)getSystemService(CAMERA_SERVICE);
@@ -169,8 +224,7 @@ public final class LaunchActivity extends Activity {
   private void locationTest() {
     if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED
         &&checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)!=PackageManager.PERMISSION_GRANTED) {
-      requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION},REQUEST_LOCATION);
-      return;
+      append("GPS","Permissão de localização não concedida: posição não consultada.");return;
     }
     try{
       LocationManager m=(LocationManager)getSystemService(LOCATION_SERVICE);
@@ -270,7 +324,7 @@ public final class LaunchActivity extends Activity {
       .setMessage(b.toString()).setPositiveButton("Fechar",null).show();
   }
   private void exportReport(){
-    String filename="andreao_fleet_diagnostico_v04_"
+    String filename="andreao_fleet_diagnostico_v05_"
       +new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new java.util.Date())+".txt";
     byte[] bytes=report.toString().getBytes(StandardCharsets.UTF_8);
     String destination="";
@@ -337,7 +391,8 @@ public final class LaunchActivity extends Activity {
     super.onRequestPermissionsResult(req,names,grants);
     boolean allowed=false;
     for(int value:grants)if(value==PackageManager.PERMISSION_GRANTED)allowed=true;
-    if(!allowed){append("PERMISSÃO","Permissão não concedida; nenhum teste executado.");return;}
+    if(req==REQUEST_ALL){performAllChecks();return;}
+    if(!allowed){append("PERMISSÃO","Permissão não concedida; teste individual não executado.");return;}
     if(req==REQUEST_CAMERA)cameraTest();
     if(req==REQUEST_LOCATION)locationTest();
   }

@@ -26,3 +26,12 @@ test('offline and permission aware',()=>{
   assert.match(manifest,/RECORD_AUDIO/);
   assert.match(manifest,/ACCESS_NETWORK_STATE/);
 });
+test('one-touch aggregate diagnostic runs all eight checks and exports',()=>{
+  const s=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
+  assert.match(s,/EXECUTAR TODOS OS TESTES E SALVAR LOG/);
+  const method=s.slice(s.indexOf('private void performAllChecks()'),s.indexOf('private void safeRun('));
+  for(const m of ['systemTest','batteryTest','sensorTest','cameraTest','locationTest','microphoneTest','connectionTest','bydTest']) assert.match(method,new RegExp('this::'+m));
+  assert.match(method,/exportReport\(\)/);
+  assert.doesNotMatch(method,/openCameraTool|startRecording/);
+  assert.match(s,/if\(req==REQUEST_ALL\)\{performAllChecks\(\);return;\}/);
+});
