@@ -60,6 +60,62 @@ public final class BydCameraCompatibility {
       return "consulta bloqueada ou incompatível (" + e.getClass().getSimpleName() + ")";
     }
   }
+
+  /**
+   * Separadamente do classloader do APK, tentar resolver os NOMES de classes
+   * em um .jar do sistema que o diagnostico anterior confirmou estar presente.
+   *
+   * Sem abrir camera, sem chamar métodos, sem root, sem acesso a frames:
+   * descoberta de metadados, sujeita a regras de visibilidade OEM.
+   */
+  private static String jarClassStatus(ClassLoader loader,String name) {
+    if(loader==null)return "loader não disponível";
+    try {
+      Class<?> c=Class.forName(name,false,loader);
+      StringBuilder b=new StringBuilder("encontrada via bmmcamera.jar");
+      try{
+        java.lang.reflect.Method[] methods=c.getDeclaredMethods();
+        int count=0;
+        for(java.lang.reflect.Method m:methods){
+          for(String wanted:SAFE_METHOD_NAMES){
+            if(!wanted.equals(m.getName()))continue;
+            if(count++==0)b.append(" · métodos: ");
+            else b.append(", ");
+            b.append(m.getName()).append('/').append(m.getParameterTypes().length);
+            if(count>=15)break;
+          }
+          if(count>=15)break;
+        }
+      }catch(Throwable e){
+        b.append(" (assinaturas de métodos inacessíveis: ").append(e.getClass().getSimpleName()).append(')');
+      }
+      return b.toString();
+    }catch(ClassNotFoundException e){
+      return "não encontrada mesmo com bmmcamera.jar";
+    }catch(Throwable e){
+      return "resolução do jar bloqueada: "+e.getClass().getSimpleName();
+    }
+  }
+  private static void appendJarDiscovery(StringBuilder out,Context context) {
+    out.append("\nCLASSES VIA bmmcamera.jar (loader de sistema separado)\n");
+    File jar=new File("/system/framework/bmmcamera.jar");
+    if(!jar.isFile()){
+      out.append("Jar não visível ao APK.\n");
+      return;
+    }
+    try{
+      dalvik.system.PathClassLoader loader=new dalvik.system.PathClassLoader(
+        jar.getAbsolutePath(),context.getClassLoader());
+      for(String key:CAMERA_CLASSES){
+        out.append(key).append(": ").append(jarClassStatus(loader,key)).append('\n');
+      }
+    }catch(Throwable e){
+      out.append("Loader do jar indisponível: ")
+        .append(e.getClass().getSimpleName()).append('\n');
+    }
+    out.append("A presença de métodos é informativa, não significa acesso autorizado aos frames.\n");
+  }
+
   public static String summarize(Context context) {
     StringBuilder out = new StringBuilder(1300);
     out.append("ANDREAO Fleet · compatibilidade de câmeras OEM BYD\n");
@@ -71,6 +127,7 @@ public final class BydCameraCompatibility {
     for (String key:CAMERA_CLASSES)
       out.append(key).append(": ").append(classStatus(key)).append("\n");
 
+    appendJarDiscovery(out,context);
     out.append("\nPACOTES DE VISUALIZAÇÃO BYD (disponibilidade, não acesso)\n");
     PackageManager pm=context.getPackageManager();
     for(String key:OEM_PACKAGES) {
