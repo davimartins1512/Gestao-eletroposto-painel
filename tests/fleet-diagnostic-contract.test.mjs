@@ -122,7 +122,7 @@ test('v1.2 OEM frame test runs only after explicit user confirmation, in isolate
  const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
  const launcher=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
  assert.match(manifest,/android:name="\.OemFrameProbeActivity" android:exported="false" android:process=":oem_camera_probe"/);
- assert.match(launcher,/20 · ENSAIO MANUAL DE FRAMES DA CÂMERA OEM 0/);
+ assert.match(launcher,/20 · TESTE INTEGRADO DE FOTO \+ MP4/);
  assert.match(launcher,/OEM_FRAMES/);
  assert.match(launcher,/ENSAIO OEM REAL · FRAMES/);
  assert.match(source,/new AlertDialog\.Builder\(this\)/);
@@ -142,4 +142,26 @@ test('v1.2 OEM frame test runs only after explicit user confirmation, in isolate
  assert.match(source,/close\.invoke\(camera\)/);
  assert.match(source,/android\.os\.Process\.killProcess/);
  assert.doesNotMatch(source,/MediaRecorder|AudioRecord|MediaCodec|openOutputStream|FileOutputStream|HTTP|Socket/);
+});
+
+test('v1.3 pilot has manual photo, MP4 and disclosed optional audio on SAME muxer',()=>{
+  const activity=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
+  const recorder=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemAvRecorder.java');
+  const snap=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemSnapshotWriter.java');
+  const retain=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemMediaRetention.java');
+  for(const exp of [/PILOTO 15s · FOTO \+ VÍDEO MP4 \(SEM ÁUDIO\)/,/PILOTO 15s · FOTO \+ VÍDEO MP4 \+ ÁUDIO/,
+    /mode==2/,/ocupa|ocupantes/i,/mediaRecorder\.stop\(\)/,/OemSnapshotWriter\.save\(/])
+      assert.match(activity,exp);
+  assert.match(recorder,/new MediaMuxer\(/);
+  assert.match(recorder,/MediaFormat\.createVideoFormat/);
+  assert.match(recorder,/MediaFormat\.createAudioFormat/);
+  assert.match(recorder,/new AudioRecord\(/);
+  assert.match(recorder,/muxer\.writeSampleData/);
+  assert.match(recorder,/COLOR_FormatYUV420SemiPlanar/);
+  assert.match(recorder,/ArrayBlockingQueue/);
+  assert.match(recorder,/OemMediaRetention\.clean/);
+  assert.match(snap,/MediaStore\.Images\.Media/);
+  assert.match(retain,/\.protected\./);
+  assert.doesNotMatch(recorder,/Socket|HttpURLConnection|MediaRecorder\.AudioSource\.VOICE_CALL/);
+  assert.doesNotMatch(activity,/INTERNET|remoteStartRecording/);
 });

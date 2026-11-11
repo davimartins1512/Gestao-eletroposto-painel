@@ -37,7 +37,7 @@ public final class StoragePreferencesActivity extends Activity {
     layout=new LinearLayout(this);layout.setOrientation(LinearLayout.VERTICAL);
     layout.setPadding(28,20,28,22);
     title("ANDREAO Fleet · armazenamento e limites");
-    info("Todas as opções abaixo podem ser alteradas. São PREFERÊNCIAS: este app ainda não grava câmeras BYD. Nenhuma gravação inicia sem dispositivo e permissão válidos.");
+    info("As configurações abaixo se aplicam à GRAVAÇÃO MANUAL DE TESTE da câmera BYD. Gravação 24h, live e sentinela ainda NÃO estão operacionais e precisam de validação no veículo.");
     target=spinner("Onde salvar vídeos",TARGETS,index(TARGET_VALUES,prefs.getString("storage_target","auto")));
     autoswitch=toggle("Trocar automaticamente para USB se aparecer",prefs.getBoolean("removable_autoswitch",true));
     fallback=toggle("Voltar para memória interna se USB for removido",prefs.getBoolean("fallback_internal",true));
@@ -54,7 +54,7 @@ public final class StoragePreferencesActivity extends Activity {
     numeric("max_mobile_data_gb","Limite de alerta de dados (GB/mês; vazio = sem)",prefs.getFloat("max_mobile_data_gb",0f),0.1,10000,true);
     numeric("mobile_data_alert_pct","Alerta de consumo de dados (%)",prefs.getFloat("mobile_data_alert_pct",80f),10,100,false);
     numeric("parked_min_voltage_12v","Tensão mínima 12V sentinela (V)",prefs.getFloat("parked_min_voltage_12v",12.2f),11.5,13.5,false);
-    info("O corte por tensão só será aplicado quando houver leitura real de 12V. Este diagnóstico não controla o carro e NÃO ativa câmera ou microfone.");
+    info("O corte por tensão só será aplicado após medição real de 12V. O piloto permite foto e MP4 com início manual; não controla o carro, não inicia automaticamente e não faz escuta oculta.");
     Button save=new Button(this);save.setAllCaps(false);save.setText("SALVAR CONFIGURAÇÕES");
     save.setOnClickListener(v->save());
     layout.addView(save);
@@ -121,7 +121,7 @@ public final class StoragePreferencesActivity extends Activity {
     writer.putString("live_quality",live[liveQuality.getSelectedItemPosition()]);
     for(Map.Entry<String,Float> x:parsed.entrySet())writer.putFloat(x.getKey(),x.getValue());
     writer.apply();
-    status.setText("Preferências salvas localmente. Sem integração de vídeo em operação. Toque em VERIFICAR para testar locais disponíveis.");
+    status.setText("Preferências salvas. Serão usadas pelo piloto manual de MP4 quando houver encoder e câmera compatíveis. Gravação automática ainda não validada.");
   }
   private void inspect(){
     status.setText("Verificando os locais de armazenamento do Android...");

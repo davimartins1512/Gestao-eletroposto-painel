@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Diagnóstico de integração v1.2 (Dolphin Mini)
+# ANDREAO Fleet — Piloto de mídia BYD v1.3 (Dolphin Mini)
 
 Aplicativo experimental **offline**, com uma sondagem manual opcional de câmera OEM (v1.2), para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -164,3 +164,16 @@ Receber frames não equivale a gravação contínua, áudio sincronizado,
 operação com motor ligado, gravação 24 horas ou live. Nenhuma dessas
 funções foi habilitada. Não é autorizada captação clandestina de áudio
 de ocupantes. Nenhuma chamada externa ou Internet.
+
+## v1.3 — pacote integrado de captura local: foto e MP4 (áudio opcional informado)
+
+Esta versão consolida mais etapas para reduzir a troca de APKs. No botão **20** há:
+1. Ensaio de 3,5 segundos só contando frames (como na v1.2).
+2. Piloto de até 15 segundos de câmera `pano_h` ID 0, salvando um JPEG em Pictures/ANDREAO_Fleet e um MP4 em pasta do próprio app na memória interna ou USB, se gravável.
+3. O mesmo piloto com microfone **ligado somente após escolha manual, informação a todos os ocupantes, confirmação em tela e permissão Android**. O áudio é codificado AAC e adicionado ao MESMO MP4 via MediaMuxer. Captura ativa é informada na tela, sem modo secreto, rede ou inicialização em segundo plano.
+
+A gravação usa `AVMCamera.IPreviewCallback` com buffer NV21 observado em versões abertas de referência; converte, reduz resolução preservando a proporção original, e usa `MediaCodec` H.264 com `YUV420SemiPlanar` quando suportado. Caso o encoder não suporte essa combinação, retorna erro explícito em vez de um MP4 falso. A imagem JPEG deve ser conferida visualmente antes de presumir o formato NV21 correto. Neste piloto o limite é de 15 segundos; os parâmetros de qualidade, FPS, bitrate, armazenamento e retenção são ajustados no botão 17.
+
+Proteções: fila de frames limitada e descarte sob pressão, `:oem_camera_probe` em processo isolado, watchdog de 45s, `stopPreview` e `close` em `finally`, arquivo MP4 temporário até fechamento do muxer, espaço mínimo livre, limite opcional de GB, limpeza circular apenas dos arquivos `andreao_fleet_cam_*.mp4` da pasta do próprio app; arquivos de ocorrência `.protected.` não são tocados.
+
+**Não é produto de frota nem gravação contínua 24h:** recursos em teste, não comprovados em execução do encoder BYD. Ainda não monitora READY, não faz live remota, nem garante preservação de incidentes. Retenção aplica-se só aos vídeos piloto gravados e fechados. A coexistência com Electro/câmera 360° deve ser testada parado. Não ligar a gravação durante manobras ou deslocamento. Jamais afirmar sucesso sem abrir e assistir ao JPEG/MP4 produzido no carro real.
