@@ -301,13 +301,18 @@ public final class OemAvRecorder implements AutoCloseable {
         }
       }catch(Throwable e){error="Muxer: "+e.getClass().getSimpleName()+": "+e.getMessage();}
       if(partial!=null && partial.isFile()){
-        if(muxStarted && error.isEmpty() && partial.length()>2048 && partial.renameTo(complete)){
+        OemMp4Verifier.Result verified=muxStarted&&error.isEmpty()
+          ?OemMp4Verifier.verify(partial,withAudio)
+          :new OemMp4Verifier.Result(false,"Muxer não iniciado ou falha de encoder: "+error,0);
+        if(verified.valid && partial.renameTo(complete)){
           fileDescription=complete.getAbsolutePath()+" ("+(complete.length()/1024)+" KB, "
-            +targetW+"x"+targetH+", áudio: "+(withAudio?"SIM":"NÃO")+")";
+            +targetW+"x"+targetH+", duração="+verified.durationMs+" ms, "
+            +"áudio verificado: "+(withAudio?"SIM":"NÃO")+")";
           OemMediaRetention.clean(context,prefs,directory);
         }else{
           if(!partial.delete())error+="; falha removendo arquivo temporário";
-          if(error.isEmpty())error="Muxer não produziu MP4 íntegro; arquivo temporário removido";
+          if(error.isEmpty())error="MP4 NÃO validado: "+verified.detail+
+            "; não foi incluído na biblioteca";
         }
       }
       finished=true;
