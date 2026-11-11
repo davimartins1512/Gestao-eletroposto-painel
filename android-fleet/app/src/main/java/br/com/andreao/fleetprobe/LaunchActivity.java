@@ -64,7 +64,7 @@ public final class LaunchActivity extends Activity {
     box.setPadding(25,25,25,25);
     box.setBackgroundColor(0xfff6faf7);
     TextView title=new TextView(this);
-    title.setText("ANDREAO FLEET · GRAVAÇÃO LOCAL + GALERIA v1.6");
+    title.setText("ANDREAO FLEET · GRAVAÇÃO LOCAL + GALERIA v1.7");
     title.setTextColor(0xff137642);
     title.setTextSize(22);
     box.addView(title);
@@ -155,7 +155,7 @@ public final class LaunchActivity extends Activity {
   private void performAllChecks(){
     report.setLength(0);
     if(output!=null)output.setText("");
-    append("INÍCIO DO DIAGNÓSTICO","ANDREAO Fleet v1.6 · executado em "
+    append("INÍCIO DO DIAGNÓSTICO","ANDREAO Fleet v1.7 · executado em "
       +new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.US).format(new java.util.Date())
       +"\nSomente APIs públicas do Android; sem controle do veículo nem leitura CAN/OBD.");
     safeRun("Sistema",this::systemTest);

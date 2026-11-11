@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Piloto integrado de mídia BYD v1.6 (Dolphin Mini)
+# ANDREAO Fleet — Piloto integrado de mídia BYD v1.7 (Dolphin Mini)
 
 Aplicativo experimental **offline**, com uma sondagem manual opcional de câmera OEM (v1.2), para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -265,3 +265,35 @@ No botão 17 pode-se alterar **Duração do teste prolongado (2–30 minutos, pa
 Em cada nova rotação, o app verifica novamente se o destino interno/USB está gravável e possui espaço livre. Se houve retirada do USB e o fallback está habilitado, usa a memória interna e registra a mudança; se nenhum destino seguro estiver disponível, encerra e reporta falha. A falha de inicialização do gravador está dentro do try/finally de fechamento da câmera.
 
 **NÃO** é 24h, READY, modo sentinela, nem sistema de segurança comprovado. Não instala nada automaticamente, não grava na cabine sem confirmação específica e não possui acesso à internet nem streaming remoto. Até validação física do vídeo, áudio e continuidade, não remover o Electro. O ambiente de produção não foi alterado.
+
+
+## v1.7 — biblioteca por período, histórico e recuperação após interrupções
+
+No botão 21, a galeria offline agora filtra clipes por **todos, 1h, 6h, 24h
+ou 7 dias** e apresenta data/hora e tamanho para encontrar ocorrências sem
+exportar gravações longas. Reproduzir, exportar um MP4 e preservar arquivos
+de ocorrências continuam disponíveis.
+
+O botão **RECUPERAR MP4 TEMPORÁRIOS VÁLIDOS** é uma ação manual destinada
+a situações em que o arquivo foi finalizado, mas o aplicativo foi encerrado
+antes de renomear o arquivo .mp4.partial para .mp4. Não deve ser usada durante
+gravação; ignora arquivos com menos de 2 minutos sem alteração e jamais
+sobrescreve arquivos existentes. Somente renomeia um arquivo do próprio
+ANDREAO Fleet quando o Android confirma trilha de vídeo, dimensões e
+duração positivas. Arquivos incompletos são PRESERVADOS para diagnóstico,
+não reparados nem eliminados automaticamente. Para temporários antigos
+não há informação segura sobre a intenção de áudio; a recuperação não
+garante a integridade da trilha de microfone.
+
+Cada teste manual concluído salva um relatório pequeno na pasta privada
+da aplicação; o botão **VER ÚLTIMO RELATÓRIO DE GRAVAÇÃO** permite ler
+esse resultado mesmo depois de fechar o painel de captura. O histórico
+é limitado aos 30 últimos relatórios de até 32 KB, **sem armazenar áudio,
+vídeo ou enviar dados à rede**. Não equivale a log criptográfico de custódia
+de evidências ou recuperação de vídeo com container MP4 corrompido.
+
+**Evidência física até agora:** o usuário informou que um vídeo gerado no
+Dolphin Mini apareceu na galeria e reproduziu normalmente. Ainda faltam
+testes de clipes de 90s consecutivos, áudio sincronizado, longa duração,
+modo READY/sentinela e streaming. Não apagar Electro nem ativar
+captura automática na câmera de segurança do carro antes desses gates.

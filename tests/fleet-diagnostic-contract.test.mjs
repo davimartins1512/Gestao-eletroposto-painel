@@ -272,3 +272,39 @@ test('v1.6 recorder setup errors go through the OEM camera teardown in finally',
  assert.match(probe,/stopPreview\.invoke\(camera\)/);
  assert.match(probe,/close\.invoke\(camera\)/);
 });
+
+
+test('v1.7 recovery never blindly promotes unfinished MP4 and avoids live files',()=>{
+ const recovery=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemPartialRecovery.java');
+ const verify=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemMp4Verifier.java');
+ const gallery=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemRecordingLibraryActivity.java');
+ assert.match(recovery,/MIN_AGE_MS=120000L/);
+ assert.match(recovery,/\.mp4\.partial/);
+ assert.match(recovery,/OemMp4Verifier\.verify\(input,false\)/);
+ assert.match(recovery,/if\(!check\.valid\)/);
+ assert.match(recovery,/if\(complete\.exists\(\)\)/);
+ assert.match(recovery,/input\.renameTo\(complete\)/);
+ assert.doesNotMatch(recovery,/input\.delete\(\)/);
+ assert.match(verify,/METADATA_KEY_DURATION/);
+ assert.match(gallery,/RECUPERAR MP4 TEMPORÁRIOS/);
+ assert.match(gallery,/OemPartialRecovery\.recover/);
+});
+
+test('v1.7 gallery filters by age, shows clip timestamps, and records bounded session journal',()=>{
+ const gallery=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemRecordingLibraryActivity.java');
+ const journal=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemSessionJournal.java');
+ const probe=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
+ assert.match(gallery,/Última 1 hora/);
+ assert.match(gallery,/Últimos 7 dias/);
+ assert.match(gallery,/entry\.lastModified>=start/);
+ assert.match(gallery,/dd\/MM\/yyyy HH:mm:ss/);
+ assert.match(gallery,/VER ÚLTIMO RELATÓRIO DE GRAVAÇÃO/);
+ assert.match(gallery,/OemSessionJournal\.latest/);
+ assert.match(journal,/getFilesDir\(\)/);
+ assert.match(journal,/MAX_TEXT_BYTES=32768/);
+ assert.match(journal,/KEEP=30/);
+ assert.match(journal,/new FileOutputStream\(temp\)/);
+ assert.match(journal,/renameTo\(finalFile\)/);
+ assert.match(probe,/OemSessionJournal\.write/);
+ assert.doesNotMatch(journal,/HttpURLConnection|Socket|INTERNET|MediaRecorder/);
+});
