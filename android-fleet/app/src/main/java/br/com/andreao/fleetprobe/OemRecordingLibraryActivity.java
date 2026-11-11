@@ -62,6 +62,7 @@ public final class OemRecordingLibraryActivity extends Activity {
     });
     Button refresh=button(root,"ATUALIZAR LISTA",()->refresh());
     button(root,"RECUPERAR MP4 TEMPORÁRIOS VÁLIDOS (APENAS PARADO)",()->confirmRecovery());
+    button(root,"VER ÚLTIMO RELATÓRIO DE GRAVAÇÃO",()->showLastReport());
     player=new VideoView(this);
     player.setMinimumHeight(260);
     player.setVisibility(android.view.View.GONE);
@@ -134,6 +135,19 @@ public final class OemRecordingLibraryActivity extends Activity {
       more.setText("Mostrando os 200 mais recentes. Exporte/proteja os necessários antes da rotação.");
       listContainer.addView(more);
     }
+  }
+  private void showLastReport(){
+    if(working)return;
+    working=true;
+    status.setText("Lendo o histórico privado de sessões concluídas...");
+    new Thread(()->{
+      final String text=OemSessionJournal.latest(getApplicationContext());
+      runOnUiThread(()->{
+        working=false;
+        new AlertDialog.Builder(this).setTitle("Última sessão de gravação")
+          .setMessage(text).setPositiveButton("Fechar",null).show();
+      });
+    },"fleet-read-last-session").start();
   }
   private void confirmRecovery(){
     if(working)return;

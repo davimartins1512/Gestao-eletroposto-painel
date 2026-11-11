@@ -359,12 +359,14 @@ public final class OemFrameProbeActivity extends Activity {
         "Foto/MP4 de ensaio local: verificar arquivos e conteúdo; nenhum dado transmitido.\n");
       log.append("Receber frames não comprova gravação contínua nem coexistência segura com câmera de ré.");
       final String result=log.toString();
+      final String persisted=OemSessionJournal.write(getApplicationContext(),result);
+      final String withJournal=result+"\n\nHISTÓRICO LOCAL: "+persisted;
       completed.set(true);
       active.set(false);
       main.removeCallbacks(sessionTicker);
       runOnUiThread(()->{
-        currentReport=result;
-        show(result);
+        currentReport=withJournal;
+        show(withJournal);
         startButton.setEnabled(true);videoButton.setEnabled(true);audioVideoButton.setEnabled(true);
         clipVideoButton.setEnabled(true);clipAudioButton.setEnabled(true);
         longVideoButton.setEnabled(true);longAudioButton.setEnabled(true);
