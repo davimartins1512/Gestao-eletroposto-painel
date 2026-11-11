@@ -7,7 +7,7 @@ on:
       - 'android-fleet/**'
       - '.github/workflows/android-fleet-debug.yml'
 permissions:
-  contents: read
+  contents: write
 concurrency:
   group: fleet-diagnostic-${{ github.ref }}
   cancel-in-progress: true
@@ -39,3 +39,19 @@ jobs:
           name: Andreao-Fleet-Diagnostico-v0.6
           path: android-fleet/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
+
+      - name: Make direct APK accessible in feature branch (no ZIP)
+        if: github.ref == 'refs/heads/feature/andreao-fleet-foundation-20261111'
+        run: |
+          set -euo pipefail
+          mkdir -p apk-downloads
+          cp android-fleet/app/build/outputs/apk/debug/app-debug.apk apk-downloads/ANDREAO_Fleet_v0.6.apk
+          echo "APK checksum:"
+          sha256sum apk-downloads/ANDREAO_Fleet_v0.6.apk
+          git config user.name 'github-actions[bot]'
+          git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
+          git add apk-downloads/ANDREAO_Fleet_v0.6.apk
+          if git diff --cached --quiet; then echo "APK already up to date"; else
+            git commit -m 'build(fleet): add v0.6 direct APK download [skip ci]'
+            git push origin HEAD:refs/heads/feature/andreao-fleet-foundation-20261111
+          fi
