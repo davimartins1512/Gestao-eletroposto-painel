@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<meta name="theme-color" content="#102820">
+<title>ANDREAO Fleet · Gestão de frota</title>
+<link rel="stylesheet" href="fleet.css">
+<script defer src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2.117.3/dist/umd/supabase.min.js"></script>
+<script defer src="config.js"></script>
+<script defer src="fleet.js"></script>
+</head>
+<body>
+<header class="top">
+  <a href="painel.html" class="back" aria-label="Voltar ao painel">← Painel</a>
+  <div><strong>ANDREAO <span>FLEET</span></strong><small>Gestão inteligente de veículos elétricos</small></div>
+  <button id="refresh" type="button" class="ghost">Atualizar</button>
+</header>
+<main id="content" hidden>
+  <div class="intro"><div><p class="eyebrow">CONTROLE DA FROTA</p><h1>Veículos</h1><p>Monitoramento, histórico operacional e custos em um só lugar.</p></div>
+    <button id="newVehicle" class="primary" type="button">+ Adicionar veículo</button></div>
+  <div class="stats" aria-label="Indicadores"><div class="stat"><small>Veículos</small><strong id="statTotal">0</strong></div><div class="stat"><small>Em locação</small><strong id="statRented">0</strong></div><div class="stat"><small>Manutenção</small><strong id="statMaintenance">0</strong></div><div class="stat"><small>Despesas registradas</small><strong id="statExpenses">R$ 0,00</strong></div></div>
+  <div class="layout">
+    <section class="box" aria-label="Lista de veículos"><div class="section-head"><div><h2>Minha frota</h2><p>Dolphin Mini · Yuan Plus · Dolphin Plus</p></div></div>
+      <label for="search" class="sr-only">Buscar veículo</label><input id="search" placeholder="Buscar por placa, modelo ou apelido">
+      <div id="vehicles" class="vehicle-list"></div>
+    </section>
+    <section class="box detail" aria-live="polite">
+      <div id="vehicleDetail"><div class="empty"><h2>Selecione um veículo</h2><p>Cadastre um carro ou escolha um da lista para acompanhar os dados disponíveis.</p></div></div>
+    </section>
+  </div>
+  <p class="footnote">Dados ao vivo só aparecem após integração autorizada e verificada no veículo. Câmeras e imobilização remota não são habilitadas nesta versão.</p>
+</main>
+<div class="status" id="status" role="status">Verificando acesso...</div>
+<dialog id="editor"><form id="editorForm"><div class="dialog-title"><h2 id="editorTitle">Novo registro</h2><button type="button" class="ghost" id="closeEditor" aria-label="Fechar">✕</button></div><div id="editorFields"></div><div class="actions"><button type="button" class="ghost" id="cancelEditor">Cancelar</button><button type="submit" class="primary" id="saveEditor">Salvar</button></div><p class="error" id="editorError" role="alert"></p></form></dialog>
+</body>
+</html>
