@@ -80,13 +80,16 @@ public final class AudioTestActivity extends Activity {
       handler.postDelayed(sample,500);
       handler.postDelayed(finishTask,5000);
     }catch(Throwable e){
-      status.setText("Falha no microfone: "+e.getClass().getSimpleName()+" · "+e.getMessage());
+      String error="Falha no microfone: "+e.getClass().getSimpleName()+" · "+e.getMessage();
+      status.setText(error);
+      getSharedPreferences("andreao_audio_test",MODE_PRIVATE).edit().putString("last_result",error).apply();
       stop(false);
     }
   }
   private void stop(boolean finished){
     handler.removeCallbacks(sample);
     handler.removeCallbacks(finishTask);
+    boolean wasActive=active;
     boolean ok=active;
     active=false;
     if(recorder!=null){
@@ -95,9 +98,15 @@ public final class AudioTestActivity extends Activity {
       recorder=null;
     }
     if(temporary!=null){try{temporary.delete();}catch(Throwable ignored){}temporary=null;}
-    if(finished)status.setText(ok
-      ?"Teste do microfone concluído. Pico medido: "+peak+". Arquivo temporário apagado. Pico zero pode ser silêncio, microfone bloqueado ou indisponível."
-      :"Teste não concluído. Nenhum áudio foi mantido.");
+    if(finished || wasActive){
+      String result=finished && ok
+        ?"Teste do microfone concluído. Pico medido: "+peak+". Arquivo temporário apagado. Pico zero não comprova ausência de microfone."
+        :"Teste interrompido/sem sucesso. Nenhum áudio foi mantido.";
+      status.setText(result);
+      String time=new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",java.util.Locale.US).format(new java.util.Date());
+      getSharedPreferences("andreao_audio_test",MODE_PRIVATE).edit()
+        .putString("last_result",time+" · "+result).apply();
+    }
   }
   @Override protected void onStop(){stop(false);super.onStop();}
   @Override protected void onDestroy(){stop(false);super.onDestroy();}
