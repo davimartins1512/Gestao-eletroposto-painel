@@ -245,3 +245,30 @@ test('v1.5 clip report exposes cross-clip frame timing instead of assuming gap-f
  assert.match(clips,/firstAcceptedNs\(\)/);
  assert.match(clips,/lastAcceptedNs\(\)/);
 });
+
+test('v1.6 extended multi-clip pilot is adjustable with explicit audio and visible REC indicator',()=>{
+ const media=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/StoragePreferencesActivity.java');
+ const probe=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
+ const clips=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemClipSession.java');
+ assert.match(media,/numeric\("test_duration_minutes"/);
+ assert.match(media,/prefs\.getFloat\("test_duration_minutes",5f\)/);
+ assert.match(probe,/ENSAIO PROLONGADO · CLIPES MP4/);
+ assert.match(probe,/mode==5\|\|mode==6/);
+ assert.match(probe,/Math\.max\(2,Math\.min\(30,minutes\)\)/);
+ assert.match(probe,/mode==2\|\|mode==4\|\|mode==6/);
+ assert.match(probe,/sessionTicker/);
+ assert.match(probe,/GRAVANDO ÁUDIO E VÍDEO/);
+ assert.match(probe,/clipSession\.stopAndWait/);
+ assert.match(clips,/StoragePolicy\.select\(context,prefs\)/);
+ assert.match(clips,/Mudanças de armazenamento/);
+ assert.match(clips,/Sem armazenamento gravável/);
+});
+test('v1.6 recorder setup errors go through the OEM camera teardown in finally',()=>{
+ const probe=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
+ const tryAt=probe.indexOf('    try{\n    if(mode>0)');
+ const startAt=probe.indexOf('          clipSession.start();');
+ const cleanupAt=probe.indexOf('    }finally{',startAt);
+ assert.ok(tryAt>0&&startAt>tryAt&&cleanupAt>startAt);
+ assert.match(probe,/stopPreview\.invoke\(camera\)/);
+ assert.match(probe,/close\.invoke\(camera\)/);
+});

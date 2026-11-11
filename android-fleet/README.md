@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Piloto integrado de mídia BYD v1.5 (Dolphin Mini)
+# ANDREAO Fleet — Piloto integrado de mídia BYD v1.6 (Dolphin Mini)
 
 Aplicativo experimental **offline**, com uma sondagem manual opcional de câmera OEM (v1.2), para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -254,3 +254,14 @@ clipes foi validada no Dolphin Mini físico ainda. O resultado anterior comprovo
 automaticamente ao ligar o veículo, não monitora sentinela, não faz live, não
 garante áudio/ vídeo sem lacunas, nem substitui o Electro neste momento.
 Sem INTERNET, sem custo de API, sem publicação em produção.
+
+
+## v1.6 — sessão prolongada manual, armazenamento resiliente e estado visível
+
+Relato do responsável: no Dolphin Mini, o vídeo criado pelo app v1.5 **apareceu na galeria** após ele executar os testes. Ainda aguardamos confirmação visual de reprodução de imagem, áudio e continuidade entre clipes.
+
+No botão 17 pode-se alterar **Duração do teste prolongado (2–30 minutos, padrão 5)** por carro. No botão 20 existem dois novos modos estacionários: sessão prolongada de MP4 sem áudio e sessão prolongada de MP4 com áudio explicitamente informado aos ocupantes. Ambos mantêm a câmera OEM aberta entre os segmentos de duração configurável (padrão 90 segundos). O indicador de gravação na tela apresenta tempo decorrido, frames recebidos, clipes finalizados e botão de interrupção. A câmera original BYD/AVM pode ficar indisponível para as funções do carro durante o teste; **exclusivamente com carro parado em P, freio e sem manobras**.
+
+Em cada nova rotação, o app verifica novamente se o destino interno/USB está gravável e possui espaço livre. Se houve retirada do USB e o fallback está habilitado, usa a memória interna e registra a mudança; se nenhum destino seguro estiver disponível, encerra e reporta falha. A falha de inicialização do gravador está dentro do try/finally de fechamento da câmera.
+
+**NÃO** é 24h, READY, modo sentinela, nem sistema de segurança comprovado. Não instala nada automaticamente, não grava na cabine sem confirmação específica e não possui acesso à internet nem streaming remoto. Até validação física do vídeo, áudio e continuidade, não remover o Electro. O ambiente de produção não foi alterado.
