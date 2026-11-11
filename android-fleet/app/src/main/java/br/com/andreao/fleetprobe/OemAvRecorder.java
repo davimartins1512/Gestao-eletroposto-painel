@@ -322,6 +322,7 @@ public final class OemAvRecorder implements AutoCloseable {
     if(worker!=null)worker.join(ms);
   }
   public boolean finished(){return finished;}
+  public File finishedFile(){return finished && error.isEmpty() && complete!=null && complete.isFile()?complete:null;}
   public String report(){
     return "Gravação MP4: "+fileDescription+"\n"+
       "Quadros entregues ao codificador: "+encoded.get()+"\n"+

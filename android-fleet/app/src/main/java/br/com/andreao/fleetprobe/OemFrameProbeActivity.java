@@ -51,7 +51,7 @@ public final class OemFrameProbeActivity extends Activity {
   private volatile int lastFrameBytes=0;
   private volatile Thread worker;
   private TextView output;
-  private Button startButton,videoButton,audioVideoButton,finishButton,stopButton;
+  private Button startButton,videoButton,audioVideoButton,finishButton,stopButton,exportButton;
   private volatile int mode=0; // 0=count only, 1=snapshot+MP4, 2=snapshot+MP4+opt-in microphone
   private volatile int sampleWidth=0,sampleHeight=0,sampleSize=0;
   private volatile byte[] sampleImage;
@@ -83,6 +83,8 @@ public final class OemFrameProbeActivity extends Activity {
     stopButton=button(box,"INTERROMPER TESTE",()->stop());
     stopButton.setEnabled(false);
     finishButton=button(box,"VOLTAR E ADICIONAR RESULTADO AO TXT",()->finishWithResult());
+    exportButton=button(box,"EXPORTAR MP4 PARA GALERIA / MOVIES",()->exportVideo());
+    exportButton.setEnabled(false);
     output=new TextView(this);
     output.setTextIsSelectable(true);
     output.setTextSize(15);
@@ -136,7 +138,7 @@ public final class OemFrameProbeActivity extends Activity {
     firstFrameBytes=0;lastFrameBytes=0;sampleWidth=0;sampleHeight=0;sampleSize=0;
     sampleImage=null;mediaRecorder=null;mediaSetupError="";
     startButton.setEnabled(false);videoButton.setEnabled(false);audioVideoButton.setEnabled(false);
-    stopButton.setEnabled(true);finishButton.setEnabled(false);
+    stopButton.setEnabled(true);finishButton.setEnabled(false);exportButton.setEnabled(false);
     show((mode==2?"🔴 GRAVANDO ÁUDIO E VÍDEO · OCUPANTES INFORMADOS\n":"")+
       "Ensaio manual em processo separado. Watchdog interrompe a sessão após 45s se travar.");
     main.postDelayed(()->{
@@ -310,6 +312,7 @@ public final class OemFrameProbeActivity extends Activity {
         startButton.setEnabled(true);videoButton.setEnabled(true);audioVideoButton.setEnabled(true);
         stopButton.setEnabled(false);
         finishButton.setEnabled(true);
+        exportButton.setEnabled(mediaRecorder!=null&&mediaRecorder.finishedFile()!=null);
       });
     }
   }
@@ -322,6 +325,20 @@ public final class OemFrameProbeActivity extends Activity {
   }
   private void show(String text){
     if(output!=null)output.setText(text);
+  }
+  private void exportVideo(){
+    OemAvRecorder r=mediaRecorder;
+    File saved=r==null?null:r.finishedFile();
+    if(saved==null){show("Nenhum MP4 íntegro concluído para exportação.");return;}
+    exportButton.setEnabled(false);
+    final File actual=saved;
+    new Thread(()->{
+      final String message=OemVideoExporter.copyToMovies(getApplicationContext(),actual);
+      runOnUiThread(()->{
+        show(currentReport+"\n\nEXPORTAÇÃO MP4\n"+message);
+        exportButton.setEnabled(true);
+      });
+    },"fleet-export-mp4").start();
   }
   private void finishWithResult(){
     if(active.get()){stop();return;}
