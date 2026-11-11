@@ -5,6 +5,7 @@
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
   <uses-feature android:name="android.hardware.camera" android:required="false"/>
   <uses-feature android:name="android.hardware.microphone" android:required="false"/>
   <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
@@ -15,6 +16,8 @@
     android:usesCleartextTraffic="false"
     android:theme="@android:style/Theme.Material.Light.NoActionBar">
     <activity android:name=".MainActivity" android:exported="false" />
+    <activity android:name=".AudioTestActivity" android:exported="false" />
+    <service android:name=".TrackerService" android:exported="false" android:foregroundServiceType="location" />
     <activity android:name=".LaunchActivity" android:exported="true">
       <intent-filter>
         <action android:name="android.intent.action.MAIN"/>

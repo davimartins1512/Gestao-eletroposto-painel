@@ -45,3 +45,13 @@ A exportação TXT usa MediaStore para gravar diretamente em Download/Downloads 
 ## v0.5 — diagnóstico automático
 
 O botão **EXECUTAR TODOS OS TESTES E SALVAR LOG** pede as permissões Android de câmera e GPS (se necessário), continua caso sejam negadas e executa, em sequência, todos os oito diagnósticos somente-leitura. Cada seção é acumulada em um único relatório, que é gravado automaticamente em **Download** pelo MediaStore (Android 10+) ou na pasta privada de documentos como alternativa. O teste 9 de gravação é deliberadamente manual e NÃO faz parte do lote: gravação de vídeo e microfone não é apropriada sem confirmação de carro parado e consentimento. O log não inclui coordenadas nem dados pessoais do veículo.
+
+
+## v0.6 — GPS e movimento local, exportação consolidada
+
+- Teste de **GPS e movimento real**, iniciado manualmente, limitado a **180 segundos**; usa serviço Android em primeiro plano com notificação de parar, sem execução automática.
+- Localização (coordenadas, acurácia, velocidade GPS quando houver) e sensores Android são amostrados em CSV local. Não é telemetria de tração nem odômetro BYD. Se a posição GPS não atualizar, o log registra somente sensores e evento de indisponibilidade. O teste não promete funcionar com a tela desligada no DiLink: testar em veículo parado.
+- Botão **EXPORTAR LOG ÚNICO** concatena o diagnóstico anterior, CSV de GPS com coordenadas exatas e resultado do teste de microfone. Requer interromper o rastreador primeiro. O TXT final pode conter **endereços/rotas privados**; revise antes de compartilhar.
+- Teste real do microfone: 5 s, permissão e consentimento dos ocupantes, não grava de forma permanente. Pico de áudio não garante inteligibilidade.
+- App continua SEM permissão INTERNET; nenhum dado sai da multimídia.
+- Não mexe no CAN, BMS, firmware ou câmera de ré. Não usar a tela durante a direção.

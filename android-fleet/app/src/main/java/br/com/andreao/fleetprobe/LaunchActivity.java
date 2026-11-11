@@ -34,6 +34,10 @@ import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import android.widget.TextView;
 import java.io.OutputStream;
+import java.io.InputStream;
+import java.io.FileInputStream;
+import java.io.File;
+import java.io.ByteArrayOutputStream;
 import java.io.PrintWriter;
 import java.io.StringWriter;
 import java.nio.charset.StandardCharsets;
@@ -45,7 +49,7 @@ import java.util.Locale;
  * não tem acesso a CAN, BMS, controles do BYD ou APIs privadas.
  */
 public final class LaunchActivity extends Activity {
-  private static final int REQUEST_CAMERA=110, REQUEST_LOCATION=111, SAVE_REPORT=112, REQUEST_ALL=113;
+  private static final int REQUEST_CAMERA=110, REQUEST_LOCATION=111, SAVE_REPORT=112, REQUEST_ALL=113, REQUEST_TRACK=116;
   private static final String PREF="andreao_fleet_diagnostic";
   private static final String CRASH="last_java_crash";
   private TextView output;
@@ -60,7 +64,7 @@ public final class LaunchActivity extends Activity {
     box.setPadding(25,25,25,25);
     box.setBackgroundColor(0xfff6faf7);
     TextView title=new TextView(this);
-    title.setText("ANDREAO FLEET · DIAGNÓSTICO v0.5");
+    title.setText("ANDREAO FLEET · DIAGNÓSTICO v0.6");
     title.setTextColor(0xff137642);
     title.setTextSize(22);
     box.addView(title);
@@ -76,6 +80,13 @@ public final class LaunchActivity extends Activity {
     button(box,"6 · Microfones disponíveis (sem gravar)",this::microphoneTest);
     button(box,"7 · Wi-Fi / rede / espaço",this::connectionTest);
     button(box,"8 · SOC, SOH e sensores do veículo BYD",this::bydTest);
+
+    box.addView(label("NOVOS TESTES v0.6 · toque para começar e interromper. Não há rastreamento automático ou envio à internet."));
+    button(box,"10 · INICIAR GPS + MOVIMENTO (até 3 minutos)",this::confirmStartTracking);
+    button(box,"11 · PARAR TESTE GPS AGORA",this::stopTracking);
+    button(box,"12 · STATUS DO GPS E CONTAGEM DE PONTOS",this::showTrackStatus);
+    button(box,"13 · TESTE DO MICROFONE (com autorização, 5 segundos)",this::openAudioTest);
+    button(box,"14 · EXPORTAR LOG ÚNICO (diagnóstico + GPS + áudio)",this::exportCombined);
     button(box,"9 · Testar câmera + gravação manual (opcional)",this::openCameraTool);
     button(box,"Ver erro de fechamento anterior",this::showPreviousCrash);
     button(box,"Copiar relatório",this::copyReport);
@@ -134,7 +145,7 @@ public final class LaunchActivity extends Activity {
   private void performAllChecks(){
     report.setLength(0);
     if(output!=null)output.setText("");
-    append("INÍCIO DO DIAGNÓSTICO","ANDREAO Fleet v0.5 · executado em "
+    append("INÍCIO DO DIAGNÓSTICO","ANDREAO Fleet v0.6 · executado em "
       +new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.US).format(new java.util.Date())
       +"\nSomente APIs públicas do Android; sem controle do veículo nem leitura CAN/OBD.");
     safeRun("Sistema",this::systemTest);
@@ -285,6 +296,88 @@ public final class LaunchActivity extends Activity {
       +"\nEste aplicativo não usa root, CAN, comandos de bloqueio, ADB ou API privada."
       +"\nSerá necessário um adaptador compatível e autorizado, validado no veículo.");
   }
+  private void confirmStartTracking(){
+    new AlertDialog.Builder(this)
+      .setTitle("Teste de localização por 3 minutos")
+      .setMessage("Confirme que o carro está estacionado em P, com freio acionado. O teste registra COORDENADAS GPS precisas e sensores de movimento em um CSV local. Não compartilhe o arquivo se contiver endereços particulares. O serviço mostra notificação, é encerrado em até 3 minutos e pode ser parado a qualquer momento. Não haverá envio para servidor. Você autoriza iniciar?")
+      .setNegativeButton("Cancelar",null)
+      .setPositiveButton("Iniciar teste",(d,w)->startTracking())
+      .show();
+  }
+  private void startTracking(){
+    if(checkSelfPermission(Manifest.permission.ACCESS_FINE_LOCATION)!=PackageManager.PERMISSION_GRANTED
+        &&checkSelfPermission(Manifest.permission.ACCESS_COARSE_LOCATION)!=PackageManager.PERMISSION_GRANTED){
+      requestPermissions(new String[]{Manifest.permission.ACCESS_COARSE_LOCATION,Manifest.permission.ACCESS_FINE_LOCATION},REQUEST_TRACK);
+      return;
+    }
+    try{
+      if(getSharedPreferences(TrackerService.PREFS,MODE_PRIVATE).getBoolean(TrackerService.RUNNING,false)){
+        append("GPS CONTÍNUO","Uma coleta já está ativa. Use PARAR TESTE GPS AGORA.");return;
+      }
+      Intent intent=new Intent(this,TrackerService.class).setAction(TrackerService.ACTION_START);
+      startForegroundService(intent);
+      append("GPS CONTÍNUO","Coleta iniciada sob sua autorização: no máximo 3 minutos. Notificação de acompanhamento ativa. Use PARAR para encerrar antes.");
+    }catch(Throwable e){append("GPS CONTÍNUO","Falha ao iniciar: "+safeError(e));}
+  }
+  private void stopTracking(){
+    try{
+      if(!getSharedPreferences(TrackerService.PREFS,MODE_PRIVATE).getBoolean(TrackerService.RUNNING,false)){
+        append("GPS CONTÍNUO","Não há coleta ativa registrada.");
+        return;
+      }
+      startService(new Intent(this,TrackerService.class).setAction(TrackerService.ACTION_STOP));
+      append("GPS CONTÍNUO","Solicitada parada. Consulte o status e exporte depois que encerrar.");
+    }catch(Throwable e){append("GPS CONTÍNUO","Falha ao parar: "+safeError(e));}
+  }
+  private void showTrackStatus(){
+    android.content.SharedPreferences p=getSharedPreferences(TrackerService.PREFS,MODE_PRIVATE);
+    String info="Ativo: "+(p.getBoolean(TrackerService.RUNNING,false)?"SIM":"NÃO")
+      +"\nPontos GPS recebidos: "+p.getInt(TrackerService.LAST_COUNT,0)
+      +"\nEstado: "+p.getString(TrackerService.LAST_STATUS,"Nunca testado")
+      +"\nArquivo interno: "+p.getString(TrackerService.LAST_FILE,"Nenhum");
+    append("GPS CONTÍNUO",info);
+    new AlertDialog.Builder(this).setTitle("Status do rastreamento").setMessage(info)
+      .setPositiveButton("OK",null).show();
+  }
+  private void openAudioTest(){
+    new AlertDialog.Builder(this).setTitle("Teste opcional de microfone")
+      .setMessage("O teste dura 5 segundos. Requer consentimento de TODOS os ocupantes e carro estacionado. O áudio temporário é apagado automaticamente. Continuar?")
+      .setNegativeButton("Cancelar",null)
+      .setPositiveButton("Abrir teste",(d,w)->startActivity(new Intent(this,AudioTestActivity.class)))
+      .show();
+  }
+  private void exportCombined(){
+    android.content.SharedPreferences p=getSharedPreferences(TrackerService.PREFS,MODE_PRIVATE);
+    if(p.getBoolean(TrackerService.RUNNING,false)){
+      new AlertDialog.Builder(this).setTitle("Encerre a coleta primeiro")
+        .setMessage("O serviço de GPS ainda está registrando. Aperte PARAR TESTE GPS AGORA antes de exportar.")
+        .setPositiveButton("OK",null).show();
+      return;
+    }
+    StringBuilder all=new StringBuilder(report.toString());
+    all.append("\n\n━━ TESTE GPS CONTÍNUO v0.6 ━━\n");
+    all.append("Estado: ").append(p.getString(TrackerService.LAST_STATUS,"Nunca executado")).append("\n");
+    all.append("Pontos GPS registrados: ").append(p.getInt(TrackerService.LAST_COUNT,0)).append("\n");
+    String path=p.getString(TrackerService.LAST_FILE,"");
+    if(path.isEmpty())all.append("Nenhum CSV de rastreamento registrado.\n");
+    else {
+      File file=new File(path);
+      if(!file.exists())all.append("Arquivo anterior não encontrado na pasta privada do aplicativo.\n");
+      else if(file.length()>1024*1024)all.append("CSV maior que 1 MB: arquivo não incluído por segurança.\n");
+      else try(InputStream input=new FileInputStream(file);
+          ByteArrayOutputStream buffer=new ByteArrayOutputStream()){
+        byte[] data=new byte[8192];
+        int n;while((n=input.read(data))!=-1)buffer.write(data,0,n);
+        all.append("\n━━ CSV GPS E MOVIMENTO (COORDENADAS PRECISAS) ━━\n");
+        all.append(buffer.toString("UTF-8")).append("\n");
+      }catch(Throwable e){all.append("Erro lendo CSV: ").append(safeError(e)).append("\n");}
+    }
+    all.append("\n━━ RESULTADO DO TESTE REAL DE MICROFONE ━━\n");
+    all.append(getSharedPreferences("andreao_audio_test",MODE_PRIVATE)
+      .getString("last_result","Teste real ainda não executado.")).append("\n");
+    all.append("\nPRIVACIDADE: ESTE RELATÓRIO PODE CONTER COORDENADAS EXATAS. REVISE ANTES DE ENVIAR.\n");
+    saveTextFile("andreao_fleet_completo_v06_",all.toString());
+  }
   private void openCameraTool(){
     new AlertDialog.Builder(this).setTitle("Teste de vídeo opcional")
       .setMessage("O carro está parado em P, com freio acionado? A gravação usa somente câmeras que o Android expõe. Microfone só com consentimento dos ocupantes.")
@@ -323,10 +416,11 @@ public final class LaunchActivity extends Activity {
     new AlertDialog.Builder(this).setTitle("Resumo ANDREAO Fleet v0.4")
       .setMessage(b.toString()).setPositiveButton("Fechar",null).show();
   }
-  private void exportReport(){
-    String filename="andreao_fleet_diagnostico_v05_"
+  private void exportReport(){saveTextFile("andreao_fleet_diagnostico_v06_",report.toString());}
+  private void saveTextFile(String prefix,String content){
+    String filename=prefix
       +new java.text.SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new java.util.Date())+".txt";
-    byte[] bytes=report.toString().getBytes(StandardCharsets.UTF_8);
+    byte[] bytes=content.getBytes(StandardCharsets.UTF_8);
     String destination="";
     String firstError=null;
     if(Build.VERSION.SDK_INT>=29){
@@ -392,6 +486,7 @@ public final class LaunchActivity extends Activity {
     boolean allowed=false;
     for(int value:grants)if(value==PackageManager.PERMISSION_GRANTED)allowed=true;
     if(req==REQUEST_ALL){performAllChecks();return;}
+    if(req==REQUEST_TRACK){if(allowed)startTracking();else append("GPS CONTÍNUO","Permissão recusada. Coleta não iniciada.");return;}
     if(!allowed){append("PERMISSÃO","Permissão não concedida; teste individual não executado.");return;}
     if(req==REQUEST_CAMERA)cameraTest();
     if(req==REQUEST_LOCATION)locationTest();
