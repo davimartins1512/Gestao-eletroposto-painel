@@ -51,7 +51,7 @@ public final class OemFrameProbeActivity extends Activity {
   private volatile int lastFrameBytes=0;
   private volatile Thread worker;
   private TextView output;
-  private Button startButton,videoButton,audioVideoButton,clipVideoButton,clipAudioButton,finishButton,stopButton,exportButton,protectButton;
+  private Button startButton,videoButton,audioVideoButton,clipVideoButton,clipAudioButton,longVideoButton,longAudioButton,finishButton,stopButton,exportButton,protectButton;
   private volatile int mode=0; // 0=count only, 1=snapshot+MP4, 2=snapshot+MP4+opt-in microphone
   private volatile int sampleWidth=0,sampleHeight=0,sampleSize=0;
   private volatile byte[] sampleImage;
@@ -83,6 +83,8 @@ public final class OemFrameProbeActivity extends Activity {
     audioVideoButton=button(box,"PILOTO 15s · FOTO + VÍDEO MP4 + ÁUDIO (AVISO AOS OCUPANTES)",()->confirm(2));
     clipVideoButton=button(box,"TESTAR CLIPES SEQUENCIAIS · MP4 SEM ÁUDIO",()->confirm(3));
     clipAudioButton=button(box,"TESTAR CLIPES SEQUENCIAIS · MP4 + ÁUDIO INFORMADO",()->confirm(4));
+    longVideoButton=button(box,"ENSAIO PROLONGADO · CLIPES MP4 (DURAÇÃO AJUSTÁVEL)",()->confirm(5));
+    longAudioButton=button(box,"ENSAIO PROLONGADO · MP4 + ÁUDIO INFORMADO",()->confirm(6));
     stopButton=button(box,"INTERROMPER TESTE",()->stop());
     stopButton.setEnabled(false);
     finishButton=button(box,"VOLTAR E ADICIONAR RESULTADO AO TXT",()->finishWithResult());
@@ -109,7 +111,7 @@ public final class OemFrameProbeActivity extends Activity {
   private void confirm(int selectedMode){
     if(active.get())return;
     mode=selectedMode;
-    String audio=(selectedMode==2||selectedMode==4)?"O AUDIO DA CABINE SERA GRAVADO. Confirme que informou TODOS os ocupantes e obteve as autorizações necessárias. A captura será identificada na tela. ":"";
+    String audio=(selectedMode==2||selectedMode==4||selectedMode==6)?"O AUDIO DA CABINE SERA GRAVADO. Confirme que informou TODOS os ocupantes e obteve as autorizações necessárias. A captura será identificada na tela. ":"";
     String video=selectedMode==0?"Só conta frames, sem salvar foto ou áudio. ":
       selectedMode>=3?"Grava clipes MP4 sucessivos sem fechar a câmera entre arquivos. Duração configurada no botão 17; ensaio manual limitado. Pode haver lacunas na troca, principalmente de áudio. ":"Grava um JPEG e MP4 de teste local por até 15 segundos. ";
     new AlertDialog.Builder(this).setTitle("Confirmar gravação de teste na BYD")
@@ -121,9 +123,9 @@ public final class OemFrameProbeActivity extends Activity {
   }
   private void prepare(){
     boolean cam=checkSelfPermission(Manifest.permission.CAMERA)==PackageManager.PERMISSION_GRANTED;
-    boolean mic=(mode!=2&&mode!=4) || checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED;
+    boolean mic=(mode!=2&&mode!=4&&mode!=6) || checkSelfPermission(Manifest.permission.RECORD_AUDIO)==PackageManager.PERMISSION_GRANTED;
     if(!cam||!mic){
-      if(mode==2||mode==4)requestPermissions(new String[]{Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO},CAMERA_PERMISSION);
+      if(mode==2||mode==4||mode==6)requestPermissions(new String[]{Manifest.permission.CAMERA,Manifest.permission.RECORD_AUDIO},CAMERA_PERMISSION);
       else requestPermissions(new String[]{Manifest.permission.CAMERA},CAMERA_PERMISSION);
       return;
     }
@@ -145,9 +147,10 @@ public final class OemFrameProbeActivity extends Activity {
     sampleImage=null;mediaRecorder=null;clipSession=null;mediaSetupError="";
     startButton.setEnabled(false);videoButton.setEnabled(false);audioVideoButton.setEnabled(false);
     clipVideoButton.setEnabled(false);clipAudioButton.setEnabled(false);
+    longVideoButton.setEnabled(false);longAudioButton.setEnabled(false);
     stopButton.setEnabled(true);finishButton.setEnabled(false);exportButton.setEnabled(false);protectButton.setEnabled(false);
     long watchdog=(mode>=3?pilotDurationMs()+40000L:WATCHDOG_MS);
-    show(((mode==2||mode==4)?"🔴 GRAVANDO ÁUDIO E VÍDEO · OCUPANTES INFORMADOS\n":"")+
+    show(((mode==2||mode==4||mode==6)?"🔴 GRAVANDO ÁUDIO E VÍDEO · OCUPANTES INFORMADOS\n":"")+
       "Ensaio manual em processo separado. Watchdog de "+(watchdog/1000L)+" segundos se o HAL travar.");
     main.postDelayed(()->{
       if(active.get() && !completed.get()){
@@ -162,7 +165,12 @@ public final class OemFrameProbeActivity extends Activity {
   }
   private long pilotDurationMs(){
     if(mode<3)return MAX_PILOT_MS;
-    int segment=(int)getSharedPreferences(StoragePolicy.PREFS,MODE_PRIVATE).getFloat("segment_seconds",90f);
+    SharedPreferences prefs=getSharedPreferences(StoragePolicy.PREFS,MODE_PRIVATE);
+    if(mode==5||mode==6){
+      int minutes=(int)prefs.getFloat("test_duration_minutes",5f);
+      return Math.max(2,Math.min(30,minutes))*60000L;
+    }
+    int segment=(int)prefs.getFloat("segment_seconds",90f);
     segment=Math.max(10,Math.min(600,segment));
     return Math.min(135000L,Math.max(45000L,(segment+20L)*1000L));
   }
@@ -180,7 +188,7 @@ public final class OemFrameProbeActivity extends Activity {
     log.append("Solicitado manualmente, somente carro parado P e freio.\n");
     log.append(mode==0?"Somente contagem de frames, sem foto ou áudio.\n":
       "Piloto foto JPEG + MP4, armazenamento local e limites configuráveis.\n");
-    log.append("Áudio solicitado: ").append(mode==2||mode==4).append("; sem upload/rede.\n");
+    log.append("Áudio solicitado: ").append(mode==2||mode==4||mode==6).append("; sem upload/rede.\n");
     if(mode>0){
       SharedPreferences p=getSharedPreferences(StoragePolicy.PREFS,MODE_PRIVATE);
       StoragePolicy.Candidate target=StoragePolicy.select(this,p);
@@ -192,7 +200,7 @@ public final class OemFrameProbeActivity extends Activity {
         log.append("Destino de gravação: ").append(target.folder.getAbsolutePath()).append("\n");
         log.append(OemMediaRetention.clean(this,p,target.folder)).append("\n");
         if(mode>=3){
-          clipSession=new OemClipSession(this,p,target.folder,mode==4);
+          clipSession=new OemClipSession(this,p,target.folder,mode==4||mode==6);
           clipSession.start();
           log.append("Duração do clipe: ").append(clipSession.clipSeconds()).append(" segundos; teste até ")
             .append(pilotDurationMs()/1000L).append(" segundos.\n");
@@ -340,6 +348,7 @@ public final class OemFrameProbeActivity extends Activity {
         show(result);
         startButton.setEnabled(true);videoButton.setEnabled(true);audioVideoButton.setEnabled(true);
         clipVideoButton.setEnabled(true);clipAudioButton.setEnabled(true);
+        longVideoButton.setEnabled(true);longAudioButton.setEnabled(true);
         stopButton.setEnabled(false);
         finishButton.setEnabled(true);
         exportButton.setEnabled((mediaRecorder!=null&&mediaRecorder.finishedFile()!=null)
