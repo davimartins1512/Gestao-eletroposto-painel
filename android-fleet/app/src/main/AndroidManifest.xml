@@ -1,0 +1,32 @@
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+  <!-- Solicita permissoes somente ao executar o teste correspondente. -->
+  <uses-permission android:name="android.permission.CAMERA"/>
+  <uses-permission android:name="android.permission.RECORD_AUDIO"/>
+  <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
+  <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
+  <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+  <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
+  <uses-feature android:name="android.hardware.camera" android:required="false"/>
+  <uses-feature android:name="android.hardware.microphone" android:required="false"/>
+  <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
+  <!-- Intencionalmente SEM INTERNET: nenhum dado ou imagem e enviado. -->
+  <application
+    android:label="ANDREAO Fleet Diagnóstico"
+    android:allowBackup="false"
+    android:usesCleartextTraffic="false"
+    android:theme="@android:style/Theme.Material.Light.NoActionBar">
+    <activity android:name=".MainActivity" android:exported="false" />
+    <activity android:name=".AudioTestActivity" android:exported="false" />
+    <activity android:name=".StoragePreferencesActivity" android:exported="false" />
+    <activity android:name=".OemRecordingLibraryActivity" android:exported="false" />
+    <!-- Processo separado para que travamento do HAL nao mate o painel. -->
+    <activity android:name=".OemFrameProbeActivity" android:exported="false" android:process=":oem_camera_probe" />
+    <service android:name=".TrackerService" android:exported="false" android:foregroundServiceType="location" />
+    <activity android:name=".LaunchActivity" android:exported="true">
+      <intent-filter>
+        <action android:name="android.intent.action.MAIN"/>
+        <category android:name="android.intent.category.LAUNCHER"/>
+      </intent-filter>
+    </activity>
+  </application>
+</manifest>
