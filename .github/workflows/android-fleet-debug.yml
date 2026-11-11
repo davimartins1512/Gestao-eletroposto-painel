@@ -5,6 +5,7 @@ on:
     branches: [feature/andreao-fleet-foundation-20261111]
     paths:
       - 'android-fleet/**'
+      - 'tests/fleet-*.test.mjs'
       - '.github/workflows/android-fleet-debug.yml'
 permissions:
   contents: write
