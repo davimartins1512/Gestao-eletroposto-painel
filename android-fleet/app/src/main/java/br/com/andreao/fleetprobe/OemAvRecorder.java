@@ -47,6 +47,8 @@ public final class OemAvRecorder implements AutoCloseable {
   private final AtomicInteger encoded=new AtomicInteger();
   private final AtomicInteger audioChunks=new AtomicInteger();
   private final AtomicLong lastOfferMs=new AtomicLong(0);
+  private final AtomicLong firstAcceptedNs=new AtomicLong(0);
+  private final AtomicLong lastAcceptedNs=new AtomicLong(0);
   private final Object muxLock=new Object();
   private volatile boolean accepting=true;
   private volatile boolean finished=false;
@@ -102,7 +104,11 @@ public final class OemAvRecorder implements AutoCloseable {
     System.arraycopy(data,0,cached,0,expected);
     if(!queue.offer(new Frame(cached,width,height,nanos))){
       pool.offer(cached);dropped.incrementAndGet();
-    }else captured.incrementAndGet();
+    }else{
+      captured.incrementAndGet();
+      firstAcceptedNs.compareAndSet(0L,nanos);
+      lastAcceptedNs.set(nanos);
+    }
   }
 
   public void start(){
@@ -355,12 +361,15 @@ public final class OemAvRecorder implements AutoCloseable {
   public void join(long ms) throws InterruptedException {
     if(worker!=null)worker.join(ms);
   }
+  public long firstAcceptedNs(){return firstAcceptedNs.get();}
+  public long lastAcceptedNs(){return lastAcceptedNs.get();}
   public boolean finished(){return finished;}
   public File finishedFile(){return finished && error.isEmpty() && complete!=null && complete.isFile()?complete:null;}
   public String report(){
     return "Gravação MP4: "+fileDescription+"\n"+
       "Quadros entregues ao codificador: "+encoded.get()+"\n"+
       "Quadros oferecidos: "+captured.get()+"; descartados: "+dropped.get()+"\n"+
+      "Primeiro frame: "+firstAcceptedNs.get()+" ns; último: "+lastAcceptedNs.get()+" ns\n"+
       "Amostras de áudio AAC: "+audioChunks.get()+"\n"+
       "Dimensões de saída: "+targetW+"x"+targetH+" @"+desiredFps+" FPS, formato YUV="+chosenColorFormat+"\n"+
       "Situação: "+(error.isEmpty()?(finished?"Concluído":"Em andamento"):error)+
