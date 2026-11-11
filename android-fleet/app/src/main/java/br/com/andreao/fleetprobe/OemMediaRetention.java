@@ -32,6 +32,22 @@ public final class OemMediaRetention {
        +"; ocupação gerenciada: "+(total/1048576L)+" MB; retenção: "
        +retentionHours+"h; limite: "+(byteLimit==Long.MAX_VALUE?"sem teto lógico":limitGb+" GB");
   }
+  /**
+   * Mark a completed clip as an occurrence, excluding it from automatic rotation.
+   * Only one of our finalized MP4 files can be marked. No other app's files touched.
+   */
+  public static File protect(File clip){
+    if(clip==null||!clip.isFile())return null;
+    String name=clip.getName();
+    if(!name.startsWith(PREFIX)||!name.endsWith(".mp4")||name.contains("/")||name.contains(".."))return null;
+    if(name.contains(".protected."))return clip;
+    File parent=clip.getParentFile();
+    if(parent==null||!parent.canWrite())return null;
+    File protectedFile=new File(parent,name.substring(0,name.length()-4)+".protected.mp4");
+    if(protectedFile.exists())return null;
+    if(!clip.renameTo(protectedFile) || !protectedFile.isFile())return null;
+    return protectedFile;
+  }
   public static boolean enoughSpace(File folder,SharedPreferences prefs){
     if(folder==null||!folder.canWrite())return false;
     float reserved=prefs.getFloat("reserve_free_gb",2f);

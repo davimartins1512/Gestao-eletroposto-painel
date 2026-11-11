@@ -51,7 +51,7 @@ public final class OemFrameProbeActivity extends Activity {
   private volatile int lastFrameBytes=0;
   private volatile Thread worker;
   private TextView output;
-  private Button startButton,videoButton,audioVideoButton,clipVideoButton,clipAudioButton,finishButton,stopButton,exportButton;
+  private Button startButton,videoButton,audioVideoButton,clipVideoButton,clipAudioButton,finishButton,stopButton,exportButton,protectButton;
   private volatile int mode=0; // 0=count only, 1=snapshot+MP4, 2=snapshot+MP4+opt-in microphone
   private volatile int sampleWidth=0,sampleHeight=0,sampleSize=0;
   private volatile byte[] sampleImage;
@@ -88,6 +88,8 @@ public final class OemFrameProbeActivity extends Activity {
     finishButton=button(box,"VOLTAR E ADICIONAR RESULTADO AO TXT",()->finishWithResult());
     exportButton=button(box,"EXPORTAR MP4 PARA GALERIA / MOVIES",()->exportVideo());
     exportButton.setEnabled(false);
+    protectButton=button(box,"PROTEGER CLIPE DE OCORRÊNCIA (NÃO SOBRESCREVER)",()->protectVideo());
+    protectButton.setEnabled(false);
     output=new TextView(this);
     output.setTextIsSelectable(true);
     output.setTextSize(15);
@@ -143,7 +145,7 @@ public final class OemFrameProbeActivity extends Activity {
     sampleImage=null;mediaRecorder=null;clipSession=null;mediaSetupError="";
     startButton.setEnabled(false);videoButton.setEnabled(false);audioVideoButton.setEnabled(false);
     clipVideoButton.setEnabled(false);clipAudioButton.setEnabled(false);
-    stopButton.setEnabled(true);finishButton.setEnabled(false);exportButton.setEnabled(false);
+    stopButton.setEnabled(true);finishButton.setEnabled(false);exportButton.setEnabled(false);protectButton.setEnabled(false);
     show(((mode==2||mode==4)?"🔴 GRAVANDO ÁUDIO E VÍDEO · OCUPANTES INFORMADOS\n":"")+
       "Ensaio manual em processo separado. Watchdog interrompe a sessão após 45s se travar.");
     long watchdog=(mode>=3?pilotDurationMs()+40000L:WATCHDOG_MS);
@@ -342,6 +344,7 @@ public final class OemFrameProbeActivity extends Activity {
         finishButton.setEnabled(true);
         exportButton.setEnabled((mediaRecorder!=null&&mediaRecorder.finishedFile()!=null)
           ||(clipSession!=null&&!clipSession.completedFiles().isEmpty()));
+        protectButton.setEnabled(clipSession!=null&&!clipSession.completedFiles().isEmpty());
       });
     }
   }
@@ -355,6 +358,23 @@ public final class OemFrameProbeActivity extends Activity {
   }
   private void show(String text){
     if(output!=null)output.setText(text);
+  }
+  private void protectVideo(){
+    OemClipSession session=clipSession;
+    if(session==null){show("Use o modo de clipes sequenciais para preservar trechos.");return;}
+    java.util.List<File> files=session.completedFiles();
+    if(files.isEmpty()){show("Nenhum clipe finalizado foi encontrado.");return;}
+    String[] labels=new String[files.size()];
+    for(int i=0;i<files.size();i++)labels[i]=files.get(i).getName();
+    new AlertDialog.Builder(this).setTitle("Preservar clipe para ocorrência")
+      .setMessage("Esta ação exclui o clipe escolhido da reciclagem automática. Proteja apenas gravações necessárias e mantenha controle de acesso.")
+      .setSingleChoiceItems(labels,-1,(d,which)->{
+        String status=session.protectClip(which);
+        currentReport+="\nPROTEÇÃO DE CLIPE\n"+status;
+        show(currentReport);
+        d.dismiss();
+      })
+      .setNegativeButton("Cancelar",null).show();
   }
   private void exportVideo(){
     if(clipSession!=null){

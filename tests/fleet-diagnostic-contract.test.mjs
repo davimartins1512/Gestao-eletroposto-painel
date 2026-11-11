@@ -189,3 +189,15 @@ test('v1.4 manual clip coordinator preserves camera session and records rotation
   assert.match(a,/TESTAR CLIPES SEQUENCIAIS/);
   assert.doesNotMatch(c,/AVMCamera|startPreview|openCamera|setPreviewCallback/);
 });
+
+test('incident clips can be marked protected and excluded from circular cleanup',()=>{
+ const retention=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemMediaRetention.java');
+ const session=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemClipSession.java');
+ const ui=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
+ assert.match(retention,/public static File protect\(File clip\)/);
+ assert.match(retention,/\.protected\.mp4/);
+ assert.match(retention,/!f\.getName\(\)\.contains\("\.protected\."\)/);
+ assert.match(session,/protectClip\(int index\)/);
+ assert.match(ui,/PROTEGER CLIPE DE OCORRÊNCIA/);
+ assert.match(ui,/session\.protectClip\(which\)/);
+});

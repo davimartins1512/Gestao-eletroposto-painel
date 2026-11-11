@@ -157,6 +157,17 @@ public final class OemClipSession {
   public List<File> completedFiles(){
     synchronized(closed){return new ArrayList<>(completed);}
   }
+  public String protectClip(int index){
+    synchronized(closed){
+      if(index<0||index>=completed.size())return "Clipe selecionado não existe.";
+      File file=completed.get(index);
+      File protectedFile=OemMediaRetention.protect(file);
+      if(protectedFile==null)return "Não foi possível proteger o clipe. Nenhum arquivo movido.";
+      completed.set(index,protectedFile);
+      return "Clipe protegido da limpeza automática: "+protectedFile.getName()+
+        ". Revisar periodicamente a necessidade de retenção e restringir acesso.";
+    }
+  }
   public String report(){
     StringBuilder result=new StringBuilder("Clipes contínuos (piloto BYD)\n");
     result.append("Duração configurada por clipe: ").append(clipSeconds).append(" s\n");

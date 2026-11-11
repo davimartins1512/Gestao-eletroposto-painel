@@ -209,3 +209,6 @@ stream remoto. Exige validação de 2+ MP4 consecutivos no Dolphin Mini.
 
 Nunca executar durante a condução ou manobras; a câmera AVM original
 e o Electro devem continuar prioritários.
+
+### Preservação de clipe de ocorrência
+Após finalizar um teste de clipes, o botão **PROTEGER CLIPE DE OCORRÊNCIA** permite escolher um MP4, renomeando-o para `.protected.mp4`. O algoritmo de retenção normal exclui este arquivo da limpeza automática. O responsável deve revisar a necessidade de retenção, restringir o acesso e apagar quando a finalidade cessar. Ainda é uma operação de teste local, sem garantia de conservação diante de falha física da mídia.
