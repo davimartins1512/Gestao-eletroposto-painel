@@ -220,3 +220,28 @@ test('local library survives UI restarts and constrains playback/export to own f
  assert.match(launcher,/21 · GALERIA LOCAL/);
  assert.match(manifest,/OemRecordingLibraryActivity" android:exported="false"/);
 });
+
+test('v1.5 encoder checks finalized MP4 metadata and supports NV12 and planar I420',()=>{
+ const recorder=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemAvRecorder.java');
+ const verify=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemMp4Verifier.java');
+ assert.match(recorder,/OemMp4Verifier\.verify\(partial,withAudio\)/);
+ assert.match(recorder,/verified\.valid && partial\.renameTo\(complete\)/);
+ assert.match(recorder,/COLOR_FormatYUV420SemiPlanar/);
+ assert.match(recorder,/COLOR_FormatYUV420Planar/);
+ assert.match(recorder,/scaleNv21ToI420/);
+ assert.match(recorder,/firstAcceptedNs/);
+ assert.match(recorder,/lastAcceptedNs/);
+ assert.match(verify,/MediaMetadataRetriever/);
+ assert.match(verify,/METADATA_KEY_DURATION/);
+ assert.match(verify,/METADATA_KEY_VIDEO_WIDTH/);
+ assert.match(verify,/METADATA_KEY_HAS_VIDEO/);
+ assert.match(verify,/METADATA_KEY_HAS_AUDIO/);
+ assert.match(verify,/!requiresAudio \|\| "yes"/);
+});
+test('v1.5 clip report exposes cross-clip frame timing instead of assuming gap-free recording',()=>{
+ const clips=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemClipSession.java');
+ assert.match(clips,/Intervalo ENTRE clipes/);
+ assert.match(clips,/possible|possível/i);
+ assert.match(clips,/firstAcceptedNs\(\)/);
+ assert.match(clips,/lastAcceptedNs\(\)/);
+});

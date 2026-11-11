@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Piloto integrado de mídia BYD v1.4 (Dolphin Mini)
+# ANDREAO Fleet — Piloto integrado de mídia BYD v1.5 (Dolphin Mini)
 
 Aplicativo experimental **offline**, com uma sondagem manual opcional de câmera OEM (v1.2), para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -223,3 +223,34 @@ verifica o caminho canônico antes de abrir/exportar. Não lê vídeos do Electr
 não usa INTERNET e não publica automaticamente o material na galeria.
 A reprodução dentro da multimídia depende dos codecs presentes no Android BYD.
 O recurso é de inspeção manual, somente com o carro estacionado.
+
+## v1.5 — pacote consolidado de gravação local com verificação de integridade
+
+Esta versão foi criada para evitar dezenas de aplicativos de diagnóstico por etapa.
+Inclui na mesma instalação:
+
+- Teste manual da câmera original `pano_h=0`, foto JPEG e piloto de vídeo MP4.
+- Áudio AAC opcional no mesmo MP4, exclusivamente com aviso explícito e
+  permissão dos ocupantes, e identificação da captação na tela.
+- Teste manual de rotação de MP4 com duração individual, 90 segundos por padrão,
+  mantendo a câmera OEM aberta entre os arquivos mas **ainda sujeito a lacunas**.
+- Seleção do destino interno/USB nas pastas permitidas pelo Android e limite de espaço.
+- Botão **21 — Galeria local** com lista persistente de clipes finalizados, reprodução,
+  exportação individual e proteção de ocorrência contra a limpeza circular.
+- Portabilidade de codificação: tenta H.264 com entrada YUV420SP/NV12, com fallback
+  para YUV420Planar/I420 quando suportado no hardware. Não alimenta codificadores
+  com formato incompatível.
+- `OemMp4Verifier`: só promove um arquivo temporário a MP4 visível se o Android
+  identificar duração positiva, dimensões de vídeo e faixa de vídeo; quando áudio
+  foi solicitado, também exige uma faixa de áudio. Uma falha é reportada, não
+  apresentada como gravação concluída.
+- O relatório da sessão apresenta intervalos calculados entre o último frame aceito
+  do clipe anterior e o primeiro do seguinte. Intervalos grandes são reportados
+  como possível perda.
+
+**IMPORTANTE:** nenhuma das funções de MP4, reprodução, integridade e troca de
+clipes foi validada no Dolphin Mini físico ainda. O resultado anterior comprovou
+89 callbacks OEM com dados na v1.2, não uma gravação reproduzível. NÃO ativa
+automaticamente ao ligar o veículo, não monitora sentinela, não faz live, não
+garante áudio/ vídeo sem lacunas, nem substitui o Electro neste momento.
+Sem INTERNET, sem custo de API, sem publicação em produção.
