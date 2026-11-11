@@ -1,4 +1,4 @@
-const CACHE='gestao-v5-cache-20261104-rentals-bulk';
+const CACHE='gestao-v5-cache-20261111-rental-fleet';
 const ASSETS=['./','./index.html','./painel.html','./carregar.html','./config.js','./project-ui.js','./admin.css','./admin-ui.js','./admin-live.js','./admin-history.js','./admin-bulk-payments.js','./admin-rentals.js','./admin-icon.svg','./fonts/InterVariable.woff2','./manifest.webmanifest'];
 const assetPaths=new Set(ASSETS.map(path=>new URL(path,self.registration.scope).pathname));
 self.addEventListener('install',event=>event.waitUntil(caches.open(CACHE).then(cache=>cache.addAll(ASSETS)).then(()=>self.skipWaiting())));
