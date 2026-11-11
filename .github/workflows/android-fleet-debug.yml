@@ -36,7 +36,7 @@ jobs:
       - name: Store APK artifact
         uses: actions/upload-artifact@v4
         with:
-          name: Andreao-Fleet-Diagnostico-v0.8
+          name: Andreao-Fleet-Diagnostico-v0.9
           path: android-fleet/app/build/outputs/apk/debug/app-debug.apk
           retention-days: 14
 
@@ -45,13 +45,13 @@ jobs:
         run: |
           set -euo pipefail
           mkdir -p apk-downloads
-          cp android-fleet/app/build/outputs/apk/debug/app-debug.apk apk-downloads/ANDREAO_Fleet_v0.8.apk
+          cp android-fleet/app/build/outputs/apk/debug/app-debug.apk apk-downloads/ANDREAO_Fleet_v0.9.apk
           echo "APK checksum:"
-          sha256sum apk-downloads/ANDREAO_Fleet_v0.8.apk
+          sha256sum apk-downloads/ANDREAO_Fleet_v0.9.apk
           git config user.name 'github-actions[bot]'
           git config user.email '41898282+github-actions[bot]@users.noreply.github.com'
-          git add apk-downloads/ANDREAO_Fleet_v0.8.apk
+          git add apk-downloads/ANDREAO_Fleet_v0.9.apk
           if git diff --cached --quiet; then echo "APK already up to date"; else
-            git commit -m 'build(fleet): add v0.8 direct APK download [skip ci]'
+            git commit -m 'build(fleet): add v0.9 direct APK download [skip ci]'
             git push origin HEAD:refs/heads/feature/andreao-fleet-foundation-20261111
           fi

@@ -75,3 +75,21 @@ test('v0.8 has editable media and removable storage options, and never invokes c
   assert.match(s,/getUsableSpace/);
   assert.doesNotMatch(s,/android\.permission\.MANAGE_EXTERNAL_STORAGE|Runtime\.getRuntime|su -c|\.exec\(/);
 });
+
+test('v0.9 checks only OEM camera compatibility; never opens a camera',()=>{
+  const probe=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/BydCameraCompatibility.java');
+  const launcher=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
+  assert.match(launcher,/18 · VERIFICAR INTERFACE DAS CÂMERAS ORIGINAIS BYD/);
+  for(const marker of ['android.hardware.AVMCamera','android.hardware.BmmCameraInfo',
+    'android.hardware.IBYDCameraService','bmmcamera.jar','getCameraId',
+    'android.hardware.camera2.CameraManager']){
+     assert.ok(probe.includes(marker) || (marker.includes('CameraManager')&&probe.includes('CameraManager')),
+       'missing '+marker);
+  }
+  assert.match(probe,/Class\.forName\(/);
+  assert.doesNotMatch(probe,/\.invoke\(/);
+  assert.doesNotMatch(probe,/startPreview\(\s*\)|MediaRecorder\(|openCamera\(/);
+  assert.doesNotMatch(probe,/getRuntime\(\)|\.exec\(|System\.loadLibrary|dlopen/);
+  assert.match(probe,/Nenhum vídeo ou áudio capturado/);
+  assert.match(probe,/câmera de ré/);
+});

@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Diagnóstico de integração v0.8 (Dolphin Mini)
+# ANDREAO Fleet — Diagnóstico de integração v0.9 (Dolphin Mini)
 
 Aplicativo experimental **somente leitura, offline**, para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -75,3 +75,28 @@ O botão 17 CONFIGURAR ARMAZENAMENTO / USB / LIMITES permite modificar na multim
 O botão VERIFICAR descobre pastas próprias do aplicativo em getFilesDir() e getExternalFilesDirs(), identifica removível via Environment.isExternalStorageRemovable, cria teste de escrita temporário pequeno e remove o teste. NÃO acessa conteúdo do Electro ou qualquer outro aplicativo. Um USB visível no gerenciador original pode NÃO aparecer gravável pelo Android; então verifique. Não há gravação de vídeos, microfone escondido ou transmissão nesta versão. Preferências locais não são prova de funcionamento. O futuro gravador deverá reavaliar os volumes antes de cada segmento, nunca preencher o disco e preservar incidentes de sobrescrita.
 
 O Android 10 pode permitir apenas pastas específicas por aplicativo; um seletor do Storage Access Framework (SAF) pode ser necessário para escolher outra pasta e depende do provedor da BYD. Não usar permissões de acesso irrestrito.
+
+## v0.9 — foco na integração das câmeras originais e áudio
+
+A câmera padrão Camera2 retornou zero IDs no Dolphin Mini. O novo botão
+**18 · VERIFICAR INTERFACE DAS CÂMERAS ORIGINAIS BYD** identifica
+**somente a disponibilidade de APIs OEM** do DiLink (AVMCamera,
+BmmCameraInfo, serviço de câmera BYD, bibliotecas indicativas e pacotes de
+visualização). O aparelho poderá estar restringindo o carregamento dessas
+classes para APKs comuns. A descoberta é executada em thread separada,
+sem abertura da câmera, sem prévia, sem bind, sem gravação de áudio e sem
+comandos ou alterações na central.
+
+Projeto de referência: OverDrive, MIT
+https://github.com/yash-srivastava/Overdrive-release
+
+Compatibilidade precisa ser comprovada especificamente no Dolphin Mini e
+firmware do responsável. A presença da classe AVMCamera não prova que
+uma câmera seja acessível a um app comum nem que permita quatro fluxos.
+
+O microfone do Android foi verificado em teste opcional anterior de
+5 segundos. A sincronização áudio+vídeo de cabine, início automático,
+retorno após reboot, retenção circular e acesso ao vivo só poderão ser
+declarados operacionais depois de obtermos frames reais por fonte
+autorizada, sem interferir na câmera de ré e com ocupantes informados.
+Não existe modo de escuta oculta nem serviço remoto nesse APK.
