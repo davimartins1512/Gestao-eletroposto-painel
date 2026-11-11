@@ -45,6 +45,7 @@ public final class StoragePreferencesActivity extends Activity {
     numeric("reserve_free_gb","Manter livre no disco (GB)",prefs.getFloat("reserve_free_gb",2f),0.25,1024,false);
     numeric("retention_hours","Retenção circular (horas)",prefs.getFloat("retention_hours",24f),1,720,false);
     numeric("segment_seconds","Duração dos clipes MP4 (segundos; padrão 90 = 1min30)",prefs.getFloat("segment_seconds",90f),10,600,false);
+    numeric("test_duration_minutes","Duração do teste prolongado (minutos)",prefs.getFloat("test_duration_minutes",5f),2,30,false);
     quality=spinner("Resolução local",new String[]{"Automática","720p","1080p","Original OEM"},
       index(new String[]{"auto","720p","1080p","oem"},prefs.getString("video_quality","auto")));
     numeric("fps","FPS da gravação",prefs.getFloat("fps",20f),5,60,false);
