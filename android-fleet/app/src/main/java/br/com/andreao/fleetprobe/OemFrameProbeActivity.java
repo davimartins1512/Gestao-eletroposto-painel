@@ -146,9 +146,9 @@ public final class OemFrameProbeActivity extends Activity {
     startButton.setEnabled(false);videoButton.setEnabled(false);audioVideoButton.setEnabled(false);
     clipVideoButton.setEnabled(false);clipAudioButton.setEnabled(false);
     stopButton.setEnabled(true);finishButton.setEnabled(false);exportButton.setEnabled(false);protectButton.setEnabled(false);
+    long watchdog=(mode>=3?pilotDurationMs()+40000L:WATCHDOG_MS);
     show(((mode==2||mode==4)?"🔴 GRAVANDO ÁUDIO E VÍDEO · OCUPANTES INFORMADOS\n":"")+
       "Ensaio manual em processo separado. Watchdog de "+(watchdog/1000L)+" segundos se o HAL travar.");
-    long watchdog=(mode>=3?pilotDurationMs()+40000L:WATCHDOG_MS);
     main.postDelayed(()->{
       if(active.get() && !completed.get()){
         abort.set(true);
