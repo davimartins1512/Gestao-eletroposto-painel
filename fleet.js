@@ -7,7 +7,7 @@
   const shortDate = value => value ? String(value).slice(0, 10).split('-').reverse().join('/') : '—';
   const number = (value, digits = 0) => value == null ? '—' : Number(value).toLocaleString('pt-BR', {maximumFractionDigits:digits});
   const plate = value => String(value || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
-  const state = {user:null, organization:null, vehicles:[], entries:[], telemetry:[], drivers:[], settings:[], statuses:[], recordings:[], charges:[], controlsAvailable:false,selected:null, tab:'history', pending:false};
+  const state = {user:null, organization:null, vehicles:[], entries:[], telemetry:[], drivers:[], settings:[], statuses:[], recordings:[], charges:[], media:[], controlsAvailable:false,mediaAvailable:false,selected:null, tab:'history', pending:false};
   const labels = {available:'Disponível', rented:'Em locação', maintenance:'Manutenção', inactive:'Inativo'};
   const types = {maintenance:'Manutenção', expense:'Despesa', charge:'Recarga', trip:'Trajeto', inspection:'Vistoria', incident:'Ocorrência', other:'Outro'};
   const features = [
@@ -152,7 +152,7 @@
   async function load() {
     notify('Sincronizando frota...');
     state.organization = await ensureOrganization();
-    const [vehicles,entries,telemetry,drivers,settings,statuses,recordings,charges] = await Promise.all([
+    const [vehicles,entries,telemetry,drivers,settings,statuses,recordings,charges,media] = await Promise.all([
       db.from('fleet_vehicles').select('*').eq('organization_id',state.organization.id).order('created_at',{ascending:true}),
       db.from('fleet_entries').select('*').eq('user_id',state.user.id).order('occurred_on',{ascending:false}).limit(500),
       db.from('fleet_telemetry').select('*').eq('user_id',state.user.id).order('recorded_at',{ascending:false}).limit(1000),
@@ -160,7 +160,8 @@
       db.from('fleet_feature_settings').select('*').eq('user_id',state.user.id).limit(2000),
       db.from('fleet_feature_status').select('*').eq('user_id',state.user.id).limit(2000),
       db.from('fleet_recording_state').select('*').eq('user_id',state.user.id).limit(500),
-      db.from('fleet_charge_locations').select('*').eq('user_id',state.user.id).order('start_at',{ascending:false}).limit(1000)
+      db.from('fleet_charge_locations').select('*').eq('user_id',state.user.id).order('start_at',{ascending:false}).limit(1000),
+      db.from('fleet_media_preferences').select('*').eq('user_id',state.user.id).limit(500)
     ]);
     for (const result of [vehicles,entries,telemetry]) if (result.error) throw result.error;
     state.vehicles = vehicles.data || [];
@@ -172,6 +173,8 @@
     state.statuses = statuses.error ? [] : statuses.data || [];
     state.recordings = recordings.error ? [] : recordings.data || [];
     state.charges = charges.error ? [] : charges.data || [];
+    state.mediaAvailable = !media.error;
+    state.media = media.error ? [] : media.data || [];
     if (!state.vehicles.some(v=>v.id===state.selected)) state.selected = state.vehicles[0]?.id || null;
     byId('content').hidden = false;
     render();
@@ -249,7 +252,103 @@
         return '<label class="feature"><span class="feature-copy"><strong>'+escapeHtml(label)+'</strong><small>'+escapeHtml(description)+'</small><em>Condição técnica: '+escapeHtml(effectiveStatus(code,vehicle.id))+'</em></span>'+
           '<input type="checkbox" data-feature="'+escapeHtml(code)+'" '+(on?'checked':'')+' aria-label="Solicitar '+escapeHtml(label)+'"></label>';
       }).join('')+'</div>'+
-      '<div class="notice">Gravação circular prevista em 24 horas; modo desligado permanece opcional e precisa da leitura real da bateria de 12V. Áudio e vídeo, quando compatíveis e habilitados, devem iniciar automaticamente no READY, sem pop-ups repetitivos; ocupantes devem ser informados e a captação deve permanecer identificável. Exigir auditoria dos acessos.</div>';
+      '<div class="notice">A gravação e o áudio são opcionais. Quando compatíveis e habilitados, devem iniciar automaticamente no READY; ocupantes precisam ser informados. Nada será ligado apenas por salvar configurações. Configure a retenção, o armazenamento e os limites abaixo.</div>'+renderMediaPreferences(vehicle);
+  }
+
+  const mediaDefaults=Object.freeze({
+    storage_target:'auto',removable_autoswitch:true,fallback_internal:true,
+    max_storage_gb:null,reserve_free_gb:2,retention_hours:24,
+    segment_seconds:60,video_quality:'auto',fps:20,bitrate_mbps:4,
+    live_quality:'auto',max_mobile_data_gb:null,mobile_data_alert_pct:80,
+    parked_min_voltage_12v:12.2
+  });
+  function mediaOption(value,label,selected){
+    return '<option value="'+escapeHtml(value)+'"'+(value===selected?' selected':'')+'>'+escapeHtml(label)+'</option>';
+  }
+  function mediaNumber(key,label,value,min,max,step,hint=''){
+    return '<label class="media-field"><span>'+escapeHtml(label)+'</span><input name="'+key+'" type="number" min="'+min+'" max="'+max+'" step="'+step+'" value="'+escapeHtml(value??'')+'">'+(hint?'<small>'+escapeHtml(hint)+'</small>':'')+'</label>';
+  }
+  function mediaCheck(key,label,checked){
+    return '<label class="media-check"><input type="checkbox" name="'+key+'"'+(checked?' checked':'')+'><span>'+escapeHtml(label)+'</span></label>';
+  }
+  function renderMediaPreferences(vehicle){
+    if(!state.mediaAvailable)return '<div class="notice warn">Perfil de armazenamento indisponível até aplicar e validar a extensão do banco. Nenhuma configuração foi enviada para o carro.</div>';
+    const p={...mediaDefaults,...state.media.find(x=>x.vehicle_id===vehicle.id)};
+    return '<section class="media-panel"><div class="section-actions"><h3>Armazenamento, qualidade e dados móveis</h3></div>'+
+      '<p class="muted">Tudo é ajustável POR CARRO. O plano é usar mídia removível quando reconhecida pelo Android e voltar para a interna se habilitado. A preferência não prova que um gravador esteja instalado.</p>'+
+      '<form data-media-form="'+escapeHtml(vehicle.id)+'" class="media-form">'+
+      '<label class="media-field"><span>Destino dos vídeos</span><select name="storage_target">'+
+      mediaOption('auto','Automático: USB ou interno',p.storage_target)+
+      mediaOption('internal','Somente memória interna',p.storage_target)+
+      mediaOption('removable','Preferir USB/cartão removível',p.storage_target)+'</select></label>'+
+      mediaCheck('removable_autoswitch','Trocar automaticamente para USB/cartão quando disponível',p.removable_autoswitch)+
+      mediaCheck('fallback_internal','Se USB for retirado, continuar na memória interna',p.fallback_internal)+
+      mediaNumber('max_storage_gb','Limite de espaço para vídeos (GB)',p.max_storage_gb,0.5,8192,0.5,'Deixar vazio = sem teto lógico; a capacidade física continua limitada')+
+      mediaNumber('reserve_free_gb','Espaço mínimo livre (GB)',p.reserve_free_gb,0.25,1024,0.25,'Protege a multimídia de ficar com o disco cheio')+
+      mediaNumber('retention_hours','Tempo de gravação circular (horas)',p.retention_hours,1,720,1,'Padrão 24h, ajustável por veículo')+
+      mediaNumber('segment_seconds','Duração dos segmentos (segundos)',p.segment_seconds,10,600,10)+
+      '<label class="media-field"><span>Qualidade local</span><select name="video_quality">'+
+      mediaOption('auto','Automática',p.video_quality)+mediaOption('720p','720p',p.video_quality)+
+      mediaOption('1080p','1080p',p.video_quality)+mediaOption('oem','Qualidade original da fonte',p.video_quality)+'</select></label>'+
+      mediaNumber('fps','Quadros por segundo (FPS)',p.fps,5,60,1)+
+      mediaNumber('bitrate_mbps','Bitrate de vídeo (Mbps)',p.bitrate_mbps,0.25,50,0.25)+
+      '<label class="media-field"><span>Qualidade da transmissão ao vivo</span><select name="live_quality">'+
+      mediaOption('auto','Automática',p.live_quality)+mediaOption('low','Baixa / economizar dados',p.live_quality)+
+      mediaOption('standard','Padrão',p.live_quality)+mediaOption('high','Alta',p.live_quality)+'</select></label>'+
+      mediaNumber('max_mobile_data_gb','Orçamento mensal de dados (GB)',p.max_mobile_data_gb,0.1,10000,0.1,'Deixar vazio = sem alerta de limite; não equivale ao saldo da operadora')+
+      mediaNumber('mobile_data_alert_pct','Alertar após consumir (%)',p.mobile_data_alert_pct,10,100,5)+
+      mediaNumber('parked_min_voltage_12v','Desligar sentinela abaixo de (V)',p.parked_min_voltage_12v,11.5,13.5,0.05,'Só usar após validação do sensor real de 12V')+
+      '<div class="media-actions"><button type="submit" class="primary">Salvar perfil deste veículo</button></div>'+
+      '</form><div class="notice warn">Limites são solicitações de configuração; o aplicativo do carro ainda precisa confirmar cada ajuste. Preservação de ocorrências deve ter prioridade sobre a reciclagem automática.</div></section>';
+  }
+  async function saveMediaPreferences(form){
+    if(state.pending||!state.mediaAvailable)return;
+    const vehicle=activeVehicle();
+    if(!vehicle||vehicle.id!==form.dataset.mediaForm)return;
+    const fd=new FormData(form);
+    const asNumber=(key,allowNull=false)=>{
+      const v=String(fd.get(key)??'').trim();
+      return v===''&&allowNull?null:Number(v);
+    };
+    const p={
+      vehicle_id:vehicle.id,user_id:state.user.id,
+      storage_target:String(fd.get('storage_target')),
+      removable_autoswitch:fd.has('removable_autoswitch'),
+      fallback_internal:fd.has('fallback_internal'),
+      max_storage_gb:asNumber('max_storage_gb',true),
+      reserve_free_gb:asNumber('reserve_free_gb'),
+      retention_hours:asNumber('retention_hours'),
+      segment_seconds:asNumber('segment_seconds'),
+      video_quality:String(fd.get('video_quality')),
+      fps:asNumber('fps'),bitrate_mbps:asNumber('bitrate_mbps'),
+      live_quality:String(fd.get('live_quality')),
+      max_mobile_data_gb:asNumber('max_mobile_data_gb',true),
+      mobile_data_alert_pct:asNumber('mobile_data_alert_pct'),
+      parked_min_voltage_12v:asNumber('parked_min_voltage_12v'),
+      updated_at:new Date().toISOString()
+    };
+    const bounds=[
+      ['max_storage_gb',.5,8192,true],['reserve_free_gb',.25,1024],
+      ['retention_hours',1,720],['segment_seconds',10,600],
+      ['fps',5,60],['bitrate_mbps',.25,50],
+      ['max_mobile_data_gb',.1,10000,true],['mobile_data_alert_pct',10,100],
+      ['parked_min_voltage_12v',11.5,13.5]
+    ];
+    if(bounds.some(([k,min,max,optional])=>(p[k]===null&&optional)?false:
+      !Number.isFinite(p[k])||p[k]<min||p[k]>max)){
+      notify('Revise os valores do perfil de armazenamento.',true);return;
+    }
+    state.pending=true;
+    const button=form.querySelector('button[type="submit"]');if(button)button.disabled=true;
+    try{
+      const {error}=await db.from('fleet_media_preferences').upsert(p,{onConflict:'vehicle_id'});
+      if(error)throw error;
+      const i=state.media.findIndex(x=>x.vehicle_id===vehicle.id);
+      if(i>=0)state.media[i]=p;else state.media.push(p);
+      renderDetail();
+      notify('Perfil salvo para '+vehicle.plate+'. Ainda não aplicado no hardware: aguardando confirmação do agente de gravação.');
+    }catch(e){notify('Erro salvando perfil: '+(e.message||'falha de rede'),true);if(button)button.disabled=false;}
+    finally{state.pending=false;}
   }
   function renderCharges(vehicle) {
     if(!state.controlsAvailable)return '<h3>Local das recargas</h3><div class="notice warn">A extensão de banco para recargas ainda não foi aplicada. Nenhuma localização foi confirmada automaticamente.</div>';
@@ -318,6 +417,10 @@
     if (action==='add-charge') openDialog('charge');
     const edit=event.target.closest('[data-edit-entry]')?.dataset.editEntry;
     if (edit) {const entry=state.entries.find(e=>e.id===edit);if(entry)openDialog('entry',entry);}
+  });
+  document.addEventListener('submit',event=>{
+    const form=event.target.closest('[data-media-form]');
+    if(form){event.preventDefault();void saveMediaPreferences(form);}
   });
   document.addEventListener('change',event=>{
     const feature=event.target.closest('[data-feature]');
