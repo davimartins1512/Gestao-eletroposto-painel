@@ -373,3 +373,40 @@ identificação verificada de ON/READY; integridade dos segmentos, gravação
 de áudio com consentimento quando ligado; credenciais e vídeo remoto
 seguro com consentimento; testes de resiliência a USB removido, reinício
 e falha; métricas/alertas que não fingem dados de BMS.
+
+
+## v2.1 — política radicalmente econômica de dados móveis (18/11/2026)
+
+Contexto do usuário: o chip/car connectivity da BYD possui apenas **1 GB** e
+aplicativos de terceiros podem consumir toda a franquia. O aplicativo BYD
+continua oferecendo rastreamento em algumas circunstâncias enquanto o
+Electro deixa de funcionar após consumir a internet; **não inferir** que os
+dois serviços usam o mesmo canal ou pacote sem evidência técnica.
+
+### Regra obrigatória do ANDREAO Fleet
+- **Offline por padrão**. O APK segue sem permissão `INTERNET`; gravação
+  de imagens, clipes MP4, exportação local, galeria, histórico, GPS local,
+  ajustes e diagnósticos não fazem upload, ping ou streaming.
+- Clipe, foto e áudio jamais enviam pela rede automaticamente.
+- Botão **24 — DADOS · OFFLINE / REDE WI-FI / ENVIO CONSCIENTE** mostra
+  a rede ativa (Wi-Fi/celular), validação da conexão, status metered e
+  contadores TX/RX somente do UID do aplicativo desde o boot. Não mede
+  consumo total da multimídia, dos aplicativos BYD ou da operadora.
+- A galeria permite exportar UM vídeo para Movies, sem internet.
+- Quando for criado um cliente de transferência autenticado, aplicar
+  `FleetDataPolicy.evaluate` antes do envio e **a cada fragmento**:
+  somente Wi-Fi validado, sem transporte celular, hotspot explicitamente
+  confirmado pelo usuário, sessão temporária por vídeo (10 minutos),
+  orçamento em bytes, tamanho limite, cancelamento instantâneo se cair Wi-Fi.
+  Wi-Fi pode ser roteador limitado do telefone e **não** prova internet grátis.
+- **ATUALMENTE NÃO há transmissão ao telefone via hotspot**, upload HTTPS,
+  cliente de nuvem, conexão com painel remoto ou rastreamento remoto.
+  Apenas preparar/exportar para Movies e transferir por USB/Bluetooth
+  conforme suporte do próprio dispositivo, ou levar arquivo ao celular.
+  Conectar ao hotspot sozinho não faz transferência.
+- Um dia, se houver transferência remota, autenticação, TLS, autorização
+  de acesso por veículo e limites verificados serão requisitos.
+- A ausência da permissão INTERNET protege contra tráfego de rede
+  originado por este aplicativo, mas não impede outras apps ou o próprio
+  Android/BYD de usar o chip. Entregar arquivo a outro aplicativo não
+  permite controlar a rota de rede usada por esse aplicativo.

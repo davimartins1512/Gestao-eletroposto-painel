@@ -398,3 +398,29 @@ test('v2.0 provides honest local Fleet operations view and physically bounded re
  assert.match(retention,/max_storage_gb/);
  assert.match(retention,/FleetRetentionPlanner\.calculate/);
 });
+
+
+test('v2.1 never requests INTERNET; data panel only inspects network without sending',()=>{
+ const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
+ const policy=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetDataPolicy.java');
+ const state=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetNetworkStatus.java');
+ const data=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetDataControlActivity.java');
+ const launch=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
+ assert.doesNotMatch(manifest,/uses-permission android:name="android\.permission\.INTERNET"/);
+ assert.match(manifest,/FleetDataControlActivity" android:exported="false"/);
+ assert.match(launch,/24 · DADOS/);
+ assert.match(state,/TrafficStats\.getUidTxBytes/);
+ assert.match(state,/TrafficStats\.getUidRxBytes/);
+ assert.match(state,/getActiveNetwork\(\)/);
+ assert.match(state,/NET_CAPABILITY_VALIDATED/);
+ assert.match(state,/NET_CAPABILITY_NOT_METERED/);
+ assert.match(data,/Settings\.ACTION_WIFI_SETTINGS/);
+ assert.match(data,/OemRecordingLibraryActivity/);
+ assert.match(data,/não transfere arquivos por si só/);
+ assert.doesNotMatch(data,/URL\(|HttpURLConnection|Socket|upload\(|fetch\(/);
+ assert.match(policy,/NO_HOTSPOT_CONFIRMATION/);
+ assert.match(policy,/NO_WIFI/);
+ assert.match(policy,/CELLULAR_TRANSPORT/);
+ assert.match(policy,/NO_MONTHLY_BUDGET/);
+ assert.match(policy,/SESSION_EXPIRED/);
+});
