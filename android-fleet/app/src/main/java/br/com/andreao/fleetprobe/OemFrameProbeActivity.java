@@ -43,11 +43,18 @@ public final class OemFrameProbeActivity extends Activity {
   private static final int WATCHDOG_MS=45000;
   private final Handler main=new Handler(Looper.getMainLooper());
   private volatile long startedElapsedMs=0;
+  private volatile long lastCheckpointSeconds=0;
+  private volatile String sessionPhase="AGUARDANDO";
   private final Runnable sessionTicker=new Runnable(){
     @Override public void run(){
       if(!active.get()||completed.get())return;
       long seconds=Math.max(0,(android.os.SystemClock.elapsedRealtime()-startedElapsedMs)/1000L);
       int savedClips=clipSession==null?0:clipSession.completedFiles().size();
+      if(seconds-lastCheckpointSeconds>=10){
+        lastCheckpointSeconds=seconds;
+        OemProbeCheckpoint.save(getApplicationContext(),sessionPhase,mode,seconds,
+          frames.get(),savedClips);
+      }
       String indicator=(mode==2||mode==4||mode==6)
         ?"🔴 GRAVANDO ÁUDIO E VÍDEO (OCUPANTES INFORMADOS)"
         :"🔴 CAPTURA MANUAL DE VÍDEO";
@@ -160,6 +167,9 @@ public final class OemFrameProbeActivity extends Activity {
     if(!active.compareAndSet(false,true))return;
     abort.set(false);completed.set(false);frames.set(0);validBytes.set(0);
     startedElapsedMs=android.os.SystemClock.elapsedRealtime();
+    lastCheckpointSeconds=0;
+    sessionPhase="INICIADO";
+    OemProbeCheckpoint.save(getApplicationContext(),"INICIADO",mode,0,0,0);
     firstFrameBytes=0;lastFrameBytes=0;sampleWidth=0;sampleHeight=0;sampleSize=0;
     sampleImage=null;mediaRecorder=null;clipSession=null;mediaSetupError="";
     startButton.setEnabled(false);videoButton.setEnabled(false);audioVideoButton.setEnabled(false);
@@ -172,6 +182,10 @@ public final class OemFrameProbeActivity extends Activity {
     main.postDelayed(()->{
       if(active.get() && !completed.get()){
         abort.set(true);
+        OemProbeCheckpoint.save(getApplicationContext(),
+          "WATCHDOG · processo de teste encerrado por tempo máximo",mode,
+          (android.os.SystemClock.elapsedRealtime()-startedElapsedMs)/1000L,
+          frames.get(),clipSession==null?0:clipSession.completedFiles().size());
         // A chamada OEM pode bloquear dentro do HAL; interromper Thread não é garantia.
         // Isolar o ensaio permite encerrar o processo do TESTE, sem matar o painel.
         android.os.Process.killProcess(android.os.Process.myPid());
@@ -244,6 +258,7 @@ public final class OemFrameProbeActivity extends Activity {
       Class<?> callback=Class.forName("android.hardware.AVMCamera$IPreviewCallback",false,loader);
       Constructor<?> ctor=avm.getDeclaredConstructor(int.class);
       ctor.setAccessible(true);
+      sessionPhase="ABRINDO CAMERA OEM";
       camera=ctor.newInstance(0);
       close=avm.getDeclaredMethod("close");
       stopPreview=avm.getDeclaredMethod("stopPreview");
@@ -254,6 +269,7 @@ public final class OemFrameProbeActivity extends Activity {
       Object openStatus=open.invoke(camera);
       if(Boolean.FALSE.equals(openStatus))throw new IllegalStateException("AVMCamera.open() retornou false");
       cameraOpened=true;
+      sessionPhase="CAMERA ABERTA";
       log.append("AVMCamera.open(): ").append(openStatus==null?"sem retorno":openStatus).append('\n');
       if(abort.get())throw new InterruptedException("Cancelado após abertura");
 
@@ -306,6 +322,7 @@ public final class OemFrameProbeActivity extends Activity {
       previewStarted=!Boolean.FALSE.equals(previewStatus);
       log.append("AVMCamera.startPreview(): ").append(previewStatus).append('\n');
       if(!previewStarted)throw new IllegalStateException("startPreview retornou false");
+      sessionPhase="CAPTURANDO QUADROS";
 
       Method enable=avm.getDeclaredMethod("enablePreviewCallback",int.class);
       enable.setAccessible(true);
@@ -320,6 +337,10 @@ public final class OemFrameProbeActivity extends Activity {
     }catch(Throwable t){
       log.append("Falha/encerramento: ").append(rootCause(t)).append('\n');
     }finally{
+      sessionPhase="ENCERRANDO OEM";
+      OemProbeCheckpoint.save(getApplicationContext(),sessionPhase,mode,
+        (android.os.SystemClock.elapsedRealtime()-startedElapsedMs)/1000L,
+        frames.get(),clipSession==null?0:clipSession.completedFiles().size());
       log.append("Encerrando câmera OEM (finally)...\n");
       if(camera!=null){
         // Even if startPreview errored, request stop before close.
@@ -361,6 +382,10 @@ public final class OemFrameProbeActivity extends Activity {
       final String result=log.toString();
       final String persisted=OemSessionJournal.write(getApplicationContext(),result);
       final String withJournal=result+"\n\nHISTÓRICO LOCAL: "+persisted;
+      sessionPhase="TESTE ENCERRADO (VER RELATORIO)";
+      OemProbeCheckpoint.save(getApplicationContext(),sessionPhase,mode,
+        (android.os.SystemClock.elapsedRealtime()-startedElapsedMs)/1000L,
+        frames.get(),clipSession==null?0:clipSession.completedFiles().size());
       completed.set(true);
       active.set(false);
       main.removeCallbacks(sessionTicker);
@@ -379,6 +404,9 @@ public final class OemFrameProbeActivity extends Activity {
     }
   }
   private void stop(){
+    OemProbeCheckpoint.save(getApplicationContext(),"PARADA SOLICITADA",mode,
+      (android.os.SystemClock.elapsedRealtime()-startedElapsedMs)/1000L,
+      frames.get(),clipSession==null?0:clipSession.completedFiles().size());
     abort.set(true);
     main.removeCallbacks(sessionTicker);
     if(mediaRecorder!=null)mediaRecorder.stop();
