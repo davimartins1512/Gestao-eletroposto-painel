@@ -13,6 +13,8 @@ import android.view.WindowManager;
 import android.provider.Settings;
 import android.widget.Button;
 import android.widget.CheckBox;
+import android.widget.ImageView;
+import android.view.View;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import java.io.File;
@@ -34,6 +36,8 @@ public final class FleetDataControlActivity extends Activity {
   private volatile FleetLanTransferServer lan;
   private TextView linkLabel;
   private CheckBox hotspotConsent;
+  private ImageView qrView;
+  private String shownLink="";
   private final Handler handler=new Handler(Looper.getMainLooper());
   private final Runnable monitor=new Runnable(){
     @Override public void run(){
@@ -42,6 +46,20 @@ public final class FleetDataControlActivity extends Activity {
         String link=server.url();
         linkLabel.setText(server.status()+(link.isEmpty()?"":"\n\nENDEREÇO LOCAL:\n"+link)
           +"\nBytes servidos pelo Wi-Fi: "+server.bytesSent());
+        if(!link.equals(shownLink)){
+          shownLink=link;
+          try{
+            if(link.isEmpty()){
+              qrView.setImageDrawable(null);qrView.setVisibility(View.GONE);
+            }else{
+              qrView.setImageBitmap(FleetQrCode.make(link,420));
+              qrView.setVisibility(View.VISIBLE);
+            }
+          }catch(Throwable qrError){
+            qrView.setVisibility(View.GONE);
+            linkLabel.setText(linkLabel.getText()+"\nQR indisponível: use o endereço local.");
+          }
+        }
       }
       if(server!=null&&server.active())getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
       else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
@@ -82,6 +100,10 @@ public final class FleetDataControlActivity extends Activity {
     linkLabel.setText("Servidor local desligado. Não existe upload automático.");
     linkLabel.setPadding(0,12,0,20);
     box.addView(linkLabel);
+    qrView=new ImageView(this);
+    qrView.setVisibility(View.GONE);
+    qrView.setAdjustViewBounds(true);
+    box.addView(qrView,new LinearLayout.LayoutParams(430,430));
     status=new TextView(this);status.setTextIsSelectable(true);status.setTextSize(14);
     status.setPadding(0,10,0,16);box.addView(status);
     button(box,"ATUALIZAR CONEXÃO E CONSUMO DO PRÓPRIO APP",this::refresh);
@@ -97,7 +119,7 @@ public final class FleetDataControlActivity extends Activity {
       .setMessage("1. Ligue o roteador do seu celular e conecte o Wi-Fi do carro a ele.\n"+
         "2. Na galeria do Fleet, escolha UM vídeo e toque PREPARAR PARA CELULAR.\n"+
         "3. Marque a autorização e toque DISPONIBILIZAR MP4.\n"+
-        "4. Abra no navegador do próprio telefone o endereço que aparecer na tela do carro.\n"+
+        "4. Aponte a câmera do celular para o QR na multimídia, ou abra o link no navegador.\n"+
         "5. O telefone baixa o MP4 diretamente pela rede local, sem enviar ao servidor.\n\n"+
         "O link dura até 10 minutos e aceita uma transferência. NÃO é HTTPS: "+
         "use somente seu hotspot protegido por senha, jamais Wi-Fi público. "+
