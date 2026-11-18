@@ -196,7 +196,7 @@ test('incident clips can be marked protected and excluded from circular cleanup'
  const ui=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
  assert.match(retention,/public static File protect\(File clip\)/);
  assert.match(retention,/\.protected\.mp4/);
- assert.match(retention,/!f\.getName\(\)\.contains\("\.protected\."\)/);
+ assert.match(retention,/if\(!scopedMp4\(name\)\|\|name\.contains\("\.protected\."\)\)continue/);
  assert.match(session,/protectClip\(int index\)/);
  assert.match(ui,/PROTEGER CLIPE DE OCORRÊNCIA/);
  assert.match(ui,/session\.protectClip\(which\)/);
@@ -340,4 +340,31 @@ test('v1.8 OEM checkpoint survives process cancellation without collecting media
  assert.match(l,/22 · VER ÚLTIMO ESTADO DA GRAVAÇÃO OEM/);
  assert.match(l,/Isso NÃO confirma falha nos arquivos MP4/);
  assert.doesNotMatch(cp,/Socket|HttpURLConnection|MediaRecorder|MediaCodec|CameraManager/);
+});
+
+
+test('consolidated recording is bounded by operator quota, TTL and reserved free disk',()=>{
+ const retention=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemMediaRetention.java');
+ const policy=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetRetentionPlanner.java');
+ const math=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetStorageMath.java');
+ const preferences=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/StoragePreferencesActivity.java');
+ const clips=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemClipSession.java');
+ const probe=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
+ assert.match(retention,/FleetRetentionPlanner\.calculate/);
+ assert.match(retention,/!name\.contains/);
+ assert.match(retention,/actualProtected/);
+ assert.match(retention,/protectedEvent/);
+ assert.match(retention,/return total<quota/);
+ assert.match(policy,/c\.protectedIncident\)continue/);
+ assert.match(policy,/beforeBytes,afterBytes,protectedBytes/);
+ assert.match(math,/DEFAULT_QUOTA_GB=8f/);
+ assert.match(math,/expectedGiB/);
+ assert.match(preferences,/ECONÔMICO/);
+ assert.match(preferences,/EQUILIBRADO/);
+ assert.match(preferences,/showEstimate/);
+ assert.match(clips,/OemMediaRetention\.clean\(context,prefs,selected\.folder\)/);
+ assert.match(probe,/lastValidFrameMs/);
+ assert.match(probe,/stalledMs>10000L/);
+ assert.match(probe,/currentSession\.isRunning/);
+ assert.doesNotMatch(retention,/MediaRecorder|Socket|HttpURLConnection/);
 });
