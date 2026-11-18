@@ -1,0 +1,21 @@
+name: ANDREAO Fleet panel contracts
+on:
+  workflow_dispatch:
+  push:
+    branches: [feature/andreao-fleet-foundation-20261111]
+    paths: ['fleet.html','fleet.js','fleet.css','painel.html','tests/fleet-panel.test.mjs','.github/workflows/fleet-panel-contracts.yml']
+permissions:
+  contents: read
+jobs:
+  check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 8
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '24'
+      - name: JavaScript parse
+        run: node --check fleet.js
+      - name: Panel component contracts
+        run: node --test tests/fleet-panel.test.mjs
