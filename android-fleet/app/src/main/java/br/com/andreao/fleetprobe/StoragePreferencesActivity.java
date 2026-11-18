@@ -41,15 +41,20 @@ public final class StoragePreferencesActivity extends Activity {
     target=spinner("Onde salvar vídeos",TARGETS,index(TARGET_VALUES,prefs.getString("storage_target","auto")));
     autoswitch=toggle("Trocar automaticamente para USB se aparecer",prefs.getBoolean("removable_autoswitch",true));
     fallback=toggle("Voltar para memória interna se USB for removido",prefs.getBoolean("fallback_internal",true));
-    numeric("max_storage_gb","Teto de espaço em GB (vazio = sem teto)",prefs.getFloat("max_storage_gb",0f),0.5,8192,true);
+    numeric("max_storage_gb","Teto de uso total em GB (padrão 8; vazio = sem teto, risco de lotar)",prefs.getFloat("max_storage_gb",FleetStorageMath.DEFAULT_QUOTA_GB),0.5,8192,true);
     numeric("reserve_free_gb","Manter livre no disco (GB)",prefs.getFloat("reserve_free_gb",2f),0.25,1024,false);
     numeric("retention_hours","Retenção circular (horas)",prefs.getFloat("retention_hours",24f),1,720,false);
     numeric("segment_seconds","Duração dos clipes MP4 (segundos; padrão 90 = 1min30)",prefs.getFloat("segment_seconds",90f),10,600,false);
     numeric("test_duration_minutes","Duração do teste prolongado (minutos)",prefs.getFloat("test_duration_minutes",5f),2,30,false);
     quality=spinner("Resolução local",new String[]{"Automática","720p","1080p","Original OEM"},
       index(new String[]{"auto","720p","1080p","oem"},prefs.getString("video_quality","auto")));
-    numeric("fps","FPS da gravação",prefs.getFloat("fps",20f),5,60,false);
-    numeric("bitrate_mbps","Bitrate de vídeo (Mbps)",prefs.getFloat("bitrate_mbps",4f),0.25,50,false);
+    numeric("fps","FPS desejado (5 a 20; efetivo depende da central)",prefs.getFloat("fps",20f),5,20,false);
+    numeric("bitrate_mbps","Qualidade de compressão (Mbps; menor = menos GB)",prefs.getFloat("bitrate_mbps",4f),0.25,16,false);
+    preset("ECONÔMICO · 1,5 Mbps / 12 FPS",1.5f,12f);
+    preset("EQUILIBRADO · 2,5 Mbps / 15 FPS",2.5f,15f);
+    preset("QUALIDADE TESTADA · 4 Mbps / 20 FPS",4f,20f);
+    info("A retenção de 24h é um máximo por idade, NÃO é garantia: o teto de espaço pode apagar clipes antes disso. Ocorrências protegidas não são apagadas automaticamente.");
+
     liveQuality=spinner("Qualidade da câmera ao vivo",new String[]{"Automática","Baixa","Padrão","Alta"},
       index(new String[]{"auto","low","standard","high"},prefs.getString("live_quality","auto")));
     numeric("max_mobile_data_gb","Limite de alerta de dados (GB/mês; vazio = sem)",prefs.getFloat("max_mobile_data_gb",0f),0.1,10000,true);
@@ -65,6 +70,8 @@ public final class StoragePreferencesActivity extends Activity {
     layout.addView(inspect);
     status=new TextView(this);status.setTextSize(14);
     status.setText("O teste de escrita cria e apaga somente um arquivo temporário na pasta do ANDREAO Fleet.");
+    info("Os presets só mudam os campos editáveis. Nenhuma gravação inicia nesta tela.");
+    showEstimate();
     layout.addView(status);
     view.addView(layout);setContentView(view);
   }
@@ -99,6 +106,34 @@ public final class StoragePreferencesActivity extends Activity {
     entry.setSelectAllOnFocus(true);
     values.put(key,entry);layout.addView(entry);
   }
+  private void preset(String name,float mbps,float fps){
+    Button button=new Button(this);
+    button.setAllCaps(false);button.setText(name);
+    button.setOnClickListener(v->{
+      values.get("bitrate_mbps").setText(String.format(Locale.US,"%.2f",mbps));
+      values.get("fps").setText(String.format(Locale.US,"%.0f",fps));
+      showEstimate();
+    });
+    layout.addView(button);
+  }
+  private void showEstimate(){
+    if(status==null)return;
+    double mbps=4d,quota=FleetStorageMath.DEFAULT_QUOTA_GB;
+    try{mbps=Double.parseDouble(values.get("bitrate_mbps").getText().toString());}
+    catch(Exception ignored){}
+    try{
+      String value=values.get("max_storage_gb").getText().toString().trim();
+      quota=value.isEmpty()?0d:Double.parseDouble(value);
+    }catch(Exception ignored){}
+    double day=FleetStorageMath.expectedGiB(24d,mbps,false);
+    double hours=FleetStorageMath.hoursInQuota(quota,mbps,false);
+    status.setText("ESTIMATIVA TEÓRICA (varia com codec e conteúdo): "+
+      String.format(Locale.US,"%.1f GiB/24h",day)+
+      (quota>0d?String.format(Locale.US,
+        " · teto atual pode guardar cerca de %.1f horas antes de reciclar",hours):
+        " · ATENÇÃO: sem teto lógico; apenas reserva livre de disco")+
+      ". Retenção real limitada por memória livre, arquivos protegidos e políticas do Android.");
+  }
   private void save(){
     LinkedHashMap<String,Float> parsed=new LinkedHashMap<>();
     for(Map.Entry<String,EditText> x:values.entrySet()){
@@ -122,7 +157,7 @@ public final class StoragePreferencesActivity extends Activity {
     writer.putString("live_quality",live[liveQuality.getSelectedItemPosition()]);
     for(Map.Entry<String,Float> x:parsed.entrySet())writer.putFloat(x.getKey(),x.getValue());
     writer.apply();
-    status.setText("Preferências salvas. Serão usadas pelo piloto manual de MP4 quando houver encoder e câmera compatíveis. Gravação automática ainda não validada.");
+    showEstimate();
   }
   private void inspect(){
     status.setText("Verificando os locais de armazenamento do Android...");
