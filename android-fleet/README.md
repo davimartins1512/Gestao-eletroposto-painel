@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Piloto integrado de mídia BYD v1.8 (Dolphin Mini)
+# ANDREAO Fleet — Pacote integrado v2.0 (Dolphin Mini) (Dolphin Mini)
 
 Aplicativo experimental **offline**, com uma sondagem manual opcional de câmera OEM (v1.2), para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -311,3 +311,65 @@ Mudanças:
 - `OemFrameProbeActivity.onBackPressed` não abandona silenciosamente uma gravação ativa: solicita interromper o teste e aguardar a liberação da câmera.
 
 Essas alterações ainda exigem teste físico. Não são uma solução garantida para falhas nativas do HAL, encerramento forçado por sistema operacional ou corrupção de mídia. Gravação automática durante condução, 24 horas, sentinela, áudio sem consentimento, e live remota permanecem desabilitadas.
+
+## v2.0 — entrega consolidada Android + painel + regras de retenção
+
+Em 18/11/2026 o Dolphin Mini confirmou uma sessão **real** de 5 minutos com:
+- 4 MP4s finalizados (89,824 s; 90,303 s; 90,299 s; 29,180 s) com 3 rotações,
+- 7.743 callbacks OEM, nenhum intervalo de callback >500ms,
+- apenas 1 frame descartado do conjunto de gravadores e intervalos entre clipes
+  de 21, 66 e 48 milissegundos,
+- MP4 H.264 a 1280×240 e áudio desabilitado, de aproximadamente 143 MiB
+  no total; reprodução básica de vídeos informada como normal pelo responsável.
+
+A primeira meta de captura manual multi-clipe foi comprovada. Não extrapolar
+para 24h sem teste de permanência e verificação de integridade entre clipes.
+
+Este pacote incorpora em **uma versão**:
+- Pipeline OEM existente, JPEG e H.264 em clipes configuráveis (90s padrão).
+- Compressão com presets **1,5 / 2,5 / 4 Mbps** e FPS real configurável de
+  5 a 20; nenhum perfil fixo obrigatório.
+- Mapeamento de pixels pré-calculado de NV21 para NV12/I420; elimina divisões
+  repetidas e o buffer planar temporário a cada frame. Testes Java com
+  pixels de entrada conhecidos evitam regressão de cor.
+- Teto lógico inicial de **8 GiB** para gravações, ajustável por dispositivo,
+  mais reserva livre configurável. O limite de idade de 24h é um máximo;
+  24h com 4Mbps exigem cerca de 40–42GiB. Um teto de 8GiB cobre
+  aproximadamente 4–5h nesse bitrate, não 24h.
+- Limpeza circular: verifica arquivos válidos do próprio app, remove
+  os antigos primeiro, conta os arquivos de ocorrência na ocupação, nunca
+  apaga o arquivo protegido e interrompe novas sessões se o espaço seguro
+  não estiver disponível. Nunca toca Electro nem arquivos de terceiros.
+- Nova **CENTRAL DO GRAVADOR (botão 23)**: uso real de memória,
+  total de clipes, espaço e eventos protegidos, previsão por bitrate,
+  estado do último ensaio e links internos para ajustes e galeria.
+- Rotação revalida o armazenamento a cada novo clipe; falha é explícita.
+  Falta de callbacks OEM por 10s também encerra o teste em vez de ocultar
+  câmera parada. Novo relatório mostra FPS efetivos e bitrate real por MP4.
+- Galeria/histórico, recuperação manual segura de MP4 parcial válido,
+  proteção de incidentes e relatório pós-processo são preservados.
+- Painel por veículo recebe projeção de uso/bitrate e presets configuráveis,
+  mas ainda **NÃO sincroniza configurações ou vídeos com o APK**.
+- As definições SQL locais de preferências por carro têm defaults/ranges
+  equivalentes, sem aplicar mudança no banco hospedado.
+
+**REQUISITOS DE VEÍCULO AINDA NÃO IMPLEMENTADOS:** detectar READY/P/freio
+por fonte autenticada, decisão segura de iniciar ao ligar, encerramento
+na movimentação, modo desligado protegido por medição real de 12V,
+SOC/SOH de tração reais, visualização ao vivo remota criptografada e
+controle de acesso, reprodução protegida remota e exportação pela rede.
+Não usar o Android genérico como leitura da bateria de 12V do carro.
+
+**Privacidade e segurança:** áudio de cabine só é possível em teste opt-in
+com ocupantes informados; sem início silencioso, sem áudio contínuo
+automático. Experimentos com câmera OEM somente com veículo parado em P,
+freio aplicado e sem manobras. A câmera BYD original tem prioridade; não
+introduzir modo de gravação durante direção sem comprovar coexistência
+e segurança. Não alterar Electro, implantar em produção ou gerar custos.
+
+**Gates de aprovação física para substituir Electro:** gravação contínua
+de 24h sem exaurir espaço ou 12V; funcionamento da câmera de ré OEM;
+identificação verificada de ON/READY; integridade dos segmentos, gravação
+de áudio com consentimento quando ligado; credenciais e vídeo remoto
+seguro com consentimento; testes de resiliência a USB removido, reinício
+e falha; métricas/alertas que não fingem dados de BMS.

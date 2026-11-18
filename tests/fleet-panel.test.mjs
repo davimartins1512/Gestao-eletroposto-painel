@@ -47,3 +47,18 @@ test('configurable clips default to 90 seconds per vehicle',()=>{
  assert.match(source,/Duração dos clipes MP4/);
  assert.match(source,/p\.segment_seconds/);
 });
+
+
+test('fleet per-vehicle video profiles have a real capacity estimate and safe limits',()=>{
+ const source=read('fleet.js');
+ assert.match(source,/max_storage_gb:8/);
+ assert.match(source,/function projectFleetStorage/);
+ assert.match(source,/data-budget-preview/);
+ assert.match(source,/data-fleet-preset="eco"/);
+ assert.match(source,/data-fleet-preset="balanced"/);
+ assert.match(source,/data-fleet-preset="quality"/);
+ assert.match(source,/updateFleetBudget/);
+ assert.match(source,/\\['fps',5,20\\]/);
+ assert.match(source,/\\['bitrate_mbps',\\.25,16\\]/);
+ assert.match(source,/NÃO são transmitidas ao APK automaticamente/);
+});

@@ -368,3 +368,33 @@ test('consolidated recording is bounded by operator quota, TTL and reserved free
  assert.match(probe,/currentSession\.isRunning/);
  assert.doesNotMatch(retention,/MediaRecorder|Socket|HttpURLConnection/);
 });
+
+
+test('v2.0 provides honest local Fleet operations view and physically bounded recording',()=>{
+ const activity=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetHealthActivity.java');
+ const probe=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
+ const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
+ const launcher=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
+ const recorder=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemAvRecorder.java');
+ const retention=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemMediaRetention.java');
+ const sampler=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/Nv21Downsampler.java');
+ assert.match(launcher,/23 · CENTRAL DO GRAVADOR/);
+ assert.match(manifest,/FleetHealthActivity" android:exported="false"/);
+ assert.match(activity,/OemRecordingLibrary\.list/);
+ assert.match(activity,/OemMediaRetention\.enoughSpace/);
+ assert.match(activity,/FleetStorageMath\.expectedGiB/);
+ assert.match(activity,/NÃO VALIDADO/);
+ assert.match(activity,/SEM FONTE AUTENTICADA/);
+ assert.match(activity,/NÃO INTEGRADA/);
+ assert.doesNotMatch(activity,/new AVMCamera|startPreview\\(|getCameraId\\(/);
+ assert.match(probe,/stalledMs>10000L/);
+ assert.match(recorder,/sampling=new Nv21Downsampler/);
+ assert.match(recorder,/sampling\.writeNv12/);
+ assert.match(recorder,/sampling\.writeI420/);
+ assert.doesNotMatch(recorder,/byte\\[\\] planar=new byte\\[/);
+ assert.match(sampler,/maxIndex/);
+ assert.match(sampler,/writeNv12/);
+ assert.match(sampler,/writeI420/);
+ assert.match(retention,/max_storage_gb/);
+ assert.match(retention,/FleetRetentionPlanner\.calculate/);
+});

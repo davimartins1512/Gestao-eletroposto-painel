@@ -64,7 +64,7 @@ public final class LaunchActivity extends Activity {
     box.setPadding(25,25,25,25);
     box.setBackgroundColor(0xfff6faf7);
     TextView title=new TextView(this);
-    title.setText("ANDREAO FLEET · GRAVAÇÃO LOCAL + GALERIA v1.8");
+    title.setText("ANDREAO FLEET · SISTEMA INTEGRADO v2.0");
     title.setTextColor(0xff137642);
     title.setTextSize(22);
     box.addView(title);
@@ -87,7 +87,7 @@ public final class LaunchActivity extends Activity {
     box.addView(label("FOCO CÂMERAS E ÁUDIO v0.9 · consulta local das interfaces BYD originais. Não abre câmeras nem interfere no Electro."));
     button(box,"18 · DIAGNOSTICAR CÂMERAS + bmmcamera.jar",this::probeOemCameraCompatibility);
     button(box,"19 · IDENTIFICAR CÂMERAS BYD (IDs OEM)",this::probeCameraIds);
-    box.addView(label("NOVO v1.4: teste curto de foto/MP4 ou teste manual de clipes sequenciais, com duração configurável (padrão 90s) e sem reabrir a câmera entre arquivos. Áudio só com aviso explícito; nada inicia sozinho."));
+    box.addView(label("ANDREAO Fleet v2.0 · Captura OEM comprovada no Mini. Use o botão 23 para verificar espaço, retenção, CPU/bitrate e integração; botão 20 para ensaio manual com carro parado. Início automático, BMS/12V e acesso remoto permanecem bloqueados até fonte verificada."));
     button(box,"20 · TESTE INTEGRADO DE FOTO + MP4 (ÁUDIO OPCIONAL)",this::openOemFrameProbe);
     button(box,"21 · GALERIA LOCAL · VER, EXPORTAR E PROTEGER CLIPES",this::openRecordingLibrary);
     button(box,"22 · VER ÚLTIMO ESTADO DA GRAVAÇÃO OEM",()->append("ESTADO DA CÂMERA OEM",OemProbeCheckpoint.read(getApplicationContext())));
@@ -157,7 +157,7 @@ public final class LaunchActivity extends Activity {
   private void performAllChecks(){
     report.setLength(0);
     if(output!=null)output.setText("");
-    append("INÍCIO DO DIAGNÓSTICO","ANDREAO Fleet v1.8 · executado em "
+    append("INÍCIO DO DIAGNÓSTICO","ANDREAO Fleet v2.0 · executado em "
       +new java.text.SimpleDateFormat("yyyy-MM-dd HH:mm:ss",Locale.US).format(new java.util.Date())
       +"\nSomente APIs públicas do Android; sem controle do veículo nem leitura CAN/OBD.");
     safeRun("Sistema",this::systemTest);
