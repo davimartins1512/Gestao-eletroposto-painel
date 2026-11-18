@@ -1,0 +1,59 @@
+name: ANDREAO Fleet v3.3 - telemetria OEM de leitura
+on:
+  push:
+    branches:
+      - feature/andreao-fleet-telemetry-v33-20261118
+    paths:
+      - android-fleet/v33/**
+      - .github/workflows/android-fleet-telemetry-v33.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-and-check:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Restore tested v3.2 integration
+        run: |
+          mkdir -p "$RUNNER_TEMP/fleet-src"
+          base64 --decode android-fleet/remote-v32/overlay.tar.xz.b64 | tar -xJ -C "$RUNNER_TEMP/fleet-src"
+          python3 "$RUNNER_TEMP/fleet-src/apply_to_existing_project.py" android-fleet
+      - name: Add OEM read-only adapter and general acceptance
+        run: |
+          set -euo pipefail
+          cp android-fleet/v33/FleetTelemetryReadOnly.java android-fleet/app/src/main/java/br/com/andreao/fleetprobe/
+          cp android-fleet/v33/FleetTelemetryActivity.java android-fleet/app/src/main/java/br/com/andreao/fleetprobe/
+          python3 android-fleet/v33/apply_v33.py android-fleet
+      - name: Install SDK 35
+        run: |
+          SDK_MANAGER="$(command -v sdkmanager || find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -1)"
+          "$SDK_MANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Compile integrated Android APK
+        run: gradle -p android-fleet --no-daemon :app:assembleDebug
+      - name: Run existing Android contracts
+        run: node --test tests/fleet-diagnostic-contract.test.mjs tests/fleet-tracker-contract.test.mjs
+      - name: Check no unsafe car-control entry points introduced
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          s=Path('android-fleet/v33/FleetTelemetryReadOnly.java').read_text()
+          for banned in ['getSystemService(\"autoservice\")','BydPermissionContext','HiddenApiBypass','setInt(', 'exec(', 'app_process', 'adb connect']:
+              assert banned not in s, banned
+          assert 'SOH tração: indisponível' in s
+          assert 'FleetTelemetryReadOnly.inspect(context)' in Path('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetAcceptanceActivity.java').read_text()
+          print('Read-only telemetry contract OK')
+          PY
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ANDREAO-Fleet-v3.3-ReadOnly-BYD-Homologacao
+          path: android-fleet/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
