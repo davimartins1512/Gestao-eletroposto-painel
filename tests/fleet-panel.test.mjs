@@ -58,7 +58,7 @@ test('fleet per-vehicle video profiles have a real capacity estimate and safe li
  assert.match(source,/data-fleet-preset="balanced"/);
  assert.match(source,/data-fleet-preset="quality"/);
  assert.match(source,/updateFleetBudget/);
- assert.match(source,/\\['fps',5,20\\]/);
- assert.match(source,/\\['bitrate_mbps',\\.25,16\\]/);
+ assert.match(source,/\['fps',5,20\]/);
+ assert.match(source,/\['bitrate_mbps',\.25,16\]/);
  assert.match(source,/NÃO são transmitidas ao APK automaticamente/);
 });

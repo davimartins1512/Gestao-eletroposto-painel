@@ -261,7 +261,7 @@ test('v1.6 extended multi-clip pilot is adjustable with explicit audio and visib
  assert.match(probe,/clipSession\.stopAndWait/);
  assert.match(clips,/StoragePolicy\.select\(context,prefs\)/);
  assert.match(clips,/Mudanças de armazenamento/);
- assert.match(clips,/Sem armazenamento gravável/);
+ assert.match(clips,/Armazenamento indisponível após limpeza circular/);
 });
 test('v1.6 recorder setup errors go through the OEM camera teardown in finally',()=>{
  const probe=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
@@ -351,7 +351,7 @@ test('consolidated recording is bounded by operator quota, TTL and reserved free
  const clips=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemClipSession.java');
  const probe=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
  assert.match(retention,/FleetRetentionPlanner\.calculate/);
- assert.match(retention,/!name\.contains/);
+ assert.match(retention,/!scopedMp4\(name\)/);
  assert.match(retention,/actualProtected/);
  assert.match(retention,/protectedEvent/);
  assert.match(retention,/return total<quota/);
