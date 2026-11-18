@@ -424,3 +424,14 @@ test('v2.1 never requests INTERNET; data panel only inspects network without sen
  assert.match(policy,/NO_MONTHLY_BUDGET/);
  assert.match(policy,/SESSION_EXPIRED/);
 });
+
+test('selected accident clip is handled by an offline-only preparation/export flow',()=>{
+ const gallery=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemRecordingLibraryActivity.java');
+ const data=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetDataControlActivity.java');
+ assert.match(gallery,/PREPARAR ESSE VÍDEO PARA O CELULAR \(SEM ENVIAR\)/);
+ assert.match(gallery,/selected_local_clip/);
+ assert.match(data,/OemRecordingLibrary\.resolve/);
+ assert.match(data,/OemVideoExporter\.copyToMovies/);
+ assert.match(data,/EXPORTAR CÓPIA DO VÍDEO ESCOLHIDO \(OFFLINE\)/);
+ assert.match(data,/conectar ao hotspot sozinho NÃO envia/);
+});

@@ -2,6 +2,7 @@ package br.com.andreao.fleetprobe;
 
 import android.app.Activity;
 import android.app.AlertDialog;
+import android.content.Intent;
 import android.os.Bundle;
 import android.widget.Button;
 import android.widget.Spinner;
@@ -127,6 +128,7 @@ public final class OemRecordingLibraryActivity extends Activity {
       label.setTextSize(14);card.addView(label);
       button(card,"REPRODUZIR",()->play(e.file.getAbsolutePath()));
       button(card,"EXPORTAR ESTE MP4 PARA GALERIA",()->export(e.file.getAbsolutePath()));
+      button(card,"PREPARAR ESSE VÍDEO PARA O CELULAR (SEM ENVIAR)",()->preparePhoneTransfer(e.file.getAbsolutePath()));
       if(!e.protectedEvent)button(card,"PROTEGER COMO OCORRÊNCIA",()->protect(e.file.getAbsolutePath()));
       listContainer.addView(card);
     }
@@ -202,6 +204,13 @@ public final class OemRecordingLibraryActivity extends Activity {
     }catch(Throwable e){
       status.setText("Falha abrindo vídeo: "+e.getClass().getSimpleName());
     }
+  }
+  private void preparePhoneTransfer(String path){
+    File local=safeFile(path);
+    if(local==null)return;
+    Intent view=new Intent(this,FleetDataControlActivity.class);
+    view.putExtra("selected_local_clip",local.getAbsolutePath());
+    startActivity(view);
   }
   private void export(String file){
     File f=safeFile(file);

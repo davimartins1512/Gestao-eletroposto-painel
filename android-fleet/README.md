@@ -410,3 +410,7 @@ dois serviços usam o mesmo canal ou pacote sem evidência técnica.
   originado por este aplicativo, mas não impede outras apps ou o próprio
   Android/BYD de usar o chip. Entregar arquivo a outro aplicativo não
   permite controlar a rota de rede usada por esse aplicativo.
+
+### Fluxo manual para clipe de ocorrência (v2.1)
+
+Na galeria há ação por MP4 **PREPARAR ESSE VÍDEO PARA O CELULAR (SEM ENVIAR)**. A Central de Dados mostra nome/tamanho e oferece exportação da cópia para Movies, sem internet. Este fluxo ainda **NÃO** envia via hotspot: o usuário precisa levar arquivo ao telefone por meio local compatível ou, no futuro, utilizar transferência segura autenticada estritamente via Wi-Fi confirmado. Botão não pode afirmar envio concluído.

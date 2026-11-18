@@ -8,6 +8,8 @@ import android.provider.Settings;
 import android.widget.Button;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
+import java.io.File;
+import java.util.Locale;
 import android.widget.TextView;
 
 /**
@@ -20,6 +22,8 @@ import android.widget.TextView;
  */
 public final class FleetDataControlActivity extends Activity {
   private TextView status;
+  private TextView selection;
+  private volatile boolean exporting=false;
   @Override public void onCreate(Bundle savedInstanceState){
     super.onCreate(savedInstanceState);
     ScrollView scroll=new ScrollView(this);
@@ -35,6 +39,12 @@ public final class FleetDataControlActivity extends Activity {
       "(APK sem permissão INTERNET).\n"+
       "Nenhum vídeo, áudio, rota ou relatório é enviado automaticamente.");
     intro.setPadding(0,16,0,18);box.addView(intro);
+    selection=new TextView(this);
+    selection.setTextIsSelectable(true);
+    selection.setPadding(0,6,0,16);
+    box.addView(selection);
+    showSelection();
+    button(box,"EXPORTAR CÓPIA DO VÍDEO ESCOLHIDO (OFFLINE)",this::exportSelected);
     status=new TextView(this);status.setTextIsSelectable(true);status.setTextSize(14);
     status.setPadding(0,10,0,16);box.addView(status);
     button(box,"ATUALIZAR CONEXÃO E CONSUMO DO PRÓPRIO APP",this::refresh);
@@ -71,6 +81,36 @@ public final class FleetDataControlActivity extends Activity {
     Button b=new Button(this);
     b.setText(caption);b.setAllCaps(false);
     b.setOnClickListener(v->callback.run());box.addView(b);
+  }
+  private File selected(){
+    String path=getIntent().getStringExtra("selected_local_clip");
+    return OemRecordingLibrary.resolve(getApplicationContext(),path);
+  }
+  private void showSelection(){
+    File clip=selected();
+    selection.setText(clip==null?
+      "Nenhum vídeo selecionado. Abra a galeria para escolher um clipe específico.":
+      "CLIP SELECIONADO: "+clip.getName()+
+      "\nTamanho da cópia: "+String.format(Locale.US,"%.1f MB",clip.length()/1000000d)+
+      "\nExportar é uma CÓPIA LOCAL; não transfere ao telefone nem usa dados de rede.");
+  }
+  private void exportSelected(){
+    File f=selected();
+    if(f==null){new AlertDialog.Builder(this).setMessage("Selecione um vídeo no botão 21.").setPositiveButton("OK",null).show();return;}
+    if(exporting)return;
+    exporting=true;
+    selection.setText("Copiando o MP4 selecionado para a galeria local... sem usar internet.");
+    new Thread(()->{
+      String result=OemVideoExporter.copyToMovies(getApplicationContext(),f);
+      runOnUiThread(()->{
+        exporting=false;
+        showSelection();
+        new AlertDialog.Builder(this).setTitle("Exportação offline")
+          .setMessage(result+"\n\nO envio ao celular ainda precisa de uma transferência local "+
+            "ou de um cliente autenticado Wi-Fi no futuro; conectar ao hotspot sozinho NÃO envia.")
+          .setPositiveButton("Fechar",null).show();
+      });
+    },"fleet-export-phone-clip").start();
   }
   private void refresh(){
     status.setText("Lendo apenas os indicadores de rede do Android...");
