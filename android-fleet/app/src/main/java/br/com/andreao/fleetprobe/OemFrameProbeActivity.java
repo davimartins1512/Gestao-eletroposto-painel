@@ -462,6 +462,18 @@ public final class OemFrameProbeActivity extends Activity {
       });
     },"fleet-export-mp4").start();
   }
+  @Override public void onBackPressed(){
+    if(active.get()){
+      new AlertDialog.Builder(this).setTitle("Gravação em andamento")
+        .setMessage("Para preservar o fechamento seguro da câmera, interrompa o teste "+
+          "e aguarde o relatório antes de sair. Não dirija nem manobre durante o teste.")
+        .setNegativeButton("Continuar teste",null)
+        .setPositiveButton("Interromper", (d,w)->stop())
+        .show();
+      return;
+    }
+    finishWithResult();
+  }
   private void finishWithResult(){
     if(active.get()){stop();return;}
     Intent data=new Intent();

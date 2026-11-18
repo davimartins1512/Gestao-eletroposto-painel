@@ -90,6 +90,7 @@ public final class LaunchActivity extends Activity {
     box.addView(label("NOVO v1.4: teste curto de foto/MP4 ou teste manual de clipes sequenciais, com duração configurável (padrão 90s) e sem reabrir a câmera entre arquivos. Áudio só com aviso explícito; nada inicia sozinho."));
     button(box,"20 · TESTE INTEGRADO DE FOTO + MP4 (ÁUDIO OPCIONAL)",this::openOemFrameProbe);
     button(box,"21 · GALERIA LOCAL · VER, EXPORTAR E PROTEGER CLIPES",this::openRecordingLibrary);
+    button(box,"22 · VER ÚLTIMO ESTADO DA GRAVAÇÃO OEM",()->append("ESTADO DA CÂMERA OEM",OemProbeCheckpoint.read(getApplicationContext())));
 
     box.addView(label("NOVOS TESTES v0.6 · toque para começar e interromper. Não há rastreamento automático ou envio à internet."));
     button(box,"10 · INICIAR GPS + MOVIMENTO (até 3 minutos)",this::confirmStartTracking);
@@ -520,7 +521,11 @@ public final class LaunchActivity extends Activity {
       if(result==RESULT_OK&&data!=null){
         String test=data.getStringExtra(OemFrameProbeActivity.EXTRA_REPORT);
         append("ENSAIO OEM REAL · FRAMES",test==null?"Sem resultado retornado":test);
-      }else append("ENSAIO OEM REAL · FRAMES","Teste cancelado ou processo OEM encerrado por segurança (nenhum resultado de vídeo recuperado).");
+      }else append("ENSAIO OEM REAL · FRAMES",
+        "O processo de câmera terminou sem retornar relatório à tela principal. "+
+        "Isso NÃO confirma falha nos arquivos MP4. Confira os vídeos na galeria "+
+        "(botão 21) e o último estado registrado abaixo.\n\n"+
+        OemProbeCheckpoint.read(getApplicationContext()));
       return;
     }
     if(req!=SAVE_REPORT||result!=RESULT_OK||data==null||data.getData()==null)return;
