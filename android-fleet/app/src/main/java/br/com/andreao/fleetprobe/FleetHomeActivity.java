@@ -32,7 +32,7 @@ public final class FleetHomeActivity extends Activity {
     brand.setTextSize(26);
     brand.setGravity(Gravity.START);
     root.addView(brand);
-    text("CENTRAL DO VEÍCULO  ·  v2.2",12,0xff53665b);
+    text("CENTRAL DO VEÍCULO  ·  v3.0",12,0xff53665b);
     vehicle=text("Carro local",20,0xff153c2b);
     status=text("Gravações offline · clipes locais · nenhum envio automático",14,0xff53665b);
     section("GRAVAÇÃO E OCORRÊNCIAS");

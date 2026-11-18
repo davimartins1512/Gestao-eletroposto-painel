@@ -2,8 +2,8 @@ package br.com.andreao.fleetprobe;
 
 /**
  * Zero-cellular-by-default transfer policy. Pure-Java gate for a future
- * authenticated per-file transfer. The currently shipped APK has NO INTERNET
- * permission and does not contain a transfer client.
+ * authenticated per-file cloud transfer. Current app has only a manual inbound
+ * private-Wi-Fi HTTP server for single-clip download; no outbound upload client.
  *
  * Wi-Fi can be backed by somebody else's limited data. Therefore an explicitly
  * acknowledged, validated Wi-Fi network is needed for a temporary upload.

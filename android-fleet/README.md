@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Pacote integrado v2.0 (Dolphin Mini) (Dolphin Mini)
+# ANDREAO Fleet v3.0 — candidato de homologação geral (Dolphin Mini)
 
 Aplicativo experimental **offline**, com uma sondagem manual opcional de câmera OEM (v1.2), para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -414,3 +414,73 @@ dois serviços usam o mesmo canal ou pacote sem evidência técnica.
 ### Fluxo manual para clipe de ocorrência (v2.1)
 
 Na galeria há ação por MP4 **PREPARAR ESSE VÍDEO PARA O CELULAR (SEM ENVIAR)**. A Central de Dados mostra nome/tamanho e oferece exportação da cópia para Movies, sem internet. Este fluxo ainda **NÃO** envia via hotspot: o usuário precisa levar arquivo ao telefone por meio local compatível ou, no futuro, utilizar transferência segura autenticada estritamente via Wi-Fi confirmado. Botão não pode afirmar envio concluído.
+
+## 18/11/2026 — v3.0: uma central única, sem microtestes repetidos
+
+**Objetivo:** o gestor solicitou todas as funções disponíveis no APK entregues em uma
+instalação e uma verificação geral, sem repetir instruções de tirar/colocar USB,
+descobrir câmera original ou fazer 5 minutos de vídeo a cada alteração.
+
+### Módulos incluídos no APK integrado
+
+- `FleetHomeActivity` agora é o inicializador, com telas de gravação,
+  galeria, transferências, GPS, identificação, armazenamento, saúde e
+  verificação geral. Diagnóstico legado preservado como opção técnica.
+- `FleetProfileActivity`: apelido/modelo local de cada carro sem compartilhar
+  IMEI, posição ou identificadores. Dolphin Mini tem captura manual comprovada
+  nos testes anteriores; Yuan Plus e Dolphin Plus seguem sem validação OEM.
+- `OemFrameProbeActivity`: gravação OEM manual já comprovada no Mini,
+  MP4 em segmentos de 90s, áudio opcional com consentimento, sem iniciar
+  automaticamente e somente estacionado em P/freio.
+- `OemRecordingLibraryActivity`: histórico local e USB, reprodução,
+  proteção de ocorrência, recuperação segura de MP4 parciais e exportação.
+- **Transferência de vídeo direta carro -> telefone** via `FleetLanTransferServer`:
+  usuário seleciona UM MP4 e autoriza; o carro, conectado ao hotspot do
+  telefone, abre servidor HTTP local em **IPv4 Wi-Fi privado**, com link
+  aleatório de 256 bits, leitura uma vez e prazo máximo de 10 minutos.
+  `FleetQrCode` gera QR 100% offline no aparelho (biblioteca ZXing open
+  source); o telefone abre o QR e baixa o vídeo diretamente do carro, SEM
+  passar por servidor, cloud ou upload. Não há sockets de saída no Fleet.
+  O servidor revalida rede Wi-Fi a cada fragmento. Há botão manual de
+  interromper; fechamento da tela encerra compartilhamento.
+  **Aviso:** HTTP não criptografa o tráfego local: usar APENAS hotspot
+  PARTICULAR e PROTEGIDO POR SENHA, nunca Wi-Fi público. Acesso por clientes
+  do hotspot pode ser bloqueado por algumas implementações de telefone.
+  A permissão INTERNET foi adicionada somente para escutar o socket LAN;
+  o app não faz requisições à internet da operadora BYD.
+- `FleetTripActivity` + `TrackerService`: GPS local por solicitação,
+  notificação persistente, duração 15/30/60/120 min, parada a qualquer
+  momento e CSV exportável (nenhum upload de localização).
+- `FleetAcceptanceActivity`: botão único e relatório TXT de galeria,
+  verificação de MP4 legível, armazenamento interno/USB sem exigir retirada,
+  status de espaço e política circular, consumo projetado, GPS, rede, câmera
+  OEM e matriz honesta de integrações. Não inicia câmera nem faz uso de
+  dados do chip BYD. Não confundir software compilado com teste físico.
+- Controle de dados: tráfego celular do Fleet para upload/streaming NÃO
+  IMPLEMENTADO; não existe transmissão automática ou telemetria remota.
+  O download LAN em Wi-Fi privado não precisa de dados móveis BYD. A
+  franquia do telefone ainda pode ser usada quando o usuário posteriormente
+  envia seu vídeo a serviços na nuvem.
+- O código do painel web tem preferências por veículo, mas ainda não
+  sincroniza com o APK; não foi feito deploy nem SQL em produção.
+
+### Bloqueios reais da integração ao hardware (não prometer funcionalidades)
+
+- READY/P/freio, comunicação direta e segura com câmeras de ré e manobras
+  requerem fonte autenticada e comprovação de coexistência; **não habilitar
+  gravação automática enquanto se dirige ou com veículo desligado**.
+- SOC/SOH de tração, tensão real 12V, sinais de recarga, saúde BMS: a
+  central não expôs ainda fonte confiável; **não inventar percentuais**.
+- Acesso em nuvem/live remoto, alertas em tempo real, sincronização
+  veículo-painel: exigem serviço autenticado e canal de dados; não estão
+  implementados e não cabem na promessa de zero tráfego celular do carro.
+- 24h de vídeo com 1.5–4Mbps pode requerer mais memória que o
+  limite configurado; retenção de 24h é prazo máximo, não garantia de
+  capacidade. 12V e modo sentinela ainda não validados.
+- APK não é produto final de monitoramento de frota e nunca deve
+  substituir o Electro até os requisitos de segurança/hardware restantes
+  estarem comprovados.
+
+NÃO acionar funções privadas BYD/CAN/controle da condução, não instalar
+automaticamente nos veículos, não alterar Electro nem merge/deploy/Supabase,
+e não contratar APIs ou serviços pagos.

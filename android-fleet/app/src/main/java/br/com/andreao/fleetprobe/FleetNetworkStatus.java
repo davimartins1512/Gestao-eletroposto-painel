@@ -8,7 +8,7 @@ import android.net.TrafficStats;
 import android.os.Process;
 import java.util.Locale;
 
-/** Read-only: no INTERNET permission, no sockets, no network requests. */
+/** Read-only diagnostics. A different class hosts a manual LAN-only HTTP server. */
 public final class FleetNetworkStatus {
   private FleetNetworkStatus(){}
   public static final class Status{

@@ -43,7 +43,7 @@ public final class FleetHealthActivity extends Activity {
     button(root,"ATUALIZAR ESTADO E USO DA MEMÓRIA",this::refresh);
     button(root,"ABRIR GALERIA DE CLIPES",()->
       startActivity(new Intent(this,OemRecordingLibraryActivity.class)));
-    button(root,"CONTROLE DE DADOS · INTERNET BLOQUEADA",()->
+    button(root,"CONTROLE DE DADOS · REDE LOCAL SEM UPLOAD",()->
       startActivity(new Intent(this,FleetDataControlActivity.class)));
     button(root,"AJUSTAR QUALIDADE E LIMITES",()->
       startActivity(new Intent(this,StoragePreferencesActivity.class)));
