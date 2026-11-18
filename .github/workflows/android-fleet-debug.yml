@@ -36,7 +36,7 @@ jobs:
       - name: Test real JVM disk-budget and incident retention logic
         run: |
           mkdir -p "$RUNNER_TEMP/fleet-policy"
-          javac -d "$RUNNER_TEMP/fleet-policy"             android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetStorageMath.java             android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetRetentionPlanner.java             tests/java/br/com/andreao/fleetprobe/FleetPolicyJvmTest.java
+          javac -d "$RUNNER_TEMP/fleet-policy"             android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetStorageMath.java             android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetRetentionPlanner.java             android-fleet/app/src/main/java/br/com/andreao/fleetprobe/Nv21Downsampler.java             tests/java/br/com/andreao/fleetprobe/FleetPolicyJvmTest.java
           java -cp "$RUNNER_TEMP/fleet-policy" br.com.andreao.fleetprobe.FleetPolicyJvmTest
       - name: Run Android contract tests
         run: node --test tests/fleet-diagnostic-contract.test.mjs tests/fleet-tracker-contract.test.mjs

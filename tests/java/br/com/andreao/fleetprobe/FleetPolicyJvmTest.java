@@ -47,6 +47,28 @@ public final class FleetPolicyJvmTest {
     require(!impossible.deleteNames.contains("protected.mp4"),"incident untouched");
     require(FleetRetentionPlanner.calculate(new FleetRetentionPlanner.Clip[0],now,24*hour,100).deleteNames.isEmpty(),
       "empty directory safe");
+    byte[] raw=new byte[32*16*3/2];
+    for(int i=0;i<raw.length;i++)raw[i]=(byte)i;
+    Nv21Downsampler sampler=new Nv21Downsampler(32,16,16,16);
+    java.nio.ByteBuffer nv12=java.nio.ByteBuffer.allocate(16*16*3/2);
+    sampler.writeNv12(nv12,raw);
+    require(nv12.position()==384,"NV12 output size");
+    require(nv12.get(0)==raw[0]&&nv12.get(1)==raw[2],"Y sampling x2");
+    require(nv12.get(16)==raw[32],"Y sample row");
+    require(nv12.get(255)==raw[510],"last Y sample");
+    require(nv12.get(256)==raw[513]&&nv12.get(257)==raw[512],
+      "NV21 VU -> NV12 UV");
+    require(nv12.get(258)==raw[517]&&nv12.get(259)==raw[516],
+      "second chroma source sample");
+    java.nio.ByteBuffer i420=java.nio.ByteBuffer.allocate(384);
+    sampler.writeI420(i420,raw);
+    require(i420.position()==384,"I420 output size");
+    require(i420.get(256)==raw[513]&&i420.get(320)==raw[512],
+      "I420 U/V planes are in correct order");
+    boolean shortInputRejected=false;
+    try{sampler.writeNv12(java.nio.ByteBuffer.allocate(384),new byte[2]);}
+    catch(IllegalArgumentException expected){shortInputRejected=true;}
+    require(shortInputRejected,"undersized raw OEM bytes must fail closed");
     System.out.println("ANDREAO Fleet JVM budget + protected circular retention: PASS");
   }
 }
