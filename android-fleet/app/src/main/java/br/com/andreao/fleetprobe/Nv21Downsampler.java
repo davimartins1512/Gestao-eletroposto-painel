@@ -10,7 +10,7 @@ import java.nio.ByteBuffer;
  * Input is read only. Output buffer must have width*height*3/2 capacity.
  */
 public final class Nv21Downsampler {
-  private final int width,height;
+  private final int width,height,maxIndex;
   private final int[] yIndex,vuIndex;
 
   public Nv21Downsampler(int sourceW,int sourceH,int destW,int destH){
@@ -34,13 +34,14 @@ public final class Nv21Downsampler {
         vuIndex[y*chromaW+x]=sourceArea+sy*sourceW+sx*2;
       }
     }
+    int largest=0;
+    for(int i:yIndex)if(i>largest)largest=i;
+    for(int i:vuIndex)if(i+1>largest)largest=i+1;
+    maxIndex=largest;
   }
   private void validate(ByteBuffer output,byte[] input){
     if(output==null||input==null)throw new IllegalArgumentException("Buffer ausente");
-    int maxSourceIndex=0;
-    for(int i:yIndex)if(i>maxSourceIndex)maxSourceIndex=i;
-    for(int i:vuIndex)if(i+1>maxSourceIndex)maxSourceIndex=i+1;
-    if(input.length<=maxSourceIndex||output.remaining()<width*height*3/2)
+    if(input.length<=maxIndex||output.remaining()<width*height*3/2)
       throw new IllegalArgumentException("Buffer NV21 insuficiente");
   }
   public void writeNv12(ByteBuffer output,byte[] input){

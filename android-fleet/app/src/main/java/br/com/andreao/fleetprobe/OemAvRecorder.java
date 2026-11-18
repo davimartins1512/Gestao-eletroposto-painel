@@ -61,6 +61,7 @@ public final class OemAvRecorder implements AutoCloseable {
   private int targetW,targetH,sourceW,sourceH,chosenColorFormat;
   private final int desiredFps,bitrate;
   private MediaCodec videoEncoder,audioEncoder;
+  private Nv21Downsampler sampling;
   private MediaMuxer muxer;
   private AudioRecord recorder;
   private Thread worker,audioWorker;
@@ -141,6 +142,7 @@ public final class OemAvRecorder implements AutoCloseable {
 
   private void prepare(Frame first) throws Exception {
     chooseSize(first.width,first.height);
+    sampling=new Nv21Downsampler(sourceW,sourceH,targetW,targetH);
     if(!directory.isDirectory()&&!directory.mkdirs())throw new IllegalStateException("Diretório de gravação inacessível");
     if(!OemMediaRetention.enoughSpace(directory,prefs))throw new IllegalStateException("Espaço reservado mínimo não disponível");
     complete=new File(directory,"andreao_fleet_cam_"+title+".mp4");
@@ -184,51 +186,13 @@ public final class OemAvRecorder implements AutoCloseable {
 
   private long ptsUs(){return Math.max(0L,(System.nanoTime()-baseNanos)/1000L);}
 
-  private void scaleNv21ToNv12(ByteBuffer target,byte[] source,int w,int h) {
-    // Preserve panorama aspect without trying to reinterpret vendor layouts.
-    int yLength=sourceW*sourceH;
-    for(int y=0;y<h;y++){
-      int sy=Math.min(sourceH-1,y*sourceH/h);
-      int row=sy*sourceW;
-      for(int x=0;x<w;x++){
-        int sx=Math.min(sourceW-1,x*sourceW/w);
-        target.put(source[row+sx]);
-      }
-    }
-    for(int y=0;y<h/2;y++){
-      int sy=Math.min(sourceH/2-1,y*(sourceH/2)/(h/2));
-      for(int x=0;x<w/2;x++){
-        int sx=Math.min(sourceW/2-1,x*(sourceW/2)/(w/2));
-        int from=yLength+sy*sourceW+sx*2;
-        // NV21 VU to NV12 UV
-        target.put(source[from+1]);
-        target.put(source[from]);
-      }
-    }
+  private void scaleNv21ToNv12(ByteBuffer output,byte[] input,int width,int height){
+    if(width!=targetW||height!=targetH)throw new IllegalArgumentException("Tamanho NV12 mudou");
+    sampling.writeNv12(output,input);
   }
-
-  private void scaleNv21ToI420(ByteBuffer target,byte[] source,int w,int h){
-    int ySize=sourceW*sourceH;
-    int cw=w/2,ch=h/2;
-    int expected=w*h*3/2;
-    byte[] planar=new byte[expected];
-    for(int y=0;y<h;y++){
-      int sy=Math.min(sourceH-1,y*sourceH/h);
-      int row=sy*sourceW;
-      for(int x=0;x<w;x++)
-        planar[y*w+x]=source[row+Math.min(sourceW-1,x*sourceW/w)];
-    }
-    int uBase=w*h,vBase=uBase+cw*ch;
-    for(int y=0;y<ch;y++){
-      int sy=Math.min(sourceH/2-1,y*(sourceH/2)/ch);
-      for(int x=0;x<cw;x++){
-        int sx=Math.min(sourceW/2-1,x*(sourceW/2)/cw);
-        int sourceIndex=ySize+sy*sourceW+sx*2;
-        planar[uBase+y*cw+x]=source[sourceIndex+1];
-        planar[vBase+y*cw+x]=source[sourceIndex];
-      }
-    }
-    target.put(planar);
+  private void scaleNv21ToI420(ByteBuffer output,byte[] input,int width,int height){
+    if(width!=targetW||height!=targetH)throw new IllegalArgumentException("Tamanho I420 mudou");
+    sampling.writeI420(output,input);
   }
 
   private void submitVideo(Frame frame){
