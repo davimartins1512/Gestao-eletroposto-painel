@@ -1,0 +1,99 @@
+name: ANDREAO Fleet v3.6 - integridade e fila segura
+on:
+  push:
+    branches:
+      - feature/andreao-fleet-resiliencia-v36-20261118
+    paths:
+      - fleet-remote-v36/**
+      - android-fleet/v34/FleetWifiAutoSyncJob.java
+      - .github/workflows/andreao-fleet-v36.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  server-integrity:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Recover approved v3.5 server source
+        run: |
+          set -euo pipefail
+          base64 --decode fleet-remote-v35/server-sources.tar.xz.b64 > "$RUNNER_TEMP/server-v35.txz"
+          echo "afa3235d6adf6c969e09d8ad49d992d4b4a9d5fd5712b2bb5abbfd2d34e6a0f1  $RUNNER_TEMP/server-v35.txz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/source"
+          tar -xJf "$RUNNER_TEMP/server-v35.txz" -C "$RUNNER_TEMP/source"
+      - name: Verify and install isolated v3.6 source patch
+        run: |
+          set -euo pipefail
+          base64 --decode fleet-remote-v36/source-patch.tar.xz.b64 > "$RUNNER_TEMP/patch-v36.txz"
+          echo "9aa51cff06517c81092abdb39b4d5930c069b65b74e918bb757f8d7de4dbdb4b  $RUNNER_TEMP/patch-v36.txz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/patch-v36.txz" -C "$RUNNER_TEMP/source"
+          python3 "$RUNNER_TEMP/source/v36-patch/apply_server_v36.py" "$RUNNER_TEMP/source/remote-v35"
+          python3 "$RUNNER_TEMP/source/v36-patch/apply_reservation_v36.py" "$RUNNER_TEMP/source/remote-v35"
+          python3 "$RUNNER_TEMP/source/v36-patch/apply_routes_v36.py" "$RUNNER_TEMP/source/remote-v35"
+          cp "$RUNNER_TEMP/source/v36-patch/test/"*.test.mjs "$RUNNER_TEMP/source/remote-v35/test/"
+      - name: Run all server tests including disk failure and vehicle IDs
+        run: |
+          cd "$RUNNER_TEMP/source/remote-v35"
+          node --test
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ANDREAO-Fleet-v3.6-Servidor-Fonte-Validada
+          path: fleet-remote-v36/source-patch.tar.xz.b64
+          retention-days: 14
+  android-verified-build:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Restore previously integrated v3.2 source
+        run: |
+          mkdir -p "$RUNNER_TEMP/remote-source"
+          base64 --decode android-fleet/remote-v32/overlay.tar.xz.b64 | tar -xJ -C "$RUNNER_TEMP/remote-source"
+          python3 "$RUNNER_TEMP/remote-source/apply_to_existing_project.py" android-fleet
+      - name: Restore v3.3 BYD read-only telemetrics
+        run: |
+          cp android-fleet/v33/FleetTelemetryReadOnly.java android-fleet/app/src/main/java/br/com/andreao/fleetprobe/
+          cp android-fleet/v33/FleetTelemetryActivity.java android-fleet/app/src/main/java/br/com/andreao/fleetprobe/
+          python3 android-fleet/v33/apply_v33.py android-fleet
+      - name: Apply v3.6 FIFO and protected-event sync
+        run: |
+          cp android-fleet/v34/FleetWifiAutoSyncJob.java android-fleet/app/src/main/java/br/com/andreao/fleetprobe/
+          python3 android-fleet/v34/apply_v34.py android-fleet
+          python3 - <<'PY'
+          from pathlib import Path
+          p=Path('android-fleet/app/build.gradle')
+          s=p.read_text()
+          old="versionCode 34; versionName '3.4.0-approved-wifi'"
+          assert s.count(old)==1
+          p.write_text(s.replace(old,"versionCode 36; versionName '3.6.0-sync-safe'"))
+          src=Path('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetWifiAutoSyncJob.java').read_text()
+          for required in ('a.protectedEvent?-1:1','Long.compare(a.lastModified,b.lastModified)','tooLarge++','NETWORK_TYPE_UNMETERED','TRANSPORT_CELLULAR','NET_CAPABILITY_NOT_METERED'):
+              assert required in src,required
+          assert 'startPreview(' not in src
+          print('Fila priorizada e bloqueio de dados moveis revisados')
+          PY
+      - name: Install Android SDK
+        run: |
+          SDK_MANAGER="$(command -v sdkmanager || find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -1)"
+          "$SDK_MANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Compile integrated Android APK
+        run: gradle -p android-fleet --no-daemon :app:assembleDebug
+      - name: Run Android software contracts
+        run: node --test tests/fleet-diagnostic-contract.test.mjs tests/fleet-tracker-contract.test.mjs
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ANDREAO-Fleet-v3.6-APK-Homologacao-Software
+          path: android-fleet/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
