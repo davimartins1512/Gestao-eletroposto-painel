@@ -31,7 +31,7 @@ public final class FleetNetworkStatus {
         "\nRX do próprio app desde o início do sistema: "+format(uidRxBytes)+
         "\nAtenção: métricas por UID incluem tráfego do próprio app desde o boot,"+
         " podem ser indisponíveis e NÃO medem o consumo de outros apps/BYD."+
-        "\nESTE APK NÃO SOLICITA INTERNET, portanto não faz upload nem rastreamento remoto."+
+        "\nO APK possui permissão INTERNET somente para servidor HTTP LOCAL manual; não envia dados para nuvem."+
         "\nWi-Fi também pode consumir franquia do telefone. Conectar não autoriza envio.";
     }
   }

@@ -3,9 +3,16 @@ package br.com.andreao.fleetprobe;
 import android.app.Activity;
 import android.app.AlertDialog;
 import android.content.Intent;
+import android.content.ClipData;
+import android.content.ClipboardManager;
+import android.content.Context;
 import android.os.Bundle;
+import android.os.Handler;
+import android.os.Looper;
+import android.view.WindowManager;
 import android.provider.Settings;
 import android.widget.Button;
+import android.widget.CheckBox;
 import android.widget.LinearLayout;
 import android.widget.ScrollView;
 import java.io.File;
@@ -24,6 +31,23 @@ public final class FleetDataControlActivity extends Activity {
   private TextView status;
   private TextView selection;
   private volatile boolean exporting=false;
+  private volatile FleetLanTransferServer lan;
+  private TextView linkLabel;
+  private CheckBox hotspotConsent;
+  private final Handler handler=new Handler(Looper.getMainLooper());
+  private final Runnable monitor=new Runnable(){
+    @Override public void run(){
+      FleetLanTransferServer server=lan;
+      if(linkLabel!=null&&server!=null){
+        String link=server.url();
+        linkLabel.setText(server.status()+(link.isEmpty()?"":"\n\nENDEREÇO LOCAL:\n"+link)
+          +"\nBytes servidos pelo Wi-Fi: "+server.bytesSent());
+      }
+      if(server!=null&&server.active())getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+      else getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+      handler.postDelayed(this,1000);
+    }
+  };
   @Override public void onCreate(Bundle savedInstanceState){
     super.onCreate(savedInstanceState);
     ScrollView scroll=new ScrollView(this);
@@ -35,9 +59,9 @@ public final class FleetDataControlActivity extends Activity {
     title.setTextSize(22);box.addView(title);
     TextView intro=new TextView(this);
     intro.setText("REGRA PRINCIPAL: gravações, histórico e GPS local não exigem internet.\n"+
-      "Dados celulares da multimídia para este app: BLOQUEADOS por projeto "+
-      "(APK sem permissão INTERNET).\n"+
-      "Nenhum vídeo, áudio, rota ou relatório é enviado automaticamente.");
+      "Nenhum vídeo, áudio, rota ou relatório sai automaticamente.\n"+
+      "A permissão INTERNET existe APENAS para abrir um servidor local por tempo limitado no Wi-Fi autorizado. "+
+      "Não existe cliente de upload para a nuvem, nem envio em segundo plano.");
     intro.setPadding(0,16,0,18);box.addView(intro);
     selection=new TextView(this);
     selection.setTextIsSelectable(true);
@@ -45,6 +69,19 @@ public final class FleetDataControlActivity extends Activity {
     box.addView(selection);
     showSelection();
     button(box,"EXPORTAR CÓPIA DO VÍDEO ESCOLHIDO (OFFLINE)",this::exportSelected);
+    hotspotConsent=new CheckBox(this);
+    hotspotConsent.setChecked(false);
+    hotspotConsent.setText("Confirmo que o carro está conectado ao MEU roteador privado "+
+      "protegido por senha, e autorizo baixar somente este MP4 no telefone.");
+    box.addView(hotspotConsent);
+    button(box,"DISPONIBILIZAR MP4 NO WI-FI DO CELULAR (10 MIN)",this::startLan);
+    button(box,"COPIAR ENDEREÇO LOCAL",this::copyAddress);
+    button(box,"ENCERRAR COMPARTILHAMENTO",this::stopLan);
+    linkLabel=new TextView(this);
+    linkLabel.setTextIsSelectable(true);
+    linkLabel.setText("Servidor local desligado. Não existe upload automático.");
+    linkLabel.setPadding(0,12,0,20);
+    box.addView(linkLabel);
     status=new TextView(this);status.setTextIsSelectable(true);status.setTextSize(14);
     status.setPadding(0,10,0,16);box.addView(status);
     button(box,"ATUALIZAR CONEXÃO E CONSUMO DO PRÓPRIO APP",this::refresh);
@@ -54,33 +91,80 @@ public final class FleetDataControlActivity extends Activity {
     });
     button(box,"ABRIR GALERIA E ESCOLHER UM MP4 PARA EXPORTAR",()->
       startActivity(new Intent(this,OemRecordingLibraryActivity.class)));
-    button(box,"ENTENDER COMO TRANSFERIR SEM O CHIP DO CARRO",()->
+    button(box,"COMO BAIXAR NO TELEFONE SEM USAR O CHIP BYD",()->
       new AlertDialog.Builder(this)
-        .setTitle("Transferir vídeo sem consumir a franquia BYD")
-        .setMessage("1. O vídeo permanece na memória do carro.\n"+
-          "2. Selecione apenas o clipe necessário e exporte uma CÓPIA para a galeria.\n"+
-          "3. Transfira a cópia ao telefone por USB ou outro meio local compatível; "+
-          "o envio para a nuvem pode ser feito NO PRÓPRIO TELEFONE.\n\n"+
-          "Roteador do telefone: conectá-lo ao carro cria uma rede Wi-Fi, mas "+
-          "isso NÃO transfere arquivos por si só. Um futuro envio direto "+
-          "do carro precisará de cliente HTTPS autenticado que obrigue "+
-          "a conexão Wi-Fi e interrompa se cair para celular. Ainda NÃO foi implementado.\n\n"+
-          "Atenção: a franquia do telefone também pode ser limitada. "+
-          "Nosso app não mede nem controla dados de outros apps ou da BYD.")
-        .setPositiveButton("Entendi",null).show());
+      .setTitle("Download direto: Wi-Fi local")
+      .setMessage("1. Ligue o roteador do seu celular e conecte o Wi-Fi do carro a ele.\n"+
+        "2. Na galeria do Fleet, escolha UM vídeo e toque PREPARAR PARA CELULAR.\n"+
+        "3. Marque a autorização e toque DISPONIBILIZAR MP4.\n"+
+        "4. Abra no navegador do próprio telefone o endereço que aparecer na tela do carro.\n"+
+        "5. O telefone baixa o MP4 diretamente pela rede local, sem enviar ao servidor.\n\n"+
+        "O link dura até 10 minutos e aceita uma transferência. NÃO é HTTPS: "+
+        "use somente seu hotspot protegido por senha, jamais Wi-Fi público. "+
+        "A conexão depende do telefone permitir contato entre hotspot e carro. "+
+        "Nenhuma transferência começa sem sua ação.")
+      .setPositiveButton("Entendi",null).show());
     TextView note=new TextView(this);
-    note.setText("Para o envio futuro: aprovação explícita por vídeo, Wi-Fi autenticado, "+
-      "orçamento de bytes, limite mensal, pausa imediata se o Wi-Fi cair, "+
-      "nenhum upload automático. Exibição de Wi-Fi NÃO é confirmação de "+
-      "roteador do telefone.");
+    note.setText("Transporte local direto para o navegador do celular: só por solicitação, "+
+      "sem tráfego para servidores externos. Sem HTTPS; use rede privada e nunca compartilhe "+
+      "o link publicamente. O upload posterior feito pelo celular pode consumir a franquia DO TELEFONE. "+
+      "Conectar no Wi-Fi sozinho não inicia gravação nem transferência.");
     note.setPadding(0,20,0,12);box.addView(note);
     scroll.addView(box);setContentView(scroll);
     refresh();
+    handler.post(monitor);
   }
   private void button(LinearLayout box,String caption,Runnable callback){
     Button b=new Button(this);
     b.setText(caption);b.setAllCaps(false);
     b.setOnClickListener(v->callback.run());box.addView(b);
+  }
+  private void startLan(){
+    File file=selected();
+    if(file==null){
+      new AlertDialog.Builder(this).setMessage("Selecione um MP4 da galeria primeiro.")
+        .setPositiveButton("OK",null).show();
+      return;
+    }
+    if(!hotspotConsent.isChecked()){
+      new AlertDialog.Builder(this).setMessage("Confirme o roteador PRIVADO e com senha. "+
+        "O arquivo é disponibilizado em HTTP somente na rede local.")
+        .setPositiveButton("OK",null).show();
+      return;
+    }
+    stopLan();
+    try{
+      lan=FleetLanTransferServer.create(getApplicationContext(),file);
+      lan.start();
+      linkLabel.setText("Abrindo compartilhamento temporário na interface Wi-Fi...");
+    }catch(Exception e){
+      linkLabel.setText("Falha iniciando compartilhamento: "+e.getMessage());
+    }
+  }
+  private void copyAddress(){
+    String address=lan==null?"":lan.url();
+    if(address.isEmpty()){
+      linkLabel.setText("Ainda não há link. Conecte ao hotspot e inicie o compartilhamento.");
+      return;
+    }
+    ClipboardManager clipboard=(ClipboardManager)getSystemService(Context.CLIPBOARD_SERVICE);
+    if(clipboard!=null){
+      clipboard.setPrimaryClip(ClipData.newPlainText("Link local do Fleet",address));
+      linkLabel.setText("Link copiado na multimídia. Digite-o no navegador "+
+        "do celular conectado à rede do carro:\n"+address);
+    }
+  }
+  private void stopLan(){
+    FleetLanTransferServer server=lan;
+    if(server!=null)server.stop();
+    lan=null;
+    if(linkLabel!=null)linkLabel.setText("Compartilhamento local encerrado.");
+    getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+  }
+  @Override protected void onDestroy(){
+    stopLan();
+    handler.removeCallbacks(monitor);
+    super.onDestroy();
   }
   private File selected(){
     String path=getIntent().getStringExtra("selected_local_clip");
@@ -92,7 +176,7 @@ public final class FleetDataControlActivity extends Activity {
       "Nenhum vídeo selecionado. Abra a galeria para escolher um clipe específico.":
       "CLIP SELECIONADO: "+clip.getName()+
       "\nTamanho da cópia: "+String.format(Locale.US,"%.1f MB",clip.length()/1000000d)+
-      "\nExportar é uma CÓPIA LOCAL; não transfere ao telefone nem usa dados de rede.");
+      "\nA cópia pode ser exportada offline ou disponibilizada ao telefone via Wi-Fi LOCAL por solicitação.");
   }
   private void exportSelected(){
     File f=selected();
@@ -106,8 +190,7 @@ public final class FleetDataControlActivity extends Activity {
         exporting=false;
         showSelection();
         new AlertDialog.Builder(this).setTitle("Exportação offline")
-          .setMessage(result+"\n\nO envio ao celular ainda precisa de uma transferência local "+
-            "ou de um cliente autenticado Wi-Fi no futuro; conectar ao hotspot sozinho NÃO envia.")
+          .setMessage(result+"\n\nPara baixar diretamente no telefone, use a opção de download Wi-Fi local nesta tela.")
           .setPositiveButton("Fechar",null).show();
       });
     },"fleet-export-phone-clip").start();

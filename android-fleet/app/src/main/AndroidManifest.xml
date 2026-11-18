@@ -5,11 +5,13 @@
   <uses-permission android:name="android.permission.ACCESS_COARSE_LOCATION"/>
   <uses-permission android:name="android.permission.ACCESS_FINE_LOCATION"/>
   <uses-permission android:name="android.permission.ACCESS_NETWORK_STATE"/>
+  <!-- LAN only: temporary inbound server bound to Wi-Fi. No internet uploads. -->
+  <uses-permission android:name="android.permission.INTERNET"/>
   <uses-permission android:name="android.permission.FOREGROUND_SERVICE"/>
   <uses-feature android:name="android.hardware.camera" android:required="false"/>
   <uses-feature android:name="android.hardware.microphone" android:required="false"/>
   <uses-feature android:name="android.hardware.location.gps" android:required="false"/>
-  <!-- Intencionalmente SEM INTERNET: nenhum dado ou imagem e enviado. -->
+  <!-- INTERNET permite socket Wi-Fi LOCAL; nenhum upload externo é implementado. -->
   <application
     android:label="ANDREAO Fleet Diagnóstico"
     android:allowBackup="false"
