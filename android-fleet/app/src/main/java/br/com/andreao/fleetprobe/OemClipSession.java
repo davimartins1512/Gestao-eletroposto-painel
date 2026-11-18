@@ -65,6 +65,8 @@ public final class OemClipSession {
     this.clipSeconds=Math.max(10,Math.min(600,selected));
   }
   public int clipSeconds(){return clipSeconds;}
+  public boolean isRunning(){return running.get() && !finished;}
+  public String failure(){return failure;}
   public long suggestedPilotMs(){
     // One rotation with default 90-second segments; capped for parked pilot.
     return Math.min(135000L,Math.max(45000L,(clipSeconds+20L)*1000L));
@@ -82,8 +84,13 @@ public final class OemClipSession {
   }
   private OemAvRecorder createRecorder(){
     StoragePolicy.Candidate selected=StoragePolicy.select(context,prefs);
-    if(selected==null||!selected.writable()||!OemMediaRetention.enoughSpace(selected.folder,prefs))
-      throw new IllegalStateException("Sem armazenamento gravável com reserva livre; sessão encerrada e falha registrada");
+    if(selected==null||!selected.writable())
+      throw new IllegalStateException("Nenhum armazenamento selecionável pela política por veículo");
+    // Reclaim only our OWN expired/oldest MP4 files BEFORE the next segment.
+    // Never touch clips marked .protected.mp4, .partial or other apps.
+    String cleanup=OemMediaRetention.clean(context,prefs,selected.folder);
+    if(!OemMediaRetention.enoughSpace(selected.folder,prefs))
+      throw new IllegalStateException("Armazenamento indisponível após limpeza circular: "+cleanup);
     File chosen=selected.folder;
     if(!chosen.equals(activeDirectory)){
       storageChanges.incrementAndGet();

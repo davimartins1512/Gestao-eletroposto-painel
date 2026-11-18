@@ -70,6 +70,7 @@ public final class OemFrameProbeActivity extends Activity {
   private final AtomicBoolean completed=new AtomicBoolean(false);
   private final AtomicInteger frames=new AtomicInteger(0);
   private final AtomicInteger validBytes=new AtomicInteger(0);
+  private final java.util.concurrent.atomic.AtomicLong lastValidFrameMs=new java.util.concurrent.atomic.AtomicLong(0);
   private volatile int firstFrameBytes=0;
   private volatile int lastFrameBytes=0;
   private volatile Thread worker;
@@ -166,6 +167,7 @@ public final class OemFrameProbeActivity extends Activity {
   private void startProbe(){
     if(!active.compareAndSet(false,true))return;
     abort.set(false);completed.set(false);frames.set(0);validBytes.set(0);
+    lastValidFrameMs.set(android.os.SystemClock.elapsedRealtime());
     startedElapsedMs=android.os.SystemClock.elapsedRealtime();
     lastCheckpointSeconds=0;
     sessionPhase="INICIADO";
@@ -282,6 +284,7 @@ public final class OemFrameProbeActivity extends Activity {
               int bytes=data.length;
               if(bytes>0){
                 validBytes.incrementAndGet();lastFrameBytes=bytes;
+                lastValidFrameMs.set(android.os.SystemClock.elapsedRealtime());
                 if(count==1)firstFrameBytes=bytes;
               }
               if(mode>0 && !abort.get()){
@@ -332,6 +335,15 @@ public final class OemFrameProbeActivity extends Activity {
 
       long end=android.os.SystemClock.elapsedRealtime()+(mode==0?MAX_PREVIEW_MS:pilotDurationMs());
       while(!abort.get() && android.os.SystemClock.elapsedRealtime()<end){
+        long stalledMs=android.os.SystemClock.elapsedRealtime()-lastValidFrameMs.get();
+        if(stalledMs>10000L)
+          throw new IllegalStateException("Câmera OEM sem buffers há "+
+            stalledMs+"ms; encerrando teste para proteger a multimídia");
+        OemClipSession currentSession=clipSession;
+        if(currentSession!=null && !currentSession.isRunning()){
+          throw new IllegalStateException("Rotação de clipes encerrada inesperadamente: "+
+            currentSession.failure());
+        }
         Thread.sleep(100);
       }
     }catch(Throwable t){
