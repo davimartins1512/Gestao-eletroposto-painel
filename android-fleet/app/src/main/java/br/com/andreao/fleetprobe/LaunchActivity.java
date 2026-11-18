@@ -91,6 +91,7 @@ public final class LaunchActivity extends Activity {
     button(box,"20 · TESTE INTEGRADO DE FOTO + MP4 (ÁUDIO OPCIONAL)",this::openOemFrameProbe);
     button(box,"21 · GALERIA LOCAL · VER, EXPORTAR E PROTEGER CLIPES",this::openRecordingLibrary);
     button(box,"22 · VER ÚLTIMO ESTADO DA GRAVAÇÃO OEM",()->append("ESTADO DA CÂMERA OEM",OemProbeCheckpoint.read(getApplicationContext())));
+    button(box,"23 · CENTRAL DO GRAVADOR · ESPAÇO / SAÚDE / STATUS",()->startActivity(new Intent(this,FleetHealthActivity.class)));
 
     box.addView(label("NOVOS TESTES v0.6 · toque para começar e interromper. Não há rastreamento automático ou envio à internet."));
     button(box,"10 · INICIAR GPS + MOVIMENTO (até 3 minutos)",this::confirmStartTracking);

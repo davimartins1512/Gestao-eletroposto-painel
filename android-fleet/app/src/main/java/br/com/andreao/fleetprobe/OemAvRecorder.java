@@ -49,6 +49,7 @@ public final class OemAvRecorder implements AutoCloseable {
   private final AtomicLong lastOfferMs=new AtomicLong(0);
   private final AtomicLong firstAcceptedNs=new AtomicLong(0);
   private final AtomicLong lastAcceptedNs=new AtomicLong(0);
+  private volatile long actualDurationMs=0,actualSizeBytes=0;
   private final Object muxLock=new Object();
   private volatile boolean accepting=true;
   private volatile boolean finished=false;
@@ -340,6 +341,8 @@ public final class OemAvRecorder implements AutoCloseable {
           ?OemMp4Verifier.verify(partial,withAudio)
           :new OemMp4Verifier.Result(false,"Muxer não iniciado ou falha de encoder: "+error,0);
         if(verified.valid && partial.renameTo(complete)){
+          actualDurationMs=verified.durationMs;
+          actualSizeBytes=complete.length();
           fileDescription=complete.getAbsolutePath()+" ("+(complete.length()/1024)+" KB, "
             +targetW+"x"+targetH+", duração="+verified.durationMs+" ms, "
             +"áudio verificado: "+(withAudio?"SIM":"NÃO")+")";
@@ -370,6 +373,11 @@ public final class OemAvRecorder implements AutoCloseable {
       "Quadros entregues ao codificador: "+encoded.get()+"\n"+
       "Quadros oferecidos: "+captured.get()+"; descartados: "+dropped.get()+"\n"+
       "Primeiro frame: "+firstAcceptedNs.get()+" ns; último: "+lastAcceptedNs.get()+" ns\n"+
+      "FPS efetivos medidos: "+(actualDurationMs>0?
+        String.format(Locale.US,"%.1f",encoded.get()*1000.0/actualDurationMs):"indisponível")+
+      "; bitrate real do MP4: "+(actualDurationMs>0?
+        String.format(Locale.US,"%.2f",actualSizeBytes*8.0/actualDurationMs/1000d):"indisponível")+
+      " Mbps\n"+
       "Amostras de áudio AAC: "+audioChunks.get()+"\n"+
       "Dimensões de saída: "+targetW+"x"+targetH+" @"+desiredFps+" FPS, formato YUV="+chosenColorFormat+"\n"+
       "Situação: "+(error.isEmpty()?(finished?"Concluído":"Em andamento"):error)+
