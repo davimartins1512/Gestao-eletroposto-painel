@@ -308,3 +308,36 @@ test('v1.7 gallery filters by age, shows clip timestamps, and records bounded se
  assert.match(probe,/OemSessionJournal\.write/);
  assert.doesNotMatch(journal,/HttpURLConnection|Socket|INTERNET|MediaRecorder/);
 });
+
+
+test('v1.8 finished recorders are not retained with megabyte-sized callback buffers',()=>{
+ const s=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemClipSession.java');
+ assert.match(s,/private static final class ClipResult/);
+ assert.match(s,/private final List<ClipResult> closed=new ArrayList<>\(\)/);
+ assert.match(s,/closed\.add\(new ClipResult\(r\)\)/);
+ assert.match(s,/long first=clip\.firstNs/);
+ assert.match(s,/long last=previous\.lastNs/);
+ assert.doesNotMatch(s,/List<OemAvRecorder> closed/);
+ assert.doesNotMatch(s,/closed\.add\(r\)/);
+});
+
+test('v1.8 OEM checkpoint survives process cancellation without collecting media',()=>{
+ const cp=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemProbeCheckpoint.java');
+ const p=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/OemFrameProbeActivity.java');
+ const l=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
+ assert.match(cp,/android\.util\.AtomicFile/);
+ assert.match(cp,/fleet_oem_last_checkpoint\.txt/);
+ assert.match(cp,/MAX_BYTES=2048/);
+ assert.match(cp,/atomic\.finishWrite\(stream\)/);
+ assert.match(cp,/atomic\.failWrite\(stream\)/);
+ assert.match(cp,/public static String read\(/);
+ assert.match(p,/lastCheckpointSeconds>=10/);
+ assert.match(p,/WATCHDOG · processo de teste encerrado/);
+ assert.match(p,/OemProbeCheckpoint\.save/);
+ assert.match(p,/@Override public void onBackPressed\(\)/);
+ assert.match(p,/Interromper/);
+ assert.match(l,/OemProbeCheckpoint\.read/);
+ assert.match(l,/22 · VER ÚLTIMO ESTADO DA GRAVAÇÃO OEM/);
+ assert.match(l,/Isso NÃO confirma falha nos arquivos MP4/);
+ assert.doesNotMatch(cp,/Socket|HttpURLConnection|MediaRecorder|MediaCodec|CameraManager/);
+});

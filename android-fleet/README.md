@@ -1,4 +1,4 @@
-# ANDREAO Fleet — Piloto integrado de mídia BYD v1.7 (Dolphin Mini)
+# ANDREAO Fleet — Piloto integrado de mídia BYD v1.8 (Dolphin Mini)
 
 Aplicativo experimental **offline**, com uma sondagem manual opcional de câmera OEM (v1.2), para testar em uma única instalação o que a central Android do Dolphin Mini realmente expõe. O app inicia sem acessar câmeras, GPS ou microfone. Os testes são individuais e opt-in.
 
@@ -297,3 +297,17 @@ Dolphin Mini apareceu na galeria e reproduziu normalmente. Ainda faltam
 testes de clipes de 90s consecutivos, áudio sincronizado, longa duração,
 modo READY/sentinela e streaming. Não apagar Electro nem ativar
 captura automática na câmera de segurança do carro antes desses gates.
+
+## v1.8 — relatório após encerramento do processo e uso de memória estável
+
+Em 18/11/2026, o responsável confirmou que os MP4 criados pelo gravador foram reproduzidos normalmente no Dolphin Mini. Entretanto, o TXT exportado `andreao_fleet_diagnostico_v06_20261118_155703.txt` continha somente a frase:
+`Teste cancelado ou processo OEM encerrado por segurança (nenhum resultado de vídeo recuperado).`
+Essa mensagem ocorre se a Activity de gravação não devolve `RESULT_OK` ao processo do launcher, inclusive em casos de navegação/cancelamento, e **não comprova falha de captura ou dos arquivos**. O registro não informa a causa.
+
+Mudanças:
+- `OemClipSession` deixa de manter instâncias inteiras de `OemAvRecorder` em `closed`; guarda apenas relatório/horários. Isso libera buffers NV21 e recursos de cada clipe para o coletor de lixo, evitando crescimento de memória com a duração do ensaio.
+- `OemProbeCheckpoint` usa `AtomicFile` na área privada do app para persistir fases de início, câmera aberta, captura, encerramento, watchdog, tempo, quantidade de quadros/clipes. Atualização moderada (a cada dez segundos) e também antes do watchdog terminar o processo OEM; sem vídeo, áudio ou upload.
+- A tela principal tem botão **22 — VER ÚLTIMO ESTADO DA GRAVAÇÃO OEM**. Se o teste retornar sem resultado, mostra o checkpoint real e sugere conferir os clipes pelo botão 21, sem declarar arquivo perdido.
+- `OemFrameProbeActivity.onBackPressed` não abandona silenciosamente uma gravação ativa: solicita interromper o teste e aguardar a liberação da câmera.
+
+Essas alterações ainda exigem teste físico. Não são uma solução garantida para falhas nativas do HAL, encerramento forçado por sistema operacional ou corrupção de mídia. Gravação automática durante condução, 24 horas, sentinela, áudio sem consentimento, e live remota permanecem desabilitadas.
