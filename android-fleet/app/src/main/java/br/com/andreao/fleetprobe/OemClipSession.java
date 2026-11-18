@@ -32,7 +32,21 @@ public final class OemClipSession {
   private final AtomicInteger rotations=new AtomicInteger(0);
   private final AtomicInteger callbackGaps=new AtomicInteger(0);
   private final AtomicLong lastCallbackNs=new AtomicLong(0);
-  private final List<OemAvRecorder> closed=new ArrayList<>();
+  /**
+   * An OemAvRecorder retains codec resources and large video buffers.
+   * Keep immutable summaries only; old recorder instances must become
+   * garbage-collectable after a segment completes.
+   */
+  private static final class ClipResult {
+    final String summary;
+    final long firstNs,lastNs;
+    ClipResult(OemAvRecorder recorder){
+      summary=recorder.report();
+      firstNs=recorder.firstAcceptedNs();
+      lastNs=recorder.lastAcceptedNs();
+    }
+  }
+  private final List<ClipResult> closed=new ArrayList<>();
   private final List<File> completed=new ArrayList<>();
   private volatile OemAvRecorder current;
   private volatile String failure="";
@@ -147,7 +161,7 @@ public final class OemClipSession {
     try{r.join(8000);}
     catch(InterruptedException e){Thread.currentThread().interrupt();}
     synchronized(closed){
-      closed.add(r);
+      closed.add(new ClipResult(r));
       File saved=r.finishedFile();
       if(saved!=null)completed.add(saved);
       else if(failure.isEmpty())failure="Um clipe não concluiu: "+r.report();
@@ -198,13 +212,13 @@ public final class OemClipSession {
     synchronized(closed){
       result.append("MP4 finalizados: ").append(completed.size()).append('\n');
       for(int i=0;i<closed.size();i++){
-        OemAvRecorder clip=closed.get(i);
+        ClipResult clip=closed.get(i);
         result.append("Clipe ").append(i+1).append(": ")
-          .append(clip.report()).append('\n');
+          .append(clip.summary).append('\n');
         if(i>0){
-          OemAvRecorder previous=closed.get(i-1);
-          long first=clip.firstAcceptedNs();
-          long last=previous.lastAcceptedNs();
+          ClipResult previous=closed.get(i-1);
+          long first=clip.firstNs;
+          long last=previous.lastNs;
           if(first>0L&&last>0L){
             long gapMs=Math.max(0L,(first-last)/1000000L);
             result.append("Intervalo ENTRE clipes ").append(i).append(" e ")
