@@ -257,7 +257,7 @@
 
   const mediaDefaults=Object.freeze({
     storage_target:'auto',removable_autoswitch:true,fallback_internal:true,
-    max_storage_gb:null,reserve_free_gb:2,retention_hours:24,
+    max_storage_gb:8,reserve_free_gb:2,retention_hours:24,
     segment_seconds:90,video_quality:'auto',fps:20,bitrate_mbps:4,
     live_quality:'auto',max_mobile_data_gb:null,mobile_data_alert_pct:80,
     parked_min_voltage_12v:12.2
@@ -271,10 +271,30 @@
   function mediaCheck(key,label,checked){
     return '<label class="media-check"><input type="checkbox" name="'+key+'"'+(checked?' checked':'')+'><span>'+escapeHtml(label)+'</span></label>';
   }
+  function projectFleetStorage(profile){
+    const mbps=Math.max(.25,Math.min(16,Number(profile.bitrate_mbps)||4));
+    const dayGiB=mbps*1e6/8*86400*1.04/1073741824;
+    const limit=profile.max_storage_gb===null||profile.max_storage_gb===''?null:Number(profile.max_storage_gb);
+    const time=limit&&limit>0?limit*24/dayGiB:null;
+    return 'Previsão aproximada para vídeo local: '+dayGiB.toFixed(1)+' GiB a cada 24h · '+
+      (time===null?'SEM TETO lógico de espaço; risco de lotação':
+        'limite escolhido pode reter cerca de '+time.toFixed(1)+' horas ao bitrate definido')+
+      '. Espaço real varia por codec, áudio, USB, eventos protegidos e reserva livre.';
+  }
+  function updateFleetBudget(form){
+    if(!form)return;
+    const node=form.parentElement.querySelector('[data-budget-preview]');
+    if(!node)return;
+    const bitrate=Number(form.elements.bitrate_mbps?.value);
+    const raw=String(form.elements.max_storage_gb?.value??'').trim();
+    node.textContent=projectFleetStorage({bitrate_mbps:bitrate,max_storage_gb:raw===''?null:Number(raw)});
+  }
   function renderMediaPreferences(vehicle){
     if(!state.mediaAvailable)return '<div class="notice warn">Perfil de armazenamento indisponível até aplicar e validar a extensão do banco. Nenhuma configuração foi enviada para o carro.</div>';
     const p={...mediaDefaults,...state.media.find(x=>x.vehicle_id===vehicle.id)};
+    const forecast=projectFleetStorage(p);
     return '<section class="media-panel"><div class="section-actions"><h3>Armazenamento, qualidade e dados móveis</h3></div>'+
+      '<div class="notice" data-budget-preview>'+escapeHtml(forecast)+'</div>'+
       '<p class="muted">Tudo é ajustável POR CARRO. O plano é usar mídia removível quando reconhecida pelo Android e voltar para a interna se habilitado. A preferência não prova que um gravador esteja instalado.</p>'+
       '<form data-media-form="'+escapeHtml(vehicle.id)+'" class="media-form">'+
       '<label class="media-field"><span>Destino dos vídeos</span><select name="storage_target">'+
@@ -289,9 +309,13 @@
       mediaNumber('segment_seconds','Duração dos clipes MP4 (segundos; 90 = 1min30)',p.segment_seconds,10,600,10)+
       '<label class="media-field"><span>Qualidade local</span><select name="video_quality">'+
       mediaOption('auto','Automática',p.video_quality)+mediaOption('720p','720p',p.video_quality)+
-      mediaOption('1080p','1080p',p.video_quality)+mediaOption('oem','Qualidade original da fonte',p.video_quality)+'</select></label>'+
-      mediaNumber('fps','Quadros por segundo (FPS)',p.fps,5,60,1)+
-      mediaNumber('bitrate_mbps','Bitrate de vídeo (Mbps)',p.bitrate_mbps,0.25,50,0.25)+
+      mediaOption('1080p','1080p',p.video_quality)+mediaOption('oem','OEM (limitado pelo codec, não 5120p)',p.video_quality)+'</select></label>'+
+      mediaNumber('fps','FPS desejado (5–20, efetivo depende do aparelho)',p.fps,5,20,1)+
+      mediaNumber('bitrate_mbps','Bitrate de vídeo (Mbps)',p.bitrate_mbps,0.25,16,0.25)+
+      '<div class="media-actions">'+
+      '<button type="button" data-fleet-preset="eco">Econômico · 1,5 Mbps</button>'+
+      '<button type="button" data-fleet-preset="balanced">Equilibrado · 2,5 Mbps</button>'+
+      '<button type="button" data-fleet-preset="quality">Qualidade · 4 Mbps</button></div>'+
       '<label class="media-field"><span>Qualidade da transmissão ao vivo</span><select name="live_quality">'+
       mediaOption('auto','Automática',p.live_quality)+mediaOption('low','Baixa / economizar dados',p.live_quality)+
       mediaOption('standard','Padrão',p.live_quality)+mediaOption('high','Alta',p.live_quality)+'</select></label>'+
@@ -299,7 +323,7 @@
       mediaNumber('mobile_data_alert_pct','Alertar após consumir (%)',p.mobile_data_alert_pct,10,100,5)+
       mediaNumber('parked_min_voltage_12v','Desligar sentinela abaixo de (V)',p.parked_min_voltage_12v,11.5,13.5,0.05,'Só usar após validação do sensor real de 12V')+
       '<div class="media-actions"><button type="submit" class="primary">Salvar perfil deste veículo</button></div>'+
-      '</form><div class="notice warn">Limites são solicitações de configuração; o aplicativo do carro ainda precisa confirmar cada ajuste. Preservação de ocorrências deve ter prioridade sobre a reciclagem automática.</div></section>';
+      '</form><div class="notice warn">Tempo de retenção é um máximo, não promessa de 24 horas. O limite de GB pode eliminar gravações antigas antes disso. Ocorrências protegidas são preservadas. Estas preferências no banco NÃO são transmitidas ao APK automaticamente nem autorizam iniciar uma câmera.</div></section>';
   }
   async function saveMediaPreferences(form){
     if(state.pending||!state.mediaAvailable)return;
@@ -330,7 +354,7 @@
     const bounds=[
       ['max_storage_gb',.5,8192,true],['reserve_free_gb',.25,1024],
       ['retention_hours',1,720],['segment_seconds',10,600],
-      ['fps',5,60],['bitrate_mbps',.25,50],
+      ['fps',5,20],['bitrate_mbps',.25,16],
       ['max_mobile_data_gb',.1,10000,true],['mobile_data_alert_pct',10,100],
       ['parked_min_voltage_12v',11.5,13.5]
     ];
@@ -407,6 +431,20 @@
   byId('cancelEditor').addEventListener('click',closeDialog);
   byId('editorForm').addEventListener('submit',event=>{void saveForm(event);});
   document.addEventListener('click',event=>{
+    const presetButton=event.target.closest('[data-fleet-preset]');
+    if(presetButton){
+      const form=presetButton.closest('[data-media-form]');
+      if(form){
+        const presets={eco:[1.5,12],balanced:[2.5,15],quality:[4,20]};
+        const preset=presets[presetButton.dataset.fleetPreset];
+        if(preset){
+          form.elements.bitrate_mbps.value=String(preset[0]);
+          form.elements.fps.value=String(preset[1]);
+          updateFleetBudget(form);
+        }
+      }
+      return;
+    }
     const vehicleButton = event.target.closest('[data-vehicle]');
     if (vehicleButton) {state.selected=vehicleButton.dataset.vehicle;state.tab='history';render();return;}
     const tabButton = event.target.closest('[data-tab]');
@@ -417,6 +455,10 @@
     if (action==='add-charge') openDialog('charge');
     const edit=event.target.closest('[data-edit-entry]')?.dataset.editEntry;
     if (edit) {const entry=state.entries.find(e=>e.id===edit);if(entry)openDialog('entry',entry);}
+  });
+  document.addEventListener('input',event=>{
+    const form=event.target.closest('[data-media-form]');
+    if(form)updateFleetBudget(form);
   });
   document.addEventListener('submit',event=>{
     const form=event.target.closest('[data-media-form]');
