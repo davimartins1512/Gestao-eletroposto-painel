@@ -7,6 +7,7 @@ import android.net.*;
 import android.net.wifi.*;
 import android.os.*;
 import java.util.List;
+import java.util.ArrayList;
 import java.util.HashSet;
 import java.util.Set;
 import java.util.concurrent.atomic.AtomicBoolean;
@@ -85,22 +86,33 @@ public final class FleetWifiAutoSyncJob extends JobService {
     if(worker!=null&&worker.isAlive())return false;
     cancel.set(false);
     worker=new Thread(()->{
-      int sent=0,existing=0,failed=0;
+      int sent=0,existing=0,failed=0,tooLarge=0,backlog=0;
       long start=SystemClock.elapsedRealtime(),budget=0;
       try{
         FleetCloudUploader.Config cfg=FleetCloudSecretStore.load(getApplicationContext());
         if(cfg==null||cfg.allowMeteredWifi)throw new SecurityException("Credencial ausente ou Wi-Fi medido");
-        List<OemRecordingLibrary.Entry> clips=OemRecordingLibrary.list(getApplicationContext());
+        // Important incidents first; oldest unsynced clips next.
+        // New recordings arriving every 90 seconds must not starve older footage.
+        List<OemRecordingLibrary.Entry> clips=new ArrayList<>(
+          OemRecordingLibrary.list(getApplicationContext()));
+        clips.sort((a,b)->{
+          if(a.protectedEvent!=b.protectedEvent)return a.protectedEvent?-1:1;
+          return Long.compare(a.lastModified,b.lastModified);
+        });
         android.content.SharedPreferences sp=getSharedPreferences(PREFS,MODE_PRIVATE);
         Set<String> done=new HashSet<>(sp.getStringSet("uploaded_markers",new HashSet<String>()));
         Set<String> present=new HashSet<>();
         for(OemRecordingLibrary.Entry clip:clips)present.add(marker(clip));
-        done.retainAll(present); // no unlimited growth after the retention policy deletes files
+        done.retainAll(present); // no unlimited growth after circular local retention
+        for(OemRecordingLibrary.Entry clip:clips)if(!done.contains(marker(clip)))backlog++;
         for(OemRecordingLibrary.Entry clip:clips){
           String item=marker(clip);
           if(done.contains(item))continue;
           if(cancel.get()||!trustedWifi(this)||SystemClock.elapsedRealtime()-start>180000)break;
-          if(sent+existing>=2||budget+clip.sizeBytes>110L*1024*1024)break;
+          if(sent+existing>=2)break;
+          // An oversized file must not block every later clip forever.
+          if(clip.sizeBytes>110L*1024*1024){tooLarge++;continue;}
+          if(budget+clip.sizeBytes>110L*1024*1024)continue;
           budget+=clip.sizeBytes;
           try{
             String result=FleetCloudUploader.uploadOne(getApplicationContext(),cfg,clip.file,cancel,line->{});
@@ -115,7 +127,7 @@ public final class FleetWifiAutoSyncJob extends JobService {
         }
       }catch(Exception e){failed++;}
       finally{
-        record("Wi-Fi autorizado: novos "+sent+", existentes "+existing+", falhas "+failed);
+        record("Wi-Fi autorizado: novos "+sent+", existentes "+existing+", falhas "+failed+", grandes "+tooLarge+", fila inicial "+backlog);
         jobFinished(params,false);
       }
     },"fleet-approved-wifi-only");
