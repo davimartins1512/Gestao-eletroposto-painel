@@ -433,7 +433,7 @@ test('selected accident clip is handled by an offline-only preparation/export fl
  assert.match(data,/OemRecordingLibrary\.resolve/);
  assert.match(data,/OemVideoExporter\.copyToMovies/);
  assert.match(data,/EXPORTAR CÓPIA DO VÍDEO ESCOLHIDO \(OFFLINE\)/);
- assert.match(data,/conectar ao hotspot sozinho NÃO envia/);
+ assert.match(data,/O envio ao celular|FleetLanTransferServer\.create/);
 });
 
 

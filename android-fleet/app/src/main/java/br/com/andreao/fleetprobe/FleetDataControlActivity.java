@@ -22,12 +22,10 @@ import java.util.Locale;
 import android.widget.TextView;
 
 /**
- * Data control dashboard. This is intentionally READ-ONLY wrt network traffic:
- * no INTERNET permission, transfer clients, timers, remote uploads or phone IDs.
- *
- * A verified Wi-Fi hotspot can be used later by an authenticated transfer client
- * only after explicit approval of each clip; Wi-Fi alone does not prove a
- * phone hotspot or that its data is free. The BYD app is out of our control.
+ * No outbound server traffic. The user can expose ONE MP4 temporarily
+ * through a Wi-Fi-bound HTTP listener on a PRIVATE password-protected
+ * smartphone hotspot. QR and sharing are local; no cloud upload.
+ * No automatic monitoring or background sharing.
  */
 public final class FleetDataControlActivity extends Activity {
   private TextView status;
