@@ -52,6 +52,9 @@ jobs:
           for s in ('startPreview(', 'getCameraId(', 'setInt(', 'WakeLock.acquire(', 'adb connect'):
               assert s not in src,s
           assert 'BIND_JOB_SERVICE' in Path('android-fleet/app/src/main/AndroidManifest.xml').read_text()
+          telem=Path('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetTelemetryReadOnly.java').read_text()
+          assert 'STATISTIC_BATTERY_HEALTHY_INDEX' in telem
+          assert 's.soh=range(fid(manager' in telem
           print('Fail-closed source controls verified; BYD hardware not yet validated')
           PY
       - uses: actions/upload-artifact@v4
