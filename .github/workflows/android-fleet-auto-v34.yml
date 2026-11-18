@@ -42,6 +42,16 @@ jobs:
         run: gradle -p android-fleet --no-daemon :app:assembleDebug
       - name: Validate existing functional contracts
         run: node --test tests/fleet-diagnostic-contract.test.mjs tests/fleet-tracker-contract.test.mjs
+      - name: Read-only BYD SOH/SOC/12V JVM simulation
+        run: |
+          javac -d "$RUNNER_TEMP/fleet-oem-test" \
+            android-fleet/v34/tests/android/content/Context.java \
+            android-fleet/v34/tests/android/hardware/bydauto/BYDAutoFeatureIds.java \
+            android-fleet/v34/tests/android/hardware/bydauto/BYDAutoDeviceManager.java \
+            android-fleet/v34/tests/android/hardware/bydauto/statistic/BYDAutoStatisticDevice.java \
+            android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetTelemetryReadOnly.java \
+            android-fleet/v34/tests/br/com/andreao/fleetprobe/FleetTelemetryJvmTest.java
+          java -cp "$RUNNER_TEMP/fleet-oem-test" br.com.andreao.fleetprobe.FleetTelemetryJvmTest
       - name: Check security defaults
         run: |
           python3 - <<'PY'
