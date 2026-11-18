@@ -29,10 +29,11 @@ import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
 
-/** Piloto local de 3 minutos: GPS e sensores Android, apenas após toque explícito. */
+/** Session-based local GPS and Android sensors, explicit consent and foreground notification. */
 public final class TrackerService extends Service implements LocationListener,SensorEventListener {
   public static final String ACTION_START="br.com.andreao.fleetprobe.TRACK_START";
   public static final String ACTION_STOP="br.com.andreao.fleetprobe.TRACK_STOP";
+  public static final String EXTRA_MAX_MINUTES="duration_minutes";
   public static final String PREFS="fleet_tracks";
   public static final String LAST_FILE="last_file";
   public static final String LAST_COUNT="last_count";
@@ -40,7 +41,7 @@ public final class TrackerService extends Service implements LocationListener,Se
   public static final String RUNNING="running";
   private static final String CHANNEL="andreao_fleet_tracking";
   private static final int NOTIFICATION=8127;
-  private static final long MAX_DURATION_MS=180000L;
+  private long durationMs=180000L;
   private final Handler main=new Handler(Looper.getMainLooper());
   private boolean running=false;
   private BufferedWriter writer;
@@ -51,7 +52,7 @@ public final class TrackerService extends Service implements LocationListener,Se
   private int points,sensorRows;
   private float ax,ay,az,gx,gy,gz;
   private String status="Não iniciado";
-  private final Runnable timeout=()->{if(running){stopLogging("Tempo limite de 3 minutos atingido");stopSelf();}};
+  private final Runnable timeout=()->{if(running){stopLogging("Tempo limite da sessão atingido");stopSelf();}};
 
   @Override public void onCreate(){super.onCreate();}
 
@@ -64,6 +65,8 @@ public final class TrackerService extends Service implements LocationListener,Se
     }
     if(ACTION_START.equals(action)){
       if(!running){
+        int minutes=intent.getIntExtra(EXTRA_MAX_MINUTES,3);
+        durationMs=Math.max(3,Math.min(120,minutes))*60000L;
         try{startLogging();}
         catch(Throwable e){
           status="Falha ao iniciar: "+e.getClass().getSimpleName();
@@ -79,16 +82,16 @@ public final class TrackerService extends Service implements LocationListener,Se
     // A notificação deixa claro que a localização está sendo coletada.
     NotificationManager manager=(NotificationManager)getSystemService(NOTIFICATION_SERVICE);
     if(Build.VERSION.SDK_INT>=26 && manager!=null){
-      NotificationChannel channel=new NotificationChannel(CHANNEL,"ANDREAO Fleet · teste GPS",NotificationManager.IMPORTANCE_LOW);
-      channel.setDescription("Coleta local voluntária de GPS e movimento por no máximo três minutos.");
+      NotificationChannel channel=new NotificationChannel(CHANNEL,"ANDREAO Fleet · trajeto GPS local",NotificationManager.IMPORTANCE_LOW);
+      channel.setDescription("Coleta local consentida de GPS e sensores, limitada no tempo e visível.");
       manager.createNotificationChannel(channel);
     }
     Intent stop=new Intent(this,TrackerService.class).setAction(ACTION_STOP);
     PendingIntent action=PendingIntent.getService(this,0,stop,PendingIntent.FLAG_UPDATE_CURRENT|PendingIntent.FLAG_IMMUTABLE);
     Notification note=new Notification.Builder(this,CHANNEL)
       .setSmallIcon(android.R.drawable.ic_menu_compass)
-      .setContentTitle("ANDREAO Fleet · teste GPS ativo")
-      .setContentText("Gravando localização e sensores localmente · máximo 3 min")
+      .setContentTitle("ANDREAO Fleet · GPS local ativo")
+      .setContentText("Salvando GPS no veículo · máximo "+(durationMs/60000L)+" min")
       .setOngoing(true)
       .setCategory(Notification.CATEGORY_SERVICE)
       .addAction(new Notification.Action.Builder(android.R.drawable.ic_menu_close_clear_cancel,"Parar coleta",action).build())
@@ -102,7 +105,7 @@ public final class TrackerService extends Service implements LocationListener,Se
     File dir=getExternalFilesDir(Environment.DIRECTORY_DOCUMENTS);
     if(dir==null)dir=new File(getFilesDir(),"tracks");
     if(!dir.exists()&&!dir.mkdirs())throw new java.io.IOException("Pasta de trajetos indisponível");
-    String name="andreao_fleet_gps_v06_"+new SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date())+".csv";
+    String name="andreao_fleet_gps_"+new SimpleDateFormat("yyyyMMdd_HHmmss",Locale.US).format(new Date())+".csv";
     file=new File(dir,name);
     writer=new BufferedWriter(new OutputStreamWriter(new FileOutputStream(file),"UTF-8"));
     writer.write("timestamp_utc,event,provider,latitude,longitude,accuracy_m,speed_mps,altitude_m,ax_mps2,ay_mps2,az_mps2,gx_rads,gy_rads,gz_rads\n");
@@ -138,7 +141,7 @@ public final class TrackerService extends Service implements LocationListener,Se
       if(accel!=null)sensors.registerListener(this,accel,SensorManager.SENSOR_DELAY_NORMAL);
       if(gyro!=null)sensors.registerListener(this,gyro,SensorManager.SENSOR_DELAY_NORMAL);
     }
-    main.postDelayed(timeout,MAX_DURATION_MS);
+    main.postDelayed(timeout,durationMs);
   }
   private String utc(long millis){
     SimpleDateFormat fmt=new SimpleDateFormat("yyyy-MM-dd'T'HH:mm:ss.SSS'Z'",Locale.US);
