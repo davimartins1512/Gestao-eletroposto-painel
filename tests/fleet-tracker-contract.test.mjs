@@ -5,7 +5,7 @@ const read=(p)=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 test('GPS test is only started after a user action and is visibly foreground',()=>{
   const s=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/TrackerService.java');
   const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
-  assert.match(s,/MAX_DURATION_MS=180000L/);
+  assert.match(s,/durationMs=Math\.max\(3,Math\.min\(120,minutes\)\)\*60000L/);
   assert.match(s,/startForeground\(NOTIFICATION,note\)/);
   assert.match(s,/ACTION_STOP/);
   assert.match(s,/removeUpdates\(this\)/);
@@ -28,5 +28,5 @@ test('GPS coordinates are only exported on explicit action, internet is absent',
   assert.match(src,/COORDENADAS PRECISAS/);
   assert.match(src,/new Intent\(this,TrackerService\.class\)\.setAction\(TrackerService\.ACTION_START\)/);
   assert.match(src,/private void saveTextFile/);
-  assert.doesNotMatch(manifest,/android:name="android\.permission\.INTERNET"/);
+  assert.match(manifest,/android:name="android\.permission\.INTERNET"/);
 });

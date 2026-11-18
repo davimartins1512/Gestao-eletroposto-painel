@@ -5,7 +5,7 @@ const read=p=>readFileSync(new URL('../'+p,import.meta.url),'utf8');
 test('launcher is isolated from camera on startup',()=>{
   const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
   const launcher=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
-  assert.match(manifest,/<activity android:name="\.LaunchActivity" android:exported="true">/);
+  assert.match(manifest,/<activity android:name="\.FleetHomeActivity" android:exported="true">/);
   assert.match(manifest,/<activity android:name="\.MainActivity" android:exported="false"/);
   const before=launcher.split('private void cameraTest()')[0];
   assert.doesNotMatch(before,/getCameraIdList\(/);
@@ -21,7 +21,7 @@ test('all basic diagnostic categories are included',()=>{
 });
 test('offline and permission aware',()=>{
   const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
-  assert.doesNotMatch(manifest,/android:name="android\.permission\.INTERNET"/);
+  assert.match(manifest,/android:name="android\.permission\.INTERNET"/);
   assert.match(manifest,/ACCESS_FINE_LOCATION/);
   assert.match(manifest,/RECORD_AUDIO/);
   assert.match(manifest,/ACCESS_NETWORK_STATE/);
@@ -50,7 +50,7 @@ test('v0.7 mobile data counters are not a carrier quota claim',()=>{
   assert.match(probe,/TrafficStats\.getMobileRxBytes\(\)/);
   assert.match(probe,/NAO sao quantidade de GB restante/);
   const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
-  assert.doesNotMatch(manifest,/android\.permission\.INTERNET/);
+  assert.match(manifest,/android\.permission\.INTERNET/);
   const launch=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
   assert.match(launch,/15 · BYD CarStatus/);
   assert.match(launch,/16 · Uso de dados móveis/);
@@ -400,13 +400,13 @@ test('v2.0 provides honest local Fleet operations view and physically bounded re
 });
 
 
-test('v2.1 never requests INTERNET; data panel only inspects network without sending',()=>{
+test('v2.2 limits INTERNET permission to user-started inbound private-Wi-Fi server',()=>{
  const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
  const policy=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetDataPolicy.java');
  const state=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetNetworkStatus.java');
  const data=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetDataControlActivity.java');
  const launch=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/LaunchActivity.java');
- assert.doesNotMatch(manifest,/uses-permission android:name="android\.permission\.INTERNET"/);
+ assert.match(manifest,/uses-permission android:name="android\.permission\.INTERNET"/);
  assert.match(manifest,/FleetDataControlActivity" android:exported="false"/);
  assert.match(launch,/24 · DADOS/);
  assert.match(state,/TrafficStats\.getUidTxBytes/);
@@ -416,7 +416,7 @@ test('v2.1 never requests INTERNET; data panel only inspects network without sen
  assert.match(state,/NET_CAPABILITY_NOT_METERED/);
  assert.match(data,/Settings\.ACTION_WIFI_SETTINGS/);
  assert.match(data,/OemRecordingLibraryActivity/);
- assert.match(data,/NÃO transfere arquivos por si só/);
+ assert.match(data,/INICIAR|DISPONIBILIZAR MP4/);
  assert.doesNotMatch(data,/URL\(|HttpURLConnection|Socket|upload\(|fetch\(/);
  assert.match(policy,/NO_HOTSPOT_CONFIRMATION/);
  assert.match(policy,/NO_WIFI/);
@@ -434,4 +434,55 @@ test('selected accident clip is handled by an offline-only preparation/export fl
  assert.match(data,/OemVideoExporter\.copyToMovies/);
  assert.match(data,/EXPORTAR CÓPIA DO VÍDEO ESCOLHIDO \(OFFLINE\)/);
  assert.match(data,/conectar ao hotspot sozinho NÃO envia/);
+});
+
+
+test('full integrated home and one-click acceptance connect actual modules without privileged vehicle state',()=>{
+ const manifest=read('android-fleet/app/src/main/AndroidManifest.xml');
+ const home=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetHomeActivity.java');
+ const acceptance=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetAcceptanceActivity.java');
+ const profile=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetProfileActivity.java');
+ const trip=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetTripActivity.java');
+ assert.match(manifest,/FleetHomeActivity" android:exported="true"/);
+ for(const path of ['FleetAcceptanceActivity','FleetTripActivity','FleetProfileActivity']){
+  assert.match(manifest,new RegExp(path+'\\\" android:exported=\\\"false\\\"'));
+  assert.match(home,new RegExp(path+'\\.class'));
+ }
+ for(const path of ['OemFrameProbeActivity','OemRecordingLibraryActivity','FleetDataControlActivity','FleetHealthActivity','StoragePreferencesActivity']){
+  assert.match(home,new RegExp(path+'\\.class'));
+ }
+ assert.match(acceptance,/OemRecordingLibrary\.list/);
+ assert.match(acceptance,/OemMp4Verifier\.verify/);
+ assert.match(acceptance,/StoragePolicy\.inventory/);
+ assert.match(acceptance,/FleetNetworkStatus\.read/);
+ assert.match(acceptance,/TrackerService\.PREFS/);
+ assert.match(acceptance,/NÃO INTEGRADO/);
+ assert.doesNotMatch(acceptance,/startPreview\(|new AVMCamera|startForegroundService\(/);
+ assert.match(profile,/Dolphin Mini/);
+ assert.match(profile,/Yuan Plus/);
+ assert.match(profile,/Dolphin Plus/);
+ assert.match(trip,/TrackerService\.ACTION_START/);
+ assert.match(trip,/TrackerService\.ACTION_STOP/);
+ assert.match(trip,/ACTION_CREATE_DOCUMENT/);
+});
+
+test('manual phone-hotspot incident transfer stays LAN-only, short-lived and token-protected',()=>{
+ const lan=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetLanTransferServer.java');
+ const data=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetDataControlActivity.java');
+ const qr=read('android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetQrCode.java');
+ assert.match(lan,/new SecureRandom\(\)/);
+ assert.match(lan,/ServerSocket/);
+ assert.match(lan,/server\.bind\(new InetSocketAddress\(ip,0\),1\)/);
+ assert.match(lan,/original\.equals\(cm\.getActiveNetwork\(\)\)/);
+ assert.match(lan,/TRANSPORT_WIFI/);
+ assert.match(lan,/TRANSPORT_CELLULAR/);
+ assert.match(lan,/while\(remaining>0 && !closed/);
+ assert.match(lan,/used=true/);
+ assert.match(lan,/WINDOW_MS=10\*60\*1000L/);
+ assert.doesNotMatch(lan,/HttpURLConnection|URL\.openConnection|SocketChannel\.open|Network\.openConnection/);
+ assert.match(data,/FleetLanTransferServer\.create/);
+ assert.match(data,/lanServer|lan=/);
+ assert.match(data,/FleetQrCode\.make/);
+ assert.match(data,/stopLan\(\)/);
+ assert.match(qr,/new QRCodeWriter/);
 });
