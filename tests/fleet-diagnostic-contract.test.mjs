@@ -416,7 +416,7 @@ test('v2.1 never requests INTERNET; data panel only inspects network without sen
  assert.match(state,/NET_CAPABILITY_NOT_METERED/);
  assert.match(data,/Settings\.ACTION_WIFI_SETTINGS/);
  assert.match(data,/OemRecordingLibraryActivity/);
- assert.match(data,/não transfere arquivos por si só/);
+ assert.match(data,/NÃO transfere arquivos por si só/);
  assert.doesNotMatch(data,/URL\(|HttpURLConnection|Socket|upload\(|fetch\(/);
  assert.match(policy,/NO_HOTSPOT_CONFIRMATION/);
  assert.match(policy,/NO_WIFI/);
