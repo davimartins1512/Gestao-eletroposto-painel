@@ -1,0 +1,80 @@
+name: ANDREAO Fleet - homologacao software integrado v3.5
+on:
+  push:
+    branches:
+      - feature/andreao-fleet-remote-v35-20261118
+    paths:
+      - fleet-remote-v35/**
+      - .github/workflows/andreao-fleet-v35.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  remote-backend:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: Restore remote backend from verified source bundle
+        run: |
+          set -euo pipefail
+          base64 --decode fleet-remote-v35/server-sources.tar.xz.b64 > "$RUNNER_TEMP/fleet-server.txz"
+          echo "afa3235d6adf6c969e09d8ad49d992d4b4a9d5fd5712b2bb5abbfd2d34e6a0f1  $RUNNER_TEMP/fleet-server.txz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/andreao"
+          tar -xJf "$RUNNER_TEMP/fleet-server.txz" -C "$RUNNER_TEMP/andreao"
+          test -f "$RUNNER_TEMP/andreao/remote-v35/server.mjs"
+      - name: Test real MP4 streaming, auth, retention and bad upload safety
+        run: node --test "$RUNNER_TEMP/andreao/remote-v35/test/"*.test.mjs
+      - name: Publish server source bundle as CI artifact (no deployment)
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANDREAO-Fleet-v3.5-Servidor-Source-Homologado
+          path: fleet-remote-v35/server-sources.tar.xz.b64
+          retention-days: 14
+  integrated-android:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with: {distribution: temurin, java-version: '17'}
+      - uses: gradle/actions/setup-gradle@v4
+        with: {gradle-version: '8.9'}
+      - name: Integrate Android camera, cloud client, BYD telemetry and Wi-Fi sync
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/fleet-remote-src"
+          base64 --decode android-fleet/remote-v32/overlay.tar.xz.b64 | tar -xJ -C "$RUNNER_TEMP/fleet-remote-src"
+          python3 "$RUNNER_TEMP/fleet-remote-src/apply_to_existing_project.py" android-fleet
+          cp android-fleet/v33/FleetTelemetryReadOnly.java android-fleet/app/src/main/java/br/com/andreao/fleetprobe/
+          cp android-fleet/v33/FleetTelemetryActivity.java android-fleet/app/src/main/java/br/com/andreao/fleetprobe/
+          python3 android-fleet/v33/apply_v33.py android-fleet
+          cp android-fleet/v34/FleetWifiAutoSyncJob.java android-fleet/app/src/main/java/br/com/andreao/fleetprobe/
+          python3 android-fleet/v34/apply_v34.py android-fleet
+      - name: Install Android SDK 35
+        run: |
+          SDK_MANAGER="$(command -v sdkmanager || find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -1)"
+          "$SDK_MANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+      - name: Build Android debug APK
+        run: gradle -p android-fleet --no-daemon :app:assembleDebug
+      - name: Test Android contracts
+        run: node --test tests/fleet-diagnostic-contract.test.mjs tests/fleet-tracker-contract.test.mjs
+      - name: Test simulated BYD permission denial, SOC, SOH and 12V
+        run: |
+          mkdir -p "$RUNNER_TEMP/fleet-bms-test"
+          javac -d "$RUNNER_TEMP/fleet-bms-test" \
+            android-fleet/v34/tests/android/content/Context.java \
+            android-fleet/v34/tests/android/hardware/bydauto/BYDAutoFeatureIds.java \
+            android-fleet/v34/tests/android/hardware/bydauto/BYDAutoDeviceManager.java \
+            android-fleet/v34/tests/android/hardware/bydauto/statistic/BYDAutoStatisticDevice.java \
+            android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetTelemetryReadOnly.java \
+            android-fleet/v34/tests/br/com/andreao/fleetprobe/FleetTelemetryJvmTest.java
+          java -cp "$RUNNER_TEMP/fleet-bms-test" br.com.andreao.fleetprobe.FleetTelemetryJvmTest
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ANDREAO-Fleet-Android-v3.4-integrado-com-servidor-v3.5
+          path: android-fleet/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 14
