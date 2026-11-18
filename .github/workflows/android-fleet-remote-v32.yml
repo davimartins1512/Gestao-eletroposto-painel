@@ -1,0 +1,53 @@
+name: ANDREAO Fleet remoto v3.2 - APK de homologacao
+on:
+  push:
+    branches:
+      - feature/andreao-fleet-remote-v32-20261118
+    paths:
+      - android-fleet/remote-v32/**
+      - .github/workflows/android-fleet-remote-v32.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  build-remote-apk:
+    runs-on: ubuntu-latest
+    timeout-minutes: 25
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: '17'
+      - name: Restore v3.2 Android integration source
+        run: |
+          set -euo pipefail
+          mkdir -p "$RUNNER_TEMP/fleet-remote-src"
+          base64 --decode android-fleet/remote-v32/overlay.tar.xz.b64 | tar -xJ -C "$RUNNER_TEMP/fleet-remote-src"
+          python3 "$RUNNER_TEMP/fleet-remote-src/apply_to_existing_project.py" android-fleet
+          grep -q "3.2.0-remote-preview" android-fleet/app/build.gradle
+      - name: Install Android SDK 35
+        run: |
+          SDK_MANAGER="$(command -v sdkmanager || find "$ANDROID_HOME/cmdline-tools" -type f -name sdkmanager | head -1)"
+          "$SDK_MANAGER" 'platforms;android-35' 'build-tools;35.0.0'
+      - uses: gradle/actions/setup-gradle@v4
+        with:
+          gradle-version: '8.9'
+      - name: Compile APK
+        run: gradle -p android-fleet --no-daemon :app:assembleDebug
+      - name: Test Android contracts
+        run: node --test tests/fleet-diagnostic-contract.test.mjs tests/fleet-tracker-contract.test.mjs
+      - name: Test disk and data-policy logic
+        run: |
+          mkdir -p "$RUNNER_TEMP/fleet-policy"
+          javac -d "$RUNNER_TEMP/fleet-policy" android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetStorageMath.java android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetRetentionPlanner.java android-fleet/app/src/main/java/br/com/andreao/fleetprobe/FleetDataPolicy.java android-fleet/app/src/main/java/br/com/andreao/fleetprobe/Nv21Downsampler.java tests/java/br/com/andreao/fleetprobe/FleetPolicyJvmTest.java
+          java -cp "$RUNNER_TEMP/fleet-policy" br.com.andreao.fleetprobe.FleetPolicyJvmTest
+      - name: Print APK metadata
+        run: |
+          sha256sum android-fleet/app/build/outputs/apk/debug/app-debug.apk
+          ls -l android-fleet/app/build/outputs/apk/debug/app-debug.apk
+      - uses: actions/upload-artifact@v4
+        with:
+          name: ANDREAO-Fleet-v3.2-APK-Homologacao
+          path: android-fleet/app/build/outputs/apk/debug/app-debug.apk
+          retention-days: 30
