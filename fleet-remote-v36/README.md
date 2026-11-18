@@ -11,3 +11,5 @@ Pacote incremental sobre a branch v3.5, sem produção nem instalação automát
 Reconstrução do backend: extrair bundle v3.5, extrair source-patch v3.6, aplicar os três scripts e copiar testes. O fluxo automatizado faz essa reconstrução e valida hashes.
 
 Ainda faltam hospedagem HTTPS com armazenamento persistente, autorização de acesso BMS na multimídia e segurança física da câmera durante condução. Não substituir Electro.
+
+Corrigida também uma condição rara da limpeza periódica: ela não descarta mídia antiga apenas para abrir espaço a upload ainda não validado. Incluído teste HTTP com transmissão parcial em andamento (12 testes totais).

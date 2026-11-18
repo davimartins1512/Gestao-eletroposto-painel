@@ -30,11 +30,12 @@ jobs:
         run: |
           set -euo pipefail
           base64 --decode fleet-remote-v36/source-patch.tar.xz.b64 > "$RUNNER_TEMP/patch-v36.txz"
-          echo "9aa51cff06517c81092abdb39b4d5930c069b65b74e918bb757f8d7de4dbdb4b  $RUNNER_TEMP/patch-v36.txz" | sha256sum -c -
+          echo "d707713041efbb61705000b9b8e5a75ef7d3f49c49d76163ee41bd2921951f9d  $RUNNER_TEMP/patch-v36.txz" | sha256sum -c -
           tar -xJf "$RUNNER_TEMP/patch-v36.txz" -C "$RUNNER_TEMP/source"
           python3 "$RUNNER_TEMP/source/v36-patch/apply_server_v36.py" "$RUNNER_TEMP/source/remote-v35"
           python3 "$RUNNER_TEMP/source/v36-patch/apply_reservation_v36.py" "$RUNNER_TEMP/source/remote-v35"
           python3 "$RUNNER_TEMP/source/v36-patch/apply_routes_v36.py" "$RUNNER_TEMP/source/remote-v35"
+          python3 "$RUNNER_TEMP/source/v36-patch/apply_cleanup_v36.py" "$RUNNER_TEMP/source/remote-v35"
           cp "$RUNNER_TEMP/source/v36-patch/test/"*.test.mjs "$RUNNER_TEMP/source/remote-v35/test/"
       - name: Run all server tests including disk failure and vehicle IDs
         run: |
