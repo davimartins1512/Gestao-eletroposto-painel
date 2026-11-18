@@ -8,14 +8,14 @@ public final class FleetTelemetryReadOnly {
   private FleetTelemetryReadOnly(){}
   private static final String BASE="android.hardware.bydauto.";
   public static final class Snapshot {
-    public Double soc, rangeKm, odometerKm, speedKmh, voltage12v, hvVoltage, hvCurrent;
+    public Double soc, soh, rangeKm, odometerKm, speedKmh, voltage12v, hvVoltage, hvCurrent;
     public Integer gear;
     public final String source="BYD DiLink HAL (leitura passiva, se permitida)";
     private static String value(Double x,String unit){return x==null?"indisponível":String.format(Locale.US,"%.2f %s",x,unit);}
     public String report(){
       return "FLEET · TELEMETRIA SOMENTE LEITURA\nFonte: "+source+
         "\nSOC tração: "+value(soc,"%")+
-        "\nSOH tração: indisponível (sem fonte OEM validada)"+
+        "\nSOH tração (FID OEM): "+value(soh,"%")+
         "\nBateria auxiliar 12V: "+value(voltage12v,"V")+
         "\nAutonomia EV: "+value(rangeKm,"km")+
         "\nOdômetro: "+value(odometerKm,"km")+
@@ -37,6 +37,7 @@ public final class FleetTelemetryReadOnly {
     Double g=range(call(instance(ctx,BASE+"gearbox.BYDAutoGearboxDevice"),"getGearboxAutoModeType"),1,15);
     if(g!=null)s.gear=g.intValue();
     Object manager=instance(ctx,BASE+"BYDAutoDeviceManager");
+    s.soh=range(fid(manager,"Statistic","STATISTIC_BATTERY_HEALTHY_INDEX",1014,false),1,100);
     s.voltage12v=range(fid(manager,"Ota","OTA_BATTERY_POWER_VOLTAGE",1001,true),6,20);
     s.hvVoltage=range(fid(manager,"Charging","CHARGING_CHARGE_BATTERY_VOLT",1009,false),50,1000);
     s.hvCurrent=range(fid(manager,"Charging","CHARGING_CHARGE_CURRENT",1009,true),-1000,1000);
