@@ -57,8 +57,10 @@ jobs:
         shell: bash
         run: |
           set -euo pipefail
-          tar -C "$RUNNER_TEMP/source" -cJf "$RUNNER_TEMP/ANDREAO_Fleet_servidor_v37_completo.tar.xz" remote-v35
-          sha256sum "$RUNNER_TEMP/ANDREAO_Fleet_servidor_v37_completo.tar.xz" | tee "$RUNNER_TEMP/servidor-v37.sha256"
+          cat "$RUNNER_TEMP/source/patch-v37/README.md" >> "$RUNNER_TEMP/source/remote-v35/README.md"
+          mv "$RUNNER_TEMP/source/remote-v35" "$RUNNER_TEMP/source/ANDREAO-Fleet-Servidor-v37"
+          tar -C "$RUNNER_TEMP/source" -cJf "$RUNNER_TEMP/ANDREAO_Fleet_servidor_v37_completo.tar.xz" ANDREAO-Fleet-Servidor-v37
+          (cd "$RUNNER_TEMP"; sha256sum ANDREAO_Fleet_servidor_v37_completo.tar.xz > servidor-v37.sha256)
           ls -lh "$RUNNER_TEMP/ANDREAO_Fleet_servidor_v37_completo.tar.xz"
       - name: Armazenar servidor executavel e comprovantes de teste
         uses: actions/upload-artifact@v4
