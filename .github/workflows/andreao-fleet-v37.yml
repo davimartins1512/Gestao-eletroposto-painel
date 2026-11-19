@@ -1,0 +1,81 @@
+name: ANDREAO Fleet v3.7 - recuperacao de video e teste unico
+on:
+  push:
+    branches:
+      - feature/andreao-fleet-recuperacao-v37-20261118
+    paths:
+      - fleet-remote-v37/**
+      - .github/workflows/andreao-fleet-v37.yml
+  workflow_dispatch:
+permissions:
+  contents: read
+jobs:
+  homologacao-servidor:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with: { node-version: '22' }
+      - name: Recuperar fontes originais verificadas v3.5
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode fleet-remote-v35/server-sources.tar.xz.b64 > "$RUNNER_TEMP/v35.txz"
+          echo "afa3235d6adf6c969e09d8ad49d992d4b4a9d5fd5712b2bb5abbfd2d34e6a0f1  $RUNNER_TEMP/v35.txz" | sha256sum -c -
+          mkdir -p "$RUNNER_TEMP/source"
+          tar -xJf "$RUNNER_TEMP/v35.txz" -C "$RUNNER_TEMP/source"
+      - name: Recuperar correcoes validadas v3.6
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode fleet-remote-v36/source-patch.tar.xz.b64 > "$RUNNER_TEMP/v36.txz"
+          echo "d707713041efbb61705000b9b8e5a75ef7d3f49c49d76163ee41bd2921951f9d  $RUNNER_TEMP/v36.txz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/v36.txz" -C "$RUNNER_TEMP/source"
+          python3 "$RUNNER_TEMP/source/v36-patch/apply_server_v36.py" "$RUNNER_TEMP/source/remote-v35"
+          python3 "$RUNNER_TEMP/source/v36-patch/apply_reservation_v36.py" "$RUNNER_TEMP/source/remote-v35"
+          python3 "$RUNNER_TEMP/source/v36-patch/apply_routes_v36.py" "$RUNNER_TEMP/source/remote-v35"
+          python3 "$RUNNER_TEMP/source/v36-patch/apply_cleanup_v36.py" "$RUNNER_TEMP/source/remote-v35"
+          cp "$RUNNER_TEMP/source/v36-patch/test/"*.test.mjs "$RUNNER_TEMP/source/remote-v35/test/"
+      - name: Recuperar commits de MP4 e isolar identificadores de clipe v3.7
+        shell: bash
+        run: |
+          set -euo pipefail
+          base64 --decode fleet-remote-v37/source-patch.tar.xz.b64 > "$RUNNER_TEMP/v37.txz"
+          echo "cbc1b85e5ccf37b75d4f07e6f5f3823a7e9426d55cfeded00cb7545c21461ef1  $RUNNER_TEMP/v37.txz" | sha256sum -c -
+          tar -xJf "$RUNNER_TEMP/v37.txz" -C "$RUNNER_TEMP/source"
+          python3 "$RUNNER_TEMP/source/patch-v37/apply_patch.py" "$RUNNER_TEMP/source/remote-v35"
+          cp "$RUNNER_TEMP/source/patch-v37/test/"*.test.mjs "$RUNNER_TEMP/source/remote-v35/test/"
+          echo "736241daaeee73d472731630fdeddce781699a3d04df55b4c941c3c9b79c8913  $RUNNER_TEMP/source/remote-v35/server.mjs" | sha256sum -c -
+      - name: Testar acesso remoto, gravacoes, falha de disco e reinicializacao
+        shell: bash
+        run: |
+          cd "$RUNNER_TEMP/source/remote-v35"
+          node --test
+      - name: Armazenar pacote de fonte sem publicar servidor
+        uses: actions/upload-artifact@v4
+        with:
+          name: ANDREAO-Fleet-v3.7-Fonte-Verificada-Sem-Deploy
+          path: fleet-remote-v37/source-patch.tar.xz.b64
+          retention-days: 14
+  verificar-apk-android-integro:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v4
+        with: {fetch-depth: 2}
+      - name: Android inalterado desde a v3.6 homologada em CI
+        run: |
+          set -euo pipefail
+          git diff --exit-code 00a5fa95556dc059ae20e74ea878ac11ceb6dddb HEAD -- android-fleet/
+      - name: Recuperar APK integrado ja compilado no v3.6
+        uses: actions/download-artifact@v4
+        with:
+          name: ANDREAO-Fleet-v3.6-APK-Homologacao-Software
+          run-id: 44423284555
+          github-token: ${{ github.token }}
+          path: android-apk-verificado
+      - name: Validar integridade binaria sem criar APK intermediario
+        run: |
+          echo "baf61e59c774a6fba20bb914939f111e673a28e9f7e88ea14a8405187d03b2c2  android-apk-verificado/app-debug.apk" | sha256sum -c -
+          echo "Nao instala, nao publica, nao transmite dados: binario ja compilado na v3.6."
