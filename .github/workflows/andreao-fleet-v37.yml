@@ -63,7 +63,7 @@ jobs:
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v4
-        with: {fetch-depth: 2}
+        with: {fetch-depth: 0}
       - name: Android inalterado desde a v3.6 homologada em CI
         run: |
           set -euo pipefail
