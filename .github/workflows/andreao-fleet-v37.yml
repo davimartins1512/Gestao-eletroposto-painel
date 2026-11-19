@@ -50,13 +50,24 @@ jobs:
       - name: Testar acesso remoto, gravacoes, falha de disco e reinicializacao
         shell: bash
         run: |
+          set -euo pipefail
           cd "$RUNNER_TEMP/source/remote-v35"
-          node --test
-      - name: Armazenar pacote de fonte sem publicar servidor
+          node --test | tee "$RUNNER_TEMP/resultado-v37.txt"
+      - name: Entregar fonte completa reconstruida, nao apenas patches
+        shell: bash
+        run: |
+          set -euo pipefail
+          tar -C "$RUNNER_TEMP/source" -cJf "$RUNNER_TEMP/ANDREAO_Fleet_servidor_v37_completo.tar.xz" remote-v35
+          sha256sum "$RUNNER_TEMP/ANDREAO_Fleet_servidor_v37_completo.tar.xz" | tee "$RUNNER_TEMP/servidor-v37.sha256"
+          ls -lh "$RUNNER_TEMP/ANDREAO_Fleet_servidor_v37_completo.tar.xz"
+      - name: Armazenar servidor executavel e comprovantes de teste
         uses: actions/upload-artifact@v4
         with:
-          name: ANDREAO-Fleet-v3.7-Fonte-Verificada-Sem-Deploy
-          path: fleet-remote-v37/source-patch.tar.xz.b64
+          name: ANDREAO-Fleet-v3.7-Servidor-Completo-Testado
+          path: |
+            ${{ runner.temp }}/ANDREAO_Fleet_servidor_v37_completo.tar.xz
+            ${{ runner.temp }}/resultado-v37.txt
+            ${{ runner.temp }}/servidor-v37.sha256
           retention-days: 14
   verificar-apk-android-integro:
     runs-on: ubuntu-latest
