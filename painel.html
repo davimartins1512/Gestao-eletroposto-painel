@@ -6705,6 +6705,56 @@ function walletPaymentMethodLabel(
 }
 
 
+const walletReleaseBusy=new Set();
+function walletReservationReason(code){
+  return ({reservation_has_session:'Carga vinculada: encerre e concilie a carga primeiro.',
+    customer_has_active_session:'Cliente com carga em andamento.',
+    connector_has_active_session:'Bico carregando, suspenso ou finalizando.',
+    charger_offline:'Máquina sem comunicação recente. Reconecte para confirmar.',
+    connector_unconfirmed:'Estado do bico ainda não confirmado.',
+    authorization_requires_review:'Autorização precisa de revisão.',
+    reservation_authorization_mismatch:'Vínculo da reserva precisa de revisão.'})[code]||'Reserva indisponível para liberação.';
+}
+function walletReservationSection(customerId,reservations=[],history=[]){
+  const rows=reservations.map(r=>`<tr><td>${money(Number(r.reserved_amount||0))}<div class="tiny">${esc(new Date(r.created_at).toLocaleString('pt-BR'))}</div></td>
+    <td>${esc(r.charger_name||r.ocpp_identity||'Máquina')} • bico ${esc(r.connector_id??'—')}<div class="tiny">${esc(r.connector_status||'Sem confirmação')}</div></td>
+    <td>${r.block_reason?`<span class="tiny">${esc(walletReservationReason(r.block_reason))}</span>`:
+      `<button class="btn secondary small" onclick="openWalletReservationRelease('${customerId}','${esc(r.id)}',${Number(r.reserved_amount)||0})">Liberar reserva</button>`}</td></tr>`).join('');
+  const logs=history.map(h=>`<li>${esc(new Date(h.released_at).toLocaleString('pt-BR'))} • ${money(Number(h.details?.amount||0))}
+    <div class="tiny">${esc(h.details?.reason||'Liberação administrativa')}</div></li>`).join('');
+  return `<div class="box" style="margin-bottom:16px"><b>Reservas de carga</b>
+    <p class="tiny">Libere o saldo de uma tentativa que não iniciou. O sistema cancela a autorização antiga e confere novamente se existe carga vinculada.</p>
+    ${rows?`<div class="table-wrap"><table><tr><th>Valor reservado</th><th>Carregador</th><th>Ação</th></tr>${rows}</table></div>`:'<div class="empty">Nenhuma reserva pendente.</div>'}
+    ${logs?`<details style="margin-top:12px"><summary>Histórico de liberações</summary><ul>${logs}</ul></details>`:''}</div>`;
+}
+function openWalletReservationRelease(customerId,reservationId,amount){
+  showModal('Liberar reserva de saldo',`<p>Devolver <b>${money(amount)}</b> ao saldo disponível e cancelar a tentativa antiga de carga?</p>
+    <p class="tiny">O saldo total permanece igual. Cargas vinculadas ou em andamento impedem a liberação.</p>
+    <label for="walletReleaseReason">Motivo da liberação</label><textarea id="walletReleaseReason" maxlength="300" placeholder="Ex.: tentativa de carga não iniciou"></textarea>
+    <div style="display:flex;gap:8px;flex-wrap:wrap;margin-top:14px"><button class="btn" id="walletReleaseConfirm" onclick="releaseWalletReservation('${customerId}','${reservationId}')">Confirmar liberação</button>
+    <button class="btn secondary" onclick="openCustomerWallet('${customerId}')">Voltar à carteira</button></div>`);
+}
+async function releaseWalletReservation(customerId,reservationId){
+  if(walletReleaseBusy.has(reservationId))return;
+  const reason=document.getElementById('walletReleaseReason')?.value.trim()||'';
+  if(reason.length<3||reason.length>300)return alert('Informe um motivo entre 3 e 300 caracteres.');
+  const button=document.getElementById('walletReleaseConfirm');
+  walletReleaseBusy.add(reservationId);if(button){button.disabled=true;button.textContent='Liberando…';}
+  try{
+    const token=await getAdminAccessToken();if(!token)throw new Error('Sessão de administrador inválida.');
+    const response=await fetch(BACKEND_URL+`/api/admin/customers/${customerId}/wallet/reservations/${reservationId}/release`,{
+      method:'POST',headers:{authorization:`Bearer ${token}`,'content-type':'application/json'},body:JSON.stringify({reason})});
+    const body=await response.json().catch(()=>({}));
+    if(!response.ok||body.success!==true)throw new Error(body.message||'Não foi possível confirmar a liberação. Atualize a carteira antes de tentar novamente.');
+    alert(body.already_processed?'Esta reserva já foi processada. O saldo não foi liberado novamente.':`${money(Number(body.released_amount||0))} liberados para uso na carteira.`);
+    await loadOcppCustomers();await openCustomerWallet(customerId);
+  }catch(err){
+    alert(err.message||'Falha de comunicação. Atualize a carteira para conferir o saldo antes de tentar novamente.');
+  }finally{
+    walletReleaseBusy.delete(reservationId);if(button){button.disabled=false;button.textContent='Confirmar liberação';}
+  }
+}
+
 async function openCustomerWallet(
   customerId
 ) {
@@ -6902,6 +6952,8 @@ async function openCustomerWallet(
     showModal(
       `Carteira — ${esc(customer.name || 'Cliente')}`,
       `
+
+        ${walletReservationSection(customerId,body.reservations||[],body.reservation_release_history||[])}
 
         <div
           class="grid"
@@ -11086,5 +11138,6 @@ async function retryWhatsapp(sessionId, button) {
 </script>
 </body>
 </html>
+
 
 
