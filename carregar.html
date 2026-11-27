@@ -1175,6 +1175,7 @@ input:focus{
 <!-- CARTEIRA PRÉ-PAGA - COMPACTA -->
 <!-- ===================================================== -->
 
+<div id="walletHomeSlot"></div>
 <div
   id="walletBox"
   class="hidden"
@@ -1263,7 +1264,7 @@ input:focus{
       font-size:12px;
     "
   >
-    Saldo reservado:
+    <span id="walletReservedLabel">Saldo reservado:</span>
     <b id="walletReserved">
       R$ 0,00
     </b>
@@ -1420,8 +1421,8 @@ input:focus{
       color:#94a3b8;
     "
   >
-    Pagamento seguro via InfinitePay.
-    O saldo é atualizado após a confirmação.
+    <span id="walletTopupHelp">Pagamento seguro via InfinitePay.
+    O saldo é atualizado após a confirmação.</span>
   </div>
 
 </div>
@@ -1689,6 +1690,7 @@ input:focus{
 >
   ■ Encerrar recarga
 </button>
+<div id="chargingWalletSlot"></div>
 
   </section>
 
@@ -2421,7 +2423,9 @@ async function loadWallet(
         setMessage(
           $('walletMessage'),
           'success',
-          '✅ Pagamento confirmado. Saldo adicionado com sucesso!'
+          currentScreenName==='charging'
+            ? '✅ Saldo confirmado! O crédito amplia a carga em andamento se ela ainda não estiver encerrando.'
+            : '✅ Pagamento confirmado. Saldo adicionado com sucesso!'
         );
       }
     }
@@ -2791,7 +2795,23 @@ const screens = {
 };
 
 
+let currentScreenName='';
+let lastLiveWalletRefresh=0;
+let liveWalletRefreshRunning=false;
+
+function positionWallet(name) {
+  const box=$('walletBox');
+  const slot=$(name==='charging'?'chargingWalletSlot':'walletHomeSlot');
+  if(box && slot && box.parentElement!==slot)slot.appendChild(box);
+  if($('walletTopupHelp'))$('walletTopupHelp').textContent=name==='charging'
+    ? 'Adicione saldo sem encerrar a carga. Após a confirmação, o crédito amplia esta carga automaticamente. Pague antes de o saldo acabar; se a parada já foi solicitada, o valor fica para a próxima carga.'
+    : 'Pagamento seguro via InfinitePay. O saldo é atualizado após a confirmação.';
+  if($('walletReservedLabel'))$('walletReservedLabel').textContent=name==='charging'?'Crédito reservado para carregar:':'Saldo reservado:';
+}
+
 function showScreen(name) {
+  currentScreenName=name;
+  positionWallet(name);
 
   Object.values(
     screens
@@ -4869,6 +4889,13 @@ function renderCharging(
  showScreen(
   'charging'
 );
+  renderWallet();
+  // Refresh while charging without overlapping the checkout polling requests.
+  if(customerIsPrepaid() && !liveWalletRefreshRunning && !walletPollTimer && Date.now()-lastLiveWalletRefresh>=10000){
+    lastLiveWalletRefresh=Date.now();liveWalletRefreshRunning=true;
+    void loadWallet(true).finally(()=>{liveWalletRefreshRunning=false;});
+  }
+
 
 
 // ============================================================
@@ -5423,4 +5450,5 @@ bootstrap();
 
 </body>
 </html>
+
 
